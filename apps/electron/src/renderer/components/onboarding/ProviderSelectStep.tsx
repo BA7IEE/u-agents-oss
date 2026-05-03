@@ -8,6 +8,9 @@ import claudeIcon from "@/assets/provider-icons/claude.svg"
 import openaiIcon from "@/assets/provider-icons/openai.svg"
 import copilotIcon from "@/assets/provider-icons/copilot.svg"
 
+// U-API: this step is intentionally not reached by the M1 onboarding state machine.
+// Keep it in place as an upstream sync anchor and defensive fallback.
+
 /**
  * The high-level provider choice the user makes on first launch.
  * This maps to one or more ApiSetupMethods downstream.

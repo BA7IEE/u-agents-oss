@@ -51,6 +51,7 @@ import { RenameDialog } from '@/components/ui/rename-dialog'
 import { useAppShellContext } from '@/context/AppShellContext'
 import { getModelShortName, type ModelDefinition } from '@config/models'
 import { getModelsForProviderType, type CustomEndpointApi } from '@config/llm-connections'
+import { U_API_SLUG } from '@config/u-api-defaults'
 import { toast } from 'sonner'
 
 /**
@@ -187,6 +188,7 @@ function ConnectionRow({ connection, isLastConnection, onRenameClick, onDelete, 
   const { t } = useTranslation()
   const [menuOpen, setMenuOpen] = useState(false)
   const [piBaseUrl, setPiBaseUrl] = useState<string | undefined>(undefined)
+  const isUApiConnection = connection.slug === U_API_SLUG
 
   // Opening dialog/overlay flows directly from a dropdown item can race with
   // menu teardown and leave a transient interaction lock behind on some systems.
@@ -229,7 +231,7 @@ function ConnectionRow({ connection, isLastConnection, onRenameClick, onDelete, 
         parts.push(piLabel ?? 'U-API')
         break
       }
-      case 'pi_compat': parts.push('U-API Compatible'); break
+      case 'pi_compat': parts.push('U-API'); break
       default: parts.push(provider || 'Unknown')
     }
 
@@ -285,11 +287,13 @@ function ConnectionRow({ connection, isLastConnection, onRenameClick, onDelete, 
           </button>
         </DropdownMenuTrigger>
         <StyledDropdownMenuContent align="end">
-          <StyledDropdownMenuItem onClick={() => runAfterMenuClose(onRenameClick)}>
-            <Pencil className="h-3.5 w-3.5" />
-            <span>{t("common.rename")}</span>
-          </StyledDropdownMenuItem>
-          {!connection.isDefault && (
+          {!isUApiConnection && (
+            <StyledDropdownMenuItem onClick={() => runAfterMenuClose(onRenameClick)}>
+              <Pencil className="h-3.5 w-3.5" />
+              <span>{t("common.rename")}</span>
+            </StyledDropdownMenuItem>
+          )}
+          {!isUApiConnection && !connection.isDefault && (
             <StyledDropdownMenuItem onClick={onSetDefault}>
               <Star className="h-3.5 w-3.5" />
               <span>{t("settings.ai.setAsDefault")}</span>
@@ -313,15 +317,19 @@ function ConnectionRow({ connection, isLastConnection, onRenameClick, onDelete, 
             <CheckCircle2 className="h-3.5 w-3.5" />
             <span>{t("settings.ai.validateConnection")}</span>
           </StyledDropdownMenuItem>
-          <StyledDropdownMenuSeparator />
-          <StyledDropdownMenuItem
-            onClick={onDelete}
-            variant="destructive"
-            disabled={isLastConnection}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            <span>{t("common.delete")}</span>
-          </StyledDropdownMenuItem>
+          {!isUApiConnection && (
+            <>
+              <StyledDropdownMenuSeparator />
+              <StyledDropdownMenuItem
+                onClick={onDelete}
+                variant="destructive"
+                disabled={isLastConnection}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span>{t("common.delete")}</span>
+              </StyledDropdownMenuItem>
+            </>
+          )}
         </StyledDropdownMenuContent>
       </DropdownMenu>
     </SettingsRow>
@@ -548,6 +556,7 @@ function WorkspaceOverrideCard({ workspace, llmConnections, onSettingsChange }: 
 
 /** Map a connection's provider type to the corresponding API key setup method. */
 function getApiKeyMethodForConnection(conn: LlmConnectionWithStatus): ApiSetupMethod {
+  if (conn.slug === U_API_SLUG) return 'u_api'
   const provider = conn.providerType || conn.type
   if (provider === 'pi' || provider === 'pi_compat') return 'pi_api_key'
   return 'anthropic_api_key'
@@ -560,6 +569,10 @@ function getApiKeyMethodForConnection(conn: LlmConnectionWithStatus): ApiSetupMe
 export default function AiSettingsPage() {
   const { t } = useTranslation()
   const { llmConnections, refreshLlmConnections, activeWorkspaceId } = useAppShellContext()
+  const uApiConnections = useMemo(
+    () => llmConnections.filter(c => c.slug === U_API_SLUG),
+    [llmConnections],
+  )
 
   // API Setup overlay state
   const [showApiSetup, setShowApiSetup] = useState(false)
@@ -641,13 +654,14 @@ export default function AiSettingsPage() {
 
   // Derive existing slugs for unique slug generation
   const existingSlugs = useMemo(
-    () => new Set(llmConnections.map(c => c.slug)),
-    [llmConnections],
+    () => new Set(uApiConnections.map(c => c.slug)),
+    [uApiConnections],
   )
 
   // OnboardingWizard hook for editing API connection
   const apiSetupOnboarding = useOnboarding({
-    initialStep: 'provider-select',
+    initialStep: 'credentials',
+    initialApiSetupMethod: 'u_api',
     onConfigSaved: refreshLlmConnections,
     onComplete: () => {
       closeApiSetup()
@@ -683,13 +697,13 @@ export default function AiSettingsPage() {
   // Handler for re-authenticate button in credential health banner
   const handleReauthenticate = useCallback(() => {
     // Open API setup for the default connection (or first connection if available)
-    const defaultConn = llmConnections.find(c => c.isDefault) || llmConnections[0]
+    const defaultConn = uApiConnections.find(c => c.isDefault) || uApiConnections[0]
     if (defaultConn) {
       openApiSetup(defaultConn.slug)
     } else {
       openApiSetup()
     }
-  }, [llmConnections, openApiSetup])
+  }, [uApiConnections, openApiSetup])
 
   // Connection action handlers
   const handleRenameClick = useCallback((connection: LlmConnectionWithStatus) => {
@@ -842,8 +856,8 @@ export default function AiSettingsPage() {
 
   // Get the default connection for display
   const defaultConnection = useMemo(() => {
-    return llmConnections.find(c => c.isDefault)
-  }, [llmConnections])
+    return uApiConnections.find(c => c.isDefault) || uApiConnections[0]
+  }, [uApiConnections])
 
   const defaultModel = defaultConnection?.defaultModel ?? ''
 
@@ -906,23 +920,9 @@ export default function AiSettingsPage() {
 
             <div className="space-y-8">
               {/* Default Settings - only show if connections exist */}
-              {llmConnections.length > 0 && (
+              {uApiConnections.length > 0 && (
               <SettingsSection title={t("settings.ai.defaultSection")} description={t("settings.ai.defaultSectionDesc")}>
                 <SettingsCard>
-                  <SettingsMenuSelectRow
-                    label={t("settings.ai.connection")}
-                    description={t("settings.ai.connectionDesc")}
-                    value={defaultConnection?.slug || ''}
-                    onValueChange={handleSetDefaultConnection}
-                    options={llmConnections.map((conn) => ({
-                      value: conn.slug,
-                      label: conn.name,
-                      description: conn.providerType === 'anthropic' ? 'Anthropic API' :
-                                   conn.providerType === 'pi' ? 'U-API' :
-                                   conn.providerType === 'pi_compat' ? 'U-API Compatible' :
-                                   conn.providerType || 'Unknown',
-                    }))}
-                  />
                   <SettingsMenuSelectRow
                     label={t("settings.ai.model")}
                     description={t("settings.ai.modelDesc")}
@@ -948,14 +948,14 @@ export default function AiSettingsPage() {
               )}
 
               {/* Workspace Overrides - only show if connections exist */}
-              {workspaces.length > 0 && llmConnections.length > 0 && (
+              {workspaces.length > 0 && uApiConnections.length > 0 && (
                 <SettingsSection title={t("settings.ai.workspaceOverrides")} description={t("settings.ai.workspaceOverridesDesc")}>
                   <div className="space-y-2">
                     {workspaces.map((workspace) => (
                       <WorkspaceOverrideCard
                         key={workspace.id}
                         workspace={workspace}
-                        llmConnections={llmConnections}
+                        llmConnections={uApiConnections}
                         onSettingsChange={handleWorkspaceSettingsChange}
                       />
                     ))}
@@ -966,12 +966,12 @@ export default function AiSettingsPage() {
               {/* Connections Management */}
               <SettingsSection title={t("settings.ai.connections")} description={t("settings.ai.connectionsDesc")}>
                 <SettingsCard>
-                  {llmConnections.length === 0 ? (
+                  {uApiConnections.length === 0 ? (
                     <div className="px-4 py-6 text-center text-sm text-muted-foreground">
                       {t("settings.ai.noConnections")}
                     </div>
                   ) : (
-                    [...llmConnections]
+                    [...uApiConnections]
                       .sort((a, b) => {
                         if (a.isDefault && !b.isDefault) return -1
                         if (!a.isDefault && b.isDefault) return 1
@@ -994,14 +994,6 @@ export default function AiSettingsPage() {
                     ))
                   )}
                 </SettingsCard>
-                <div className="pt-0">
-                  <button
-                    onClick={() => openApiSetup()}
-                    className="inline-flex items-center h-8 px-3 text-sm rounded-lg bg-background shadow-minimal hover:bg-foreground/[0.02] transition-colors"
-                  >
-                    {t("settings.ai.addConnection")}
-                  </button>
-                </div>
               </SettingsSection>
 
               {/* Performance */}

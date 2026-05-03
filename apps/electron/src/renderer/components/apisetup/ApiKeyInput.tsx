@@ -22,7 +22,7 @@ import {
   StyledDropdownMenuItem,
 } from "@/components/ui/styled-dropdown"
 import { cn } from "@/lib/utils"
-import { Check, ChevronDown, Eye, EyeOff, Loader2 } from "lucide-react"
+import { Check, ChevronDown, ExternalLink, Eye, EyeOff, Loader2 } from "lucide-react"
 import { pickTierDefaults, resolveTierModels, type PiModelInfo } from "./tier-models"
 import {
   resolvePiAuthProviderForSubmit,
@@ -31,6 +31,7 @@ import {
 } from "./submit-helpers"
 
 import type { CustomEndpointApi, CustomEndpointConfig } from '@config/llm-connections'
+import { U_API_BASE_URL, U_API_CONSOLE_URL, U_API_PRICING_URL, U_API_TOPUP_URL } from '@config/u-api-defaults'
 
 export type ApiKeyStatus = 'idle' | 'validating' | 'success' | 'error'
 
@@ -80,6 +81,7 @@ export interface ApiKeyInputProps {
     /** Pre-fill the protocol toggle for custom endpoints */
     customApi?: CustomEndpointApi
   }
+  mode?: 'u_api' | 'upstream'
 }
 
 interface Preset {
@@ -174,6 +176,7 @@ export function ApiKeyInput({
   disabled,
   providerType = 'anthropic',
   initialValues,
+  mode = 'upstream',
 }: ApiKeyInputProps) {
   // Get presets based on provider type
   const presets = getPresetsForProvider(providerType)
@@ -191,8 +194,8 @@ export function ApiKeyInput({
   const [lastNonCustomPreset, setLastNonCustomPreset] = useState<PresetKey | null>(
     initialPreset !== 'custom' ? initialPreset : defaultPreset.key
   )
-  const [connectionDefaultModel, setConnectionDefaultModel] = useState(initialValues?.connectionDefaultModel ?? '')
-  const [customApi, setCustomApi] = useState<CustomEndpointApi>(initialValues?.customApi ?? 'openai-completions')
+  const [connectionDefaultModel, setConnectionDefaultModel] = useState(initialValues?.connectionDefaultModel ?? (mode === 'u_api' ? 'gpt-5.5' : ''))
+  const [customApi, setCustomApi] = useState<CustomEndpointApi>(initialValues?.customApi ?? (mode === 'u_api' ? 'anthropic-messages' : 'openai-completions'))
   const [modelError, setModelError] = useState<string | null>(null)
 
   // Bedrock auth state
@@ -215,6 +218,7 @@ export function ApiKeyInput({
   const hydratedTierProviderRef = useRef<string | null>(null)
 
   const isDisabled = disabled || status === 'validating'
+  const isUApiMode = mode === 'u_api'
 
   const isPiApiKeyFlow = providerType === 'pi_api_key'
   const isBedrock = activePreset === 'amazon-bedrock'
@@ -229,6 +233,10 @@ export function ApiKeyInput({
     : providerType === 'pi' ? 'pi-...'
     : providerType === 'openai' ? 'sk-...'
     : 'Paste your key here...')
+
+  const openUApiLink = (url: string) => {
+    void window.electronAPI?.openUrl(url)
+  }
 
   // Fetch Pi SDK models when a provider is selected in pi_api_key flow.
   // Returns all models sorted by cost (expensive-first) for the searchable tier dropdowns.
@@ -320,6 +328,23 @@ export function ApiKeyInput({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (isUApiMode) {
+      const parsedModels = parseModelList(connectionDefaultModel)
+      if (parsedModels.length === 0) {
+        setModelError('Model ID is required.')
+        return
+      }
+      onSubmit({
+        apiKey: apiKey.trim(),
+        baseUrl: U_API_BASE_URL,
+        customEndpoint: { api: customApi, supportsImages: true },
+        connectionDefaultModel: parsedModels[0],
+        models: parsedModels,
+        modelSelectionMode: 'userDefined3Tier',
+      })
+      return
+    }
 
     const effectivePiAuthProvider = isPiApiKeyFlow
       ? resolvePiAuthProviderForSubmit(activePreset, lastNonCustomPreset)
@@ -413,6 +438,136 @@ export function ApiKeyInput({
 
   return (
     <form id={formId} onSubmit={handleSubmit} className="space-y-6">
+      {isUApiMode ? (
+        <>
+          <div className="rounded-lg bg-foreground-2 p-3">
+            <p className="text-xs text-foreground/60">{t("uapi.lockNotice")}</p>
+            <div className="flex flex-wrap gap-2 pt-2">
+              {[
+                [t("uapi.linkConsole"), U_API_CONSOLE_URL],
+                [t("uapi.linkTopup"), U_API_TOPUP_URL],
+                [t("uapi.linkPricing"), U_API_PRICING_URL],
+              ].map(([label, url]) => (
+                <button
+                  key={url}
+                  type="button"
+                  onClick={() => openUApiLink(url)}
+                  className="inline-flex items-center gap-1 text-xs text-foreground/60 hover:text-foreground"
+                >
+                  {label}
+                  <ExternalLink className="size-3" />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="api-key">{t("uapi.tokenLabel")}</Label>
+            <div className={cn(
+              "relative rounded-md shadow-minimal transition-colors",
+              "bg-foreground-2 focus-within:bg-background"
+            )}>
+              <Input
+                id="api-key"
+                type={showValue ? 'text' : 'password'}
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder={t("uapi.tokenPlaceholder")}
+                className={cn(
+                  "pr-10 border-0 bg-transparent shadow-none",
+                  status === 'error' && "focus-visible:ring-destructive"
+                )}
+                disabled={isDisabled}
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={() => setShowValue(!showValue)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                tabIndex={-1}
+              >
+                {showValue ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2 pt-1">
+              {[
+                [t("uapi.linkGetToken"), U_API_CONSOLE_URL],
+                [t("uapi.linkTopup"), U_API_TOPUP_URL],
+                [t("uapi.linkPricing"), U_API_PRICING_URL],
+              ].map(([label, url]) => (
+                <button
+                  key={url}
+                  type="button"
+                  onClick={() => openUApiLink(url)}
+                  className="inline-flex items-center gap-1 text-xs text-foreground/60 hover:text-foreground"
+                >
+                  {label}
+                  <ExternalLink className="size-3" />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>{t("uapi.protocolLabel")}</Label>
+            <div className={cn(
+              "flex rounded-md shadow-minimal overflow-hidden",
+              "bg-foreground-2",
+              isDisabled && "opacity-50 pointer-events-none"
+            )}>
+              {([
+                { value: 'openai-completions' as const, label: 'OpenAI Chat Completions' },
+                { value: 'anthropic-messages' as const, label: 'Anthropic Messages' },
+              ]).map(({ value, label }) => (
+                <button
+                  key={value}
+                  type="button"
+                  disabled={isDisabled}
+                  onClick={() => setCustomApi(value)}
+                  className={cn(
+                    "flex-1 py-1.5 text-[12px] font-medium transition-colors",
+                    customApi === value
+                      ? "bg-background text-foreground shadow-minimal"
+                      : "text-foreground/50 hover:text-foreground/70"
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="connection-default-model">
+              {t("uapi.modelIdLabel")} <span className="text-foreground/30">· required</span>
+            </Label>
+            <div className={cn(
+              "rounded-md shadow-minimal transition-colors",
+              "bg-foreground-2 focus-within:bg-background",
+              modelError && "ring-1 ring-destructive/40"
+            )}>
+              <Input
+                id="connection-default-model"
+                type="text"
+                value={connectionDefaultModel}
+                onChange={(e) => {
+                  setConnectionDefaultModel(e.target.value)
+                  setModelError(null)
+                }}
+                placeholder="gpt-5.5"
+                className="border-0 bg-transparent shadow-none"
+                disabled={isDisabled}
+              />
+            </div>
+            {modelError && <p className="text-xs text-destructive">{modelError}</p>}
+          </div>
+
+          {status === 'error' && errorMessage && (
+            <p className="text-sm text-destructive">{errorMessage}</p>
+          )}
+        </>
+      ) : (
+      <>
       {/* API Key — hidden for Bedrock (uses IAM/Environment auth) */}
       {!isBedrock && (<div className="space-y-2">
         <Label htmlFor="api-key">API Key</Label>
@@ -808,6 +963,8 @@ export function ApiKeyInput({
       {/* Error message */}
       {status === 'error' && errorMessage && (
         <p className="text-sm text-destructive">{errorMessage}</p>
+      )}
+      </>
       )}
     </form>
   )

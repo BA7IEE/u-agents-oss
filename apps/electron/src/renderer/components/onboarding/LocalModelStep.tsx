@@ -12,6 +12,9 @@ import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
 import { StepFormLayout, BackButton, ContinueButton } from "./primitives"
 
+// U-API: this step is intentionally not reached by the M1 onboarding state machine.
+// Keep it in place as an upstream sync anchor and defensive fallback.
+
 export interface LocalModelSubmitData {
   baseUrl: string
   model: string

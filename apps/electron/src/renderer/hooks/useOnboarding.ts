@@ -19,6 +19,7 @@ import type { ProviderChoice } from '@/components/onboarding/ProviderSelectStep'
 import type { LocalModelSubmitData } from '@/components/onboarding/LocalModelStep'
 import type { ApiKeySubmitData } from '@/components/apisetup'
 import type { CustomEndpointConfig } from '@config/llm-connections'
+import { U_API_BASE_URL, U_API_SLUG } from '@config/u-api-defaults'
 import type { SetupNeeds, LlmConnectionSetup } from '../../shared/types'
 
 interface UseOnboardingOptions {
@@ -97,6 +98,7 @@ export const BASE_SLUG_FOR_METHOD: Record<ApiSetupMethod, string> = {
   pi_chatgpt_oauth: 'chatgpt-plus',
   pi_copilot_oauth: 'github-copilot',
   pi_api_key: 'pi-api-key',
+  u_api: U_API_SLUG,
 }
 
 /**
@@ -154,6 +156,16 @@ export function apiSetupMethodToConnectionSetup(
   const slug = resolveSlugForMethod(method, editingSlug, existingSlugs)
 
   switch (method) {
+    case 'u_api':
+      return {
+        slug: U_API_SLUG,
+        credential: options.credential,
+        baseUrl: U_API_BASE_URL,
+        customEndpoint: options.customEndpoint ?? { api: 'anthropic-messages', supportsImages: true },
+        defaultModel: options.connectionDefaultModel,
+        models: options.models,
+        modelSelectionMode: options.modelSelectionMode ?? 'userDefined3Tier',
+      }
     case 'anthropic_api_key':
       return {
         slug,
@@ -194,7 +206,7 @@ export function apiSetupMethodToConnectionSetup(
 export function useOnboarding({
   onComplete,
   initialSetupNeeds,
-  initialStep = 'provider-select',
+  initialStep = 'welcome',
   initialApiSetupMethod,
   onDismiss,
   onConfigSaved,
@@ -207,7 +219,7 @@ export function useOnboarding({
     loginStatus: 'idle',
     credentialStatus: 'idle',
     completionStatus: 'saving',
-    apiSetupMethod: initialApiSetupMethod ?? null,
+    apiSetupMethod: initialApiSetupMethod ?? 'u_api',
     isExistingUser: initialSetupNeeds?.needsBillingConfig ?? false,
     gitBashStatus: undefined,
     isRecheckingGitBash: false,
@@ -317,14 +329,14 @@ export function useOnboarding({
       case 'welcome':
         // On Windows, check if Git Bash is needed
         if (state.gitBashStatus?.platform === 'win32' && !state.gitBashStatus?.found) {
-          setState(s => ({ ...s, step: 'git-bash' }))
+          setState(s => ({ ...s, step: 'git-bash', apiSetupMethod: 'u_api' }))
         } else {
-          setState(s => ({ ...s, step: 'provider-select' }))
+          setState(s => ({ ...s, step: 'credentials', apiSetupMethod: 'u_api', credentialStatus: 'idle', errorMessage: undefined }))
         }
         break
 
       case 'git-bash':
-        setState(s => ({ ...s, step: 'provider-select' }))
+        setState(s => ({ ...s, step: 'credentials', apiSetupMethod: 'u_api', credentialStatus: 'idle', errorMessage: undefined }))
         break
 
       case 'local-model':
@@ -362,10 +374,16 @@ export function useOnboarding({
         }
         break
       case 'credentials':
-        setState(s => ({ ...s, step: 'provider-select', credentialStatus: 'idle', errorMessage: undefined }))
+        if (state.gitBashStatus?.platform === 'win32' && state.gitBashStatus?.found === false) {
+          setState(s => ({ ...s, step: 'git-bash', credentialStatus: 'idle', errorMessage: undefined }))
+        } else if (onDismiss) {
+          onDismiss()
+        } else {
+          setState(s => ({ ...s, step: 'welcome', credentialStatus: 'idle', errorMessage: undefined }))
+        }
         break
       case 'local-model':
-        setState(s => ({ ...s, step: 'provider-select', credentialStatus: 'idle', errorMessage: undefined }))
+        setState(s => ({ ...s, step: 'credentials', apiSetupMethod: 'u_api', credentialStatus: 'idle', errorMessage: undefined }))
         break
     }
   }, [state.step, state.gitBashStatus, initialStep, onDismiss])
@@ -381,6 +399,7 @@ export function useOnboarding({
     setState(s => ({ ...s, credentialStatus: 'validating', errorMessage: undefined }))
 
     const isPiApiKeyFlow = state.apiSetupMethod === 'pi_api_key'
+    const isUApiFlow = state.apiSetupMethod === 'u_api'
 
     try {
       // Bedrock (Pi+amazon-bedrock) — skip API key validation and connection test
@@ -425,7 +444,7 @@ export function useOnboarding({
       // - Local/loopback custom endpoints may be keyless (e.g. Ollama)
       // - Non-local endpoints require an API key
       const isLoopbackCustomEndpoint = isLoopbackEndpoint(data.baseUrl)
-      if (isPiApiKeyFlow) {
+      if (isPiApiKeyFlow || isUApiFlow) {
         if (!data.apiKey.trim() && !isLoopbackCustomEndpoint) {
           setState(s => ({
             ...s,
@@ -492,7 +511,7 @@ export function useOnboarding({
         errorMessage: error instanceof Error ? error.message : 'Validation failed',
       }))
     }
-  }, [handleSaveConfig, state.apiSetupMethod])
+  }, [handleSaveConfig, state.apiSetupMethod, editingSlug])
 
   // Save config, validate the connection, and update state accordingly.
   // Shared by all OAuth flows after tokens are captured.
@@ -639,8 +658,7 @@ export function useOnboarding({
     }
 
     if (choice === 'local') {
-      // Local uses anthropic_api_key with custom endpoint (Ollama doesn't need an API key)
-      setState(s => ({ ...s, step: 'local-model', apiSetupMethod: 'anthropic_api_key', credentialStatus: 'idle', errorMessage: undefined }))
+      setState(s => ({ ...s, step: 'credentials', apiSetupMethod: 'u_api', credentialStatus: 'idle', errorMessage: undefined }))
       return
     }
 
@@ -743,7 +761,8 @@ export function useOnboarding({
       setState(s => ({
         ...s,
         gitBashStatus: { ...s.gitBashStatus!, found: true, path },
-        step: 'provider-select',
+        step: 'credentials',
+        apiSetupMethod: 'u_api',
       }))
     } else {
       setState(s => ({
@@ -762,7 +781,8 @@ export function useOnboarding({
         gitBashStatus: status,
         isRecheckingGitBash: false,
         // If found, automatically continue to next step
-        step: status.found ? 'provider-select' : s.step,
+        step: status.found ? 'credentials' : s.step,
+        apiSetupMethod: status.found ? 'u_api' : s.apiSetupMethod,
       }))
     } catch (error) {
       console.error('[Onboarding] Failed to recheck Git Bash:', error)
@@ -812,7 +832,7 @@ export function useOnboarding({
       loginStatus: 'idle',
       credentialStatus: 'idle',
       completionStatus: 'saving',
-      apiSetupMethod: initialApiSetupMethod ?? null,
+      apiSetupMethod: initialApiSetupMethod ?? 'u_api',
       isExistingUser: false,
       errorMessage: undefined,
     })

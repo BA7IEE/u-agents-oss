@@ -64,6 +64,7 @@ export function CredentialsStep({
   const isCopilotOAuth = apiSetupMethod === 'pi_copilot_oauth'
   const isAnthropicApiKey = apiSetupMethod === 'anthropic_api_key'
   const isPiApiKey = apiSetupMethod === 'pi_api_key'
+  const isUApi = apiSetupMethod === 'u_api'
   const isApiKey = isAnthropicApiKey || isPiApiKey
 
   // Copilot device code clipboard handling
@@ -261,7 +262,9 @@ export function CredentialsStep({
   // --- API Key flow ---
   // Determine provider type and description based on selected method
   const providerType = isPiApiKey ? 'pi_api_key' : 'anthropic'
-  const apiKeyDescription = isPiApiKey
+  const apiKeyDescription = isUApi
+    ? t("uapi.connectionDescription")
+    : isPiApiKey
     ? "Select a provider preset and enter the API key. For arbitrary Anthropic-compatible endpoints, use Anthropic API Key mode."
     : "Enter your API key. Optionally configure a custom endpoint for OpenRouter, Ollama, or compatible APIs."
 
@@ -298,6 +301,7 @@ export function CredentialsStep({
         onSubmit={onSubmit}
         providerType={providerType}
         initialValues={editInitialValues}
+        mode={isUApi ? 'u_api' : 'upstream'}
       />
     </StepFormLayout>
   )
