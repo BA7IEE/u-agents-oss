@@ -1,5 +1,5 @@
 {
-  "name": "@craft-agent/ui",
+  "name": "@u-agents/ui",
   "version": "0.9.0",
   "license": "Apache-2.0",
   "description": "Shared React UI components for Craft Agents - session viewer, chat display, markdown rendering",
@@ -18,8 +18,8 @@
     "./styles": "./src/styles/index.css"
   },
   "dependencies": {
-    "@craft-agent/core": "workspace:*",
-    "@craft-agent/shared": "workspace:*",
+    "@u-agents/core": "workspace:*",
+    "@u-agents/shared": "workspace:*",
     "@paper-design/shaders-react": "^0.0.69",
     "beautiful-mermaid": "*",
     "@types/mdast": "^4.0.0",

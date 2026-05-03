@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * @craft-agent/server — standalone headless Craft Agent server.
+ * @u-agents/server — standalone headless Craft Agent server.
  *
  * Usage:
  *   CRAFT_SERVER_TOKEN=<secret> bun run packages/server/src/index.ts
@@ -29,25 +29,25 @@ import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { readFileSync, existsSync } from 'node:fs'
 import { version as packageVersion } from '../package.json'
-import { enableDebug } from '@craft-agent/shared/utils/debug'
-import { bootstrapServer, startHealthHttpServer, generateServerToken } from '@craft-agent/server-core/bootstrap'
-import { validateSession, createWebuiHandler, nodeHttpAdapter } from '@craft-agent/server-core/webui'
-import type { WebuiHandler } from '@craft-agent/server-core/webui'
-import { getCredentialManager } from '@craft-agent/shared/credentials'
-import { getWorkspaces } from '@craft-agent/shared/config'
-import { createMessagingBootstrap, type MessagingBootstrapHandle } from '@craft-agent/messaging-gateway'
+import { enableDebug } from '@u-agents/shared/utils/debug'
+import { bootstrapServer, startHealthHttpServer, generateServerToken } from '@u-agents/server-core/bootstrap'
+import { validateSession, createWebuiHandler, nodeHttpAdapter } from '@u-agents/server-core/webui'
+import type { WebuiHandler } from '@u-agents/server-core/webui'
+import { getCredentialManager } from '@u-agents/shared/credentials'
+import { getWorkspaces } from '@u-agents/shared/config'
+import { createMessagingBootstrap, type MessagingBootstrapHandle } from '@u-agents/messaging-gateway'
 
 // --generate-token: print a crypto-random token and exit
 if (process.argv.includes('--generate-token')) {
   console.log(generateServerToken())
   process.exit(0)
 }
-import type { WsRpcTlsOptions } from '@craft-agent/server-core/transport'
-import { registerCoreRpcHandlers, cleanupSessionFileWatchForClient } from '@craft-agent/server-core/handlers/rpc'
-import { SessionManager, setSessionPlatform, setSessionRuntimeHooks } from '@craft-agent/server-core/sessions'
-import { initModelRefreshService, setFetcherPlatform } from '@craft-agent/server-core/model-fetchers'
-import { setSearchPlatform, setImageProcessor } from '@craft-agent/server-core/services'
-import type { HandlerDeps } from '@craft-agent/server-core/handlers'
+import type { WsRpcTlsOptions } from '@u-agents/server-core/transport'
+import { registerCoreRpcHandlers, cleanupSessionFileWatchForClient } from '@u-agents/server-core/handlers/rpc'
+import { SessionManager, setSessionPlatform, setSessionRuntimeHooks } from '@u-agents/server-core/sessions'
+import { initModelRefreshService, setFetcherPlatform } from '@u-agents/server-core/model-fetchers'
+import { setSearchPlatform, setImageProcessor } from '@u-agents/server-core/services'
+import type { HandlerDeps } from '@u-agents/server-core/handlers'
 
 process.env.CRAFT_IS_PACKAGED ??= 'false'
 
@@ -273,15 +273,15 @@ if (messagingHandle !== null) {
 
 // Wire up the lazy health check now that the session manager is ready
 if (webuiHandler) {
-  const { getHealthCheck } = await import('@craft-agent/server-core/handlers/rpc/server')
+  const { getHealthCheck } = await import('@u-agents/server-core/handlers/rpc/server')
   const depsLike = { sessionManager: instance.sessionManager } as any
   healthCheckFn = () => getHealthCheck(depsLike)
 
   // Wire up OAuth callback deps so /api/oauth/callback works
-  const { getSourceCredentialManager, loadWorkspaceSources } = await import('@craft-agent/shared/sources')
-  const { getWorkspaceByNameOrId } = await import('@craft-agent/shared/config')
-  const { pushTyped } = await import('@craft-agent/server-core/transport')
-  const { RPC_CHANNELS } = await import('@craft-agent/shared/protocol')
+  const { getSourceCredentialManager, loadWorkspaceSources } = await import('@u-agents/shared/sources')
+  const { getWorkspaceByNameOrId } = await import('@u-agents/shared/config')
+  const { pushTyped } = await import('@u-agents/server-core/transport')
+  const { RPC_CHANNELS } = await import('@u-agents/shared/protocol')
 
   webuiHandler.setOAuthCallbackDeps({
     flowStore: instance.oauthFlowStore,

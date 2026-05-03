@@ -1,5 +1,5 @@
 /**
- * @craft-agent/messaging-gateway
+ * @u-agents/messaging-gateway
  *
  * Messaging gateway for Craft Agent — Telegram & WhatsApp.
  */

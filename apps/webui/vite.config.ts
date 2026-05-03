@@ -78,7 +78,7 @@ export default defineConfig({
   },
   optimizeDeps: {
     include: ['react', 'react-dom', 'jotai'],
-    exclude: ['@craft-agent/ui'],
+    exclude: ['@u-agents/ui'],
     esbuildOptions: {
       supported: { 'top-level-await': true },
       target: 'esnext',

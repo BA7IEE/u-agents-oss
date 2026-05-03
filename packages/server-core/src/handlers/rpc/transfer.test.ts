@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'bun:test'
 import { createHash } from 'node:crypto'
-import { RPC_CHANNELS } from '@craft-agent/shared/protocol'
+import { RPC_CHANNELS } from '@u-agents/shared/protocol'
 import type { HandlerFn, RequestContext, RpcServer } from '../../transport/types'
 import {
   __resetTransferStateForTests,

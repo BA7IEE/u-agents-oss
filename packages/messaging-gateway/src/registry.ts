@@ -14,15 +14,15 @@
 
 import { existsSync, readdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
-import { RPC_CHANNELS } from '@craft-agent/shared/protocol'
-import type { PushTarget } from '@craft-agent/shared/protocol'
-import type { CredentialManager } from '@craft-agent/shared/credentials'
+import { RPC_CHANNELS } from '@u-agents/shared/protocol'
+import type { PushTarget } from '@u-agents/shared/protocol'
+import type { CredentialManager } from '@u-agents/shared/credentials'
 import type {
   ISessionManager,
   IMessagingGatewayRegistry,
   MessagingBindingInfo,
   MessagingConfigInfo,
-} from '@craft-agent/server-core/handlers'
+} from '@u-agents/server-core/handlers'
 
 import { MessagingGateway } from './gateway'
 import { ConfigStore } from './config-store'
@@ -65,7 +65,7 @@ export interface MessagingGatewayRegistryOptions {
   publishEvent?: (channel: string, target: PushTarget, ...args: unknown[]) => void
   /** Optional WhatsApp worker config — required to enable the WhatsApp adapter. */
   whatsapp?: {
-    /** Absolute path to the worker entry (packaged/unpacked from @craft-agent/messaging-whatsapp-worker). */
+    /** Absolute path to the worker entry (packaged/unpacked from @u-agents/messaging-whatsapp-worker). */
     workerEntry: string
     /** Node binary override (defaults to process.execPath with ELECTRON_RUN_AS_NODE). */
     nodeBin?: string

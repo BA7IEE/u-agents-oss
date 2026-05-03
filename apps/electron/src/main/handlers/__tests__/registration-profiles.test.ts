@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test'
-import type { RpcServer } from '@craft-agent/server-core/transport'
+import type { RpcServer } from '@u-agents/server-core/transport'
 import type { HandlerDeps } from '../handler-deps'
 
 const registeredChannels: string[] = []
@@ -101,20 +101,20 @@ async function getExpectedCoreChannels(): Promise<Set<string>> {
     workspace,
     onboarding,
   ] = await Promise.all([
-    import('@craft-agent/server-core/handlers/rpc/auth'),
-    import('@craft-agent/server-core/handlers/rpc/automations'),
-    import('@craft-agent/server-core/handlers/rpc/files'),
-    import('@craft-agent/server-core/handlers/rpc/labels'),
-    import('@craft-agent/server-core/handlers/rpc/llm-connections'),
-    import('@craft-agent/server-core/handlers/rpc/oauth'),
-    import('@craft-agent/server-core/handlers/rpc/sessions'),
-    import('@craft-agent/server-core/handlers/rpc/settings'),
-    import('@craft-agent/server-core/handlers/rpc/skills'),
-    import('@craft-agent/server-core/handlers/rpc/sources'),
-    import('@craft-agent/server-core/handlers/rpc/statuses'),
-    import('@craft-agent/server-core/handlers/rpc/system'),
-    import('@craft-agent/server-core/handlers/rpc/workspace'),
-    import('@craft-agent/server-core/handlers/rpc/onboarding'),
+    import('@u-agents/server-core/handlers/rpc/auth'),
+    import('@u-agents/server-core/handlers/rpc/automations'),
+    import('@u-agents/server-core/handlers/rpc/files'),
+    import('@u-agents/server-core/handlers/rpc/labels'),
+    import('@u-agents/server-core/handlers/rpc/llm-connections'),
+    import('@u-agents/server-core/handlers/rpc/oauth'),
+    import('@u-agents/server-core/handlers/rpc/sessions'),
+    import('@u-agents/server-core/handlers/rpc/settings'),
+    import('@u-agents/server-core/handlers/rpc/skills'),
+    import('@u-agents/server-core/handlers/rpc/sources'),
+    import('@u-agents/server-core/handlers/rpc/statuses'),
+    import('@u-agents/server-core/handlers/rpc/system'),
+    import('@u-agents/server-core/handlers/rpc/workspace'),
+    import('@u-agents/server-core/handlers/rpc/onboarding'),
   ])
 
   return new Set([

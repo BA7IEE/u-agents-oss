@@ -4,6 +4,8 @@
     "target": "ESNext",
     "module": "ESNext",
     "moduleDetection": "force",
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
     "allowJs": true,
     "esModuleInterop": true,
     "resolveJsonModule": true,
@@ -13,18 +15,10 @@
     "noEmit": true,
     "strict": true,
     "skipLibCheck": true,
-    "types": ["node", "bun"],
     "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "baseUrl": ".",
-    "paths": {
-      "@u-agents/shared": ["../../packages/shared/src/index.ts"],
-      "@u-agents/shared/*": ["../../packages/shared/src/*"],
-      "@u-agents/server-core": ["../../packages/server-core/src/index.ts"],
-      "@u-agents/server-core/*": ["../../packages/server-core/src/*"]
-    }
-  },
-  "include": ["src/**/*", "../../packages/shared/src/**/*.d.ts"],
-  "exclude": ["node_modules", "dist"]
+    "noPropertyAccessFromIndexSignature": false
+  }
 }

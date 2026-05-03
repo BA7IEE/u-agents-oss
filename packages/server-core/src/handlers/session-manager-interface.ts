@@ -6,11 +6,11 @@
  * satisfy it at runtime.
  */
 
-import type { Workspace, WorkspaceInfo, ActiveSessionInfo } from '@craft-agent/core/types'
-import type { StoredAttachment, AnnotationV1 } from '@craft-agent/core/types'
-import type { PermissionMode } from '@craft-agent/shared/agent/mode-types'
-import type { ThinkingLevel } from '@craft-agent/shared/agent/thinking-levels'
-import type { AuthResult } from '@craft-agent/shared/agent'
+import type { Workspace, WorkspaceInfo, ActiveSessionInfo } from '@u-agents/core/types'
+import type { StoredAttachment, AnnotationV1 } from '@u-agents/core/types'
+import type { PermissionMode } from '@u-agents/shared/agent/mode-types'
+import type { ThinkingLevel } from '@u-agents/shared/agent/thinking-levels'
+import type { AuthResult } from '@u-agents/shared/agent'
 import type {
   Session,
   SessionStatus,
@@ -22,8 +22,8 @@ import type {
   PermissionModeState,
   UnreadSummary,
   ShareResult,
-} from '@craft-agent/shared/protocol'
-import type { SessionBundle, DispatchMode } from '@craft-agent/shared/sessions'
+} from '@u-agents/shared/protocol'
+import type { SessionBundle, DispatchMode } from '@u-agents/shared/sessions'
 import type { EventSink } from '../transport'
 
 export interface ISessionManager {
@@ -161,7 +161,7 @@ export interface ISessionManager {
   exportRemoteSessionTransfer(
     sessionId: string,
     workspaceId: string,
-  ): Promise<import('@craft-agent/shared/protocol').RemoteSessionTransferPayload | null>
+  ): Promise<import('@u-agents/shared/protocol').RemoteSessionTransferPayload | null>
 
   /**
    * Import a session bundle into a target workspace.
@@ -179,8 +179,8 @@ export interface ISessionManager {
    */
   importRemoteSessionTransfer(
     workspaceId: string,
-    payload: import('@craft-agent/shared/protocol').RemoteSessionTransferPayload,
-  ): Promise<import('@craft-agent/shared/protocol').ImportRemoteSessionTransferResult>
+    payload: import('@u-agents/shared/protocol').RemoteSessionTransferPayload,
+  ): Promise<import('@u-agents/shared/protocol').ImportRemoteSessionTransferResult>
 
   // ---------------------------------------------------------------------------
   // Utilities

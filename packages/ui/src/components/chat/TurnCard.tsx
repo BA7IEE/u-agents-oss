@@ -2,8 +2,8 @@ import * as React from 'react'
 import { useMemo, useEffect, useRef, useCallback, useState } from 'react'
 import i18n from 'i18next'
 import { useTranslation } from 'react-i18next'
-import type { ToolDisplayMeta, AnnotationV1 } from '@craft-agent/core'
-import { normalizePath, pathStartsWith, stripPathPrefix } from '@craft-agent/core/utils'
+import type { ToolDisplayMeta, AnnotationV1 } from '@u-agents/core'
+import { normalizePath, pathStartsWith, stripPathPrefix } from '@u-agents/core/utils'
 import { motion, AnimatePresence } from 'motion/react'
 import {
   ChevronRight,

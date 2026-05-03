@@ -1,5 +1,5 @@
 /**
- * @craft-agent/core
+ * @u-agents/core
  *
  * Core types and utilities for Craft Agent.
  *

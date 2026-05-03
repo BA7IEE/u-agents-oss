@@ -5,9 +5,9 @@
  * renderer, and binding store together. One instance per workspace.
  */
 
-import type { ISessionManager } from '@craft-agent/server-core/handlers'
-import type { PushTarget } from '@craft-agent/shared/protocol'
-import { RPC_CHANNELS } from '@craft-agent/shared/protocol'
+import type { ISessionManager } from '@u-agents/server-core/handlers'
+import type { PushTarget } from '@u-agents/shared/protocol'
+import { RPC_CHANNELS } from '@u-agents/shared/protocol'
 import { BindingStore } from './binding-store'
 import { Router } from './router'
 import { Commands, type PairingCodeConsumer } from './commands'

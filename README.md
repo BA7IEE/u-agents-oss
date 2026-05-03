@@ -376,7 +376,7 @@ bun run electron:start
 # Type checking
 bun run typecheck:all
 
-# Debug logging (writes to ~/Library/Logs/@craft-agent/electron/)
+# Debug logging (writes to ~/Library/Logs/@u-agents/electron/)
 # Logs are automatically enabled in development
 ```
 
@@ -591,7 +591,7 @@ To launch the packaged app with verbose logging enabled, use `-- --debug` (note 
 
 **Windows (PowerShell):**
 ```powershell
-& "$env:LOCALAPPDATA\Programs\@craft-agentelectron\Craft Agents.exe" -- --debug
+& "$env:LOCALAPPDATA\Programs\@u-agentselectron\Craft Agents.exe" -- --debug
 ```
 
 **Linux:**
@@ -600,9 +600,9 @@ To launch the packaged app with verbose logging enabled, use `-- --debug` (note 
 ```
 
 Logs are written to:
-- **macOS:** `~/Library/Logs/@craft-agent/electron/main.log`
-- **Windows:** `%APPDATA%\@craft-agent\electron\logs\main.log`
-- **Linux:** `~/.config/@craft-agent/electron/logs/main.log`
+- **macOS:** `~/Library/Logs/@u-agents/electron/main.log`
+- **Windows:** `%APPDATA%\@u-agents\electron\logs\main.log`
+- **Linux:** `~/.config/@u-agents/electron/logs/main.log`
 
 ## License
 

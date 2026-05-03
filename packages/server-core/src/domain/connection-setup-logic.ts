@@ -5,13 +5,13 @@
  * No dependency on ipcMain, sessionManager, credential manager, or file I/O.
  */
 
-import type { ModelDefinition } from '@craft-agent/shared/config/models'
+import type { ModelDefinition } from '@u-agents/shared/config/models'
 import {
   type LlmConnection,
   type CustomEndpointApi,
   getDefaultModelsForConnection,
   getDefaultModelForConnection,
-} from '@craft-agent/shared/config'
+} from '@u-agents/shared/config'
 
 // ============================================================
 // Error Parsing

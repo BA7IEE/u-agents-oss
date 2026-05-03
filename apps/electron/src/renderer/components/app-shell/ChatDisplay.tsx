@@ -38,12 +38,12 @@ import {
   type ActivityItem,
   type FileChange,
   type DiffViewerSettings,
-} from "@craft-agent/ui"
+} from "@u-agents/ui"
 import { useFocusZone } from "@/hooks/keyboard"
 import { useTheme } from "@/hooks/useTheme"
 import type { Session, Message, FileAttachment, StoredAttachment, PermissionRequest, CredentialRequest, CredentialResponse, LoadedSource, LoadedSkill } from "../../../shared/types"
-import type { PermissionMode } from "@craft-agent/shared/agent/modes"
-import type { ThinkingLevel } from "@craft-agent/shared/agent/thinking-levels"
+import type { PermissionMode } from "@u-agents/shared/agent/modes"
+import type { ThinkingLevel } from "@u-agents/shared/agent/thinking-levels"
 import {
   TurnCard,
   UserMessageBubble,
@@ -61,7 +61,7 @@ import {
   type UserTurn,
   type SystemTurn,
   type AuthRequestTurn,
-} from "@craft-agent/ui"
+} from "@u-agents/ui"
 import { MemoizedAuthRequestCard } from "@/components/chat/AuthRequestCard"
 import { ChatInputZone, type StructuredInputState, type StructuredResponse, type PermissionResponse, type AdminApprovalResponse } from "./input"
 import type { RichTextInputHandle } from "@/components/ui/rich-text-input"
@@ -187,7 +187,7 @@ interface ChatDisplayProps {
   skills?: LoadedSkill[]
   // Label selection (for #labels)
   /** Available label configs (tree) for label menu and badge display */
-  labels?: import('@craft-agent/shared/labels').LabelConfig[]
+  labels?: import('@u-agents/shared/labels').LabelConfig[]
   /** Callback when labels change */
   onLabelsChange?: (labels: string[]) => void
   // State/status selection (for # menu and ActiveOptionBadges)

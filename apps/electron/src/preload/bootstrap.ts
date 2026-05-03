@@ -22,8 +22,8 @@ import { WsRpcClient, type TransportConnectionState } from '../transport/client'
 import { RoutedClient } from '../transport/routed-client'
 import { buildClientApi } from '../transport/build-api'
 import { CHANNEL_MAP } from '../transport/channel-map'
-import { createCallbackServer } from '@craft-agent/shared/auth/callback-server'
-import { CHATGPT_OAUTH_CONFIG } from '@craft-agent/shared/auth/chatgpt-oauth-config'
+import { createCallbackServer } from '@u-agents/shared/auth/callback-server'
+import { CHATGPT_OAUTH_CONFIG } from '@u-agents/shared/auth/chatgpt-oauth-config'
 import {
   CLIENT_OPEN_EXTERNAL,
   CLIENT_OPEN_PATH,
@@ -31,10 +31,10 @@ import {
   CLIENT_CONFIRM_DIALOG,
   CLIENT_OPEN_FILE_DIALOG,
   LOCAL_CLIENT_CAPABILITIES,
-} from '@craft-agent/server-core/transport'
-import type { ConfirmDialogSpec, FileDialogSpec } from '@craft-agent/server-core/transport'
-import type { RpcClient } from '@craft-agent/server-core/transport'
-import type { RemoteServerConfig } from '@craft-agent/core/types'
+} from '@u-agents/server-core/transport'
+import type { ConfirmDialogSpec, FileDialogSpec } from '@u-agents/server-core/transport'
+import type { RpcClient } from '@u-agents/server-core/transport'
+import type { RemoteServerConfig } from '@u-agents/core/types'
 import type { ElectronAPI } from '../shared/types'
 
 // ---------------------------------------------------------------------------

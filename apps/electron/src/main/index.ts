@@ -59,7 +59,7 @@ Sentry.init({
 })
 
 // Initialize i18n for main process (menus, dialogs, etc.)
-import { setupI18n, i18n } from '@craft-agent/shared/i18n'
+import { setupI18n, i18n } from '@u-agents/shared/i18n'
 setupI18n()
 
 // Set anonymous machine ID for Sentry user tracking (no PII — just a hash).
@@ -69,42 +69,42 @@ Sentry.setUser({ id: machineId })
 
 import { join, delimiter } from 'path'
 import { existsSync, readFileSync } from 'fs'
-import { RPC_CHANNELS } from '@craft-agent/shared/protocol'
-import { SessionManager, setSessionPlatform, setSessionRuntimeHooks } from '@craft-agent/server-core/sessions'
+import { RPC_CHANNELS } from '@u-agents/shared/protocol'
+import { SessionManager, setSessionPlatform, setSessionRuntimeHooks } from '@u-agents/server-core/sessions'
 import { registerAllRpcHandlers } from './handlers/index'
-import { registerCoreRpcHandlers, cleanupSessionFileWatchForClient } from '@craft-agent/server-core/handlers/rpc'
+import { registerCoreRpcHandlers, cleanupSessionFileWatchForClient } from '@u-agents/server-core/handlers/rpc'
 import type { PlatformServices } from '../runtime/platform'
 import { createElectronPlatform } from './platform'
 import type { HandlerDeps } from './handlers/handler-deps'
-import { bootstrapServer, releaseServerLock } from '@craft-agent/server-core/bootstrap'
-import { createMessagingBootstrap, type MessagingBootstrapHandle } from '@craft-agent/messaging-gateway'
-import { getCredentialManager } from '@craft-agent/shared/credentials'
-import { initModelRefreshService, getModelRefreshService, setFetcherPlatform } from '@craft-agent/server-core/model-fetchers'
-import { setSearchPlatform, setImageProcessor } from '@craft-agent/server-core/services'
+import { bootstrapServer, releaseServerLock } from '@u-agents/server-core/bootstrap'
+import { createMessagingBootstrap, type MessagingBootstrapHandle } from '@u-agents/messaging-gateway'
+import { getCredentialManager } from '@u-agents/shared/credentials'
+import { initModelRefreshService, getModelRefreshService, setFetcherPlatform } from '@u-agents/server-core/model-fetchers'
+import { setSearchPlatform, setImageProcessor } from '@u-agents/server-core/services'
 import { createApplicationMenu } from './menu'
 import { WindowManager } from './window-manager'
 import { loadWindowState, saveWindowState } from './window-state'
-import { getWorkspaces, getWorkspaceByNameOrId, loadStoredConfig, addWorkspace, saveConfig } from '@craft-agent/shared/config'
-import { getDefaultWorkspacesDir } from '@craft-agent/shared/workspaces'
-import { initializeDocs } from '@craft-agent/shared/docs'
-import { initializeReleaseNotes } from '@craft-agent/shared/release-notes'
-import { ensureDefaultPermissions } from '@craft-agent/shared/agent/permissions-config'
-import { ensureToolIcons, ensurePresetThemes } from '@craft-agent/shared/config'
-import { setBundledAssetsRoot } from '@craft-agent/shared/utils'
-import { initializeBackendHostRuntime } from '@craft-agent/shared/agent/backend'
-import { setPowerShellValidatorRoot } from '@craft-agent/shared/agent'
+import { getWorkspaces, getWorkspaceByNameOrId, loadStoredConfig, addWorkspace, saveConfig } from '@u-agents/shared/config'
+import { getDefaultWorkspacesDir } from '@u-agents/shared/workspaces'
+import { initializeDocs } from '@u-agents/shared/docs'
+import { initializeReleaseNotes } from '@u-agents/shared/release-notes'
+import { ensureDefaultPermissions } from '@u-agents/shared/agent/permissions-config'
+import { ensureToolIcons, ensurePresetThemes } from '@u-agents/shared/config'
+import { setBundledAssetsRoot } from '@u-agents/shared/utils'
+import { initializeBackendHostRuntime } from '@u-agents/shared/agent/backend'
+import { setPowerShellValidatorRoot } from '@u-agents/shared/agent'
 import { handleDeepLink } from './deep-link'
 import { BrowserPaneManager } from './browser-pane-manager'
-import { OAuthFlowStore } from '@craft-agent/shared/auth'
+import { OAuthFlowStore } from '@u-agents/shared/auth'
 import { registerThumbnailScheme, registerThumbnailHandler } from './thumbnail-protocol'
 import log, { isDebugMode, mainLog, getLogFilePath, getMessagingGatewayLogFilePath, messagingGatewayLog } from './logger'
-import { setPerfEnabled, enableDebug } from '@craft-agent/shared/utils'
-import { registerPiModelResolver } from '@craft-agent/shared/config'
-import { getPiModelsForAuthProvider, getAllPiModels } from '@craft-agent/shared/config'
+import { setPerfEnabled, enableDebug } from '@u-agents/shared/utils'
+import { registerPiModelResolver } from '@u-agents/shared/config'
+import { getPiModelsForAuthProvider, getAllPiModels } from '@u-agents/shared/config'
 import { initNotificationService, initBadgeIcon, initInstanceBadge, updateBadgeCount } from './notifications'
 import { checkForUpdatesOnLaunch, setAutoUpdateEventSink, isUpdating } from './auto-update'
-import type { EventSink } from '@craft-agent/server-core/transport'
-import { validateGitBashPath, checkVCRedistInstalled } from '@craft-agent/server-core/services'
+import type { EventSink } from '@u-agents/server-core/transport'
+import { validateGitBashPath, checkVCRedistInstalled } from '@u-agents/server-core/services'
 
 // Initialize electron-log for renderer process support
 log.initialize()
@@ -531,7 +531,7 @@ app.whenReady().then(async () => {
     if (!isClientOnly) {
       // Restore persisted Git Bash path on Windows (must happen before any SDK subprocess spawn)
       if (process.platform === 'win32') {
-        const { getGitBashPath, clearGitBashPath } = await import('@craft-agent/shared/config')
+        const { getGitBashPath, clearGitBashPath } = await import('@u-agents/shared/config')
         const gitBashPath = getGitBashPath()
         if (gitBashPath) {
           const validation = await validateGitBashPath(gitBashPath)
@@ -569,7 +569,7 @@ app.whenReady().then(async () => {
       const resolveClientId = (wcId: number) => clientMap.get(wcId)
 
       // Read embedded server config (Server settings page)
-      const { getServerConfig } = await import('@craft-agent/shared/config')
+      const { getServerConfig } = await import('@u-agents/shared/config')
       const embeddedServerConfig = getServerConfig()
       const serverModeEnabled = embeddedServerConfig.enabled && !isClientOnly
 
@@ -584,7 +584,7 @@ app.whenReady().then(async () => {
         : (serverModeEnabled ? embeddedServerConfig.port : 0)
 
       // Load TLS certificates if configured
-      let tls: import('@craft-agent/server-core/transport').WsRpcTlsOptions | undefined
+      let tls: import('@u-agents/server-core/transport').WsRpcTlsOptions | undefined
       if (serverModeEnabled && embeddedServerConfig.tlsCertPath && embeddedServerConfig.tlsKeyPath) {
         try {
           tls = {
@@ -680,7 +680,7 @@ app.whenReady().then(async () => {
         setSessionEventSink: (sm, sink) => sm.setEventSink(sink),
         initializeSessionManager: (sm) => sm.initialize(),
         initModelRefreshService: () => initModelRefreshService(async (slug: string) => {
-          const { getCredentialManager } = await import('@craft-agent/shared/credentials')
+          const { getCredentialManager } = await import('@u-agents/shared/credentials')
           const manager = getCredentialManager()
           const [apiKey, oauth] = await Promise.all([
             manager.getLlmApiKey(slug).catch(() => null),
@@ -744,7 +744,7 @@ app.whenReady().then(async () => {
 
       // Remove workspace from config (cleanup stale entries)
       ipcMain.handle('workspace:remove', async (_event, workspaceId: string) => {
-        const { removeWorkspace: remove } = await import('@craft-agent/shared/config')
+        const { removeWorkspace: remove } = await import('@u-agents/shared/config')
         return remove(workspaceId)
       })
 
@@ -765,7 +765,7 @@ app.whenReady().then(async () => {
       ipcMain.handle('session:transferToRemoteWorkspace', async (_event, sessionId: string, targetWorkspaceId: string, sessionIndex?: number, sessionCount?: number) => {
         const idx = sessionIndex ?? 0
         const count = sessionCount ?? 1
-        const { getWorkspaceByNameOrId } = await import('@craft-agent/shared/config')
+        const { getWorkspaceByNameOrId } = await import('@u-agents/shared/config')
         const { connectToRemote } = await import('./handlers/workspace')
         const { CHUNKED_TRANSFER_THRESHOLD, getChunkCount, invokeChunked, prepareChunkedPayload } = await import('./chunked-rpc')
 
@@ -899,13 +899,13 @@ app.whenReady().then(async () => {
       }
 
       instance.wsServer.handle(RPC_CHANNELS.settings.GET_SERVER_CONFIG, async () => {
-        const { getServerConfig: getConfig } = await import('@craft-agent/shared/config')
+        const { getServerConfig: getConfig } = await import('@u-agents/shared/config')
         return getConfig()
       })
 
       instance.wsServer.handle(RPC_CHANNELS.settings.SET_SERVER_CONFIG, async (_ctx: unknown, config: unknown) => {
-        const { setServerConfig: setConfig } = await import('@craft-agent/shared/config')
-        const cfg = config as import('@craft-agent/shared/config/server-config').ServerConfig
+        const { setServerConfig: setConfig } = await import('@u-agents/shared/config')
+        const cfg = config as import('@u-agents/shared/config/server-config').ServerConfig
         // Validate port range
         if (cfg.port < 1024 || cfg.port > 65535) {
           throw new Error(`Port must be between 1024 and 65535, got ${cfg.port}`)
@@ -921,7 +921,7 @@ app.whenReady().then(async () => {
       })
 
       instance.wsServer.handle(RPC_CHANNELS.settings.GET_SERVER_STATUS, async () => {
-        const { getServerConfig: getConfig } = await import('@craft-agent/shared/config')
+        const { getServerConfig: getConfig } = await import('@u-agents/shared/config')
         const saved = getConfig()
         const protocol = runningServerState.tls ? 'wss' : 'ws'
 
@@ -1002,7 +1002,7 @@ app.whenReady().then(async () => {
     // Skip in thin-client mode — credentials are managed by the remote server.
     if (!isClientOnly) {
       try {
-        const { getCredentialManager } = await import('@craft-agent/shared/credentials')
+        const { getCredentialManager } = await import('@u-agents/shared/credentials')
         const credentialManager = getCredentialManager()
         const health = await credentialManager.checkHealth()
         if (!health.healthy) {
@@ -1027,7 +1027,7 @@ app.whenReady().then(async () => {
     // Runs after init so config and auth state are available.
     // Derives values from the default LLM connection instead of legacy config fields.
     try {
-      const { getLlmConnection, getDefaultLlmConnection } = await import('@craft-agent/shared/config')
+      const { getLlmConnection, getDefaultLlmConnection } = await import('@u-agents/shared/config')
       const workspaces = getWorkspaces()
       const defaultConnSlug = getDefaultLlmConnection()
       const defaultConn = defaultConnSlug ? getLlmConnection(defaultConnSlug) : null

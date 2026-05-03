@@ -8,9 +8,9 @@
  * If not found → delegates to Commands for /bind, /new, etc.
  */
 
-import type { ISessionManager } from '@craft-agent/server-core/handlers'
-import { readFileAttachment } from '@craft-agent/shared/utils'
-import type { FileAttachment } from '@craft-agent/shared/protocol'
+import type { ISessionManager } from '@u-agents/server-core/handlers'
+import { readFileAttachment } from '@u-agents/shared/utils'
+import type { FileAttachment } from '@u-agents/shared/protocol'
 import type { BindingStore } from './binding-store'
 import type { Commands } from './commands'
 import type { IncomingMessage, MessagingLogger, PlatformAdapter } from './types'
