@@ -1,3 +1,9 @@
+# Modified by U Studio for U Agents (优智体) — derivative work
+# based on Craft Agents (Apache 2.0).
+#
+# Original: https://github.com/lukilabs/craft-agents-oss
+# Modifications: see .planning/01-branding-spec.md and .planning/05-build-release.md
+
 appId: cn.u-studio.u-agents
 productName: U Agents
 copyright: Copyright © 2026 U Studio

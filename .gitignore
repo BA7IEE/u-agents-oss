@@ -55,8 +55,9 @@ __pycache__/
 # Lock files from other package managers
 pnpm-lock.yaml
 
-# U Agents local data (sessions, credentials, config)
+# Local app data (sessions, credentials, config)
 .craft-agent/
+.u-agents/
 
 # SSH keys and secrets
 *.pem

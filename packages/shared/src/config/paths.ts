@@ -1,4 +1,10 @@
 /**
+ * Modified by U Studio for U Agents (优智体) — derivative work
+ * based on Craft Agents (Apache 2.0).
+ *
+ * Original: https://github.com/lukilabs/craft-agents-oss
+ * Modifications: see .planning/01-branding-spec.md and .planning/02-llm-gateway-spec.md
+ *
  * Centralized path configuration for U Agents.
  *
  * Supports multi-instance development via U_AGENTS_CONFIG_DIR environment variable.

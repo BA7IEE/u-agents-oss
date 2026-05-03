@@ -1,3 +1,11 @@
+/**
+ * Modified by U Studio for U Agents (优智体) — derivative work
+ * based on Craft Agents (Apache 2.0).
+ *
+ * Original: https://github.com/lukilabs/craft-agents-oss
+ * Modifications: see .planning/01-branding-spec.md and .planning/02-llm-gateway-spec.md
+ */
+
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, statSync } from 'fs';
 import { join, dirname, basename } from 'path';
 import { getCredentialManager } from '../credentials/index.ts';

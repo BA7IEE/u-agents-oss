@@ -1,4 +1,10 @@
 /**
+ * Modified by U Studio for U Agents (优智体) — derivative work
+ * based on Craft Agents (Apache 2.0).
+ *
+ * Original: https://github.com/lukilabs/craft-agents-oss
+ * Modifications: see .planning/01-branding-spec.md
+ *
  * Centralized branding assets for U Agents
  * Used by OAuth callback pages
  */

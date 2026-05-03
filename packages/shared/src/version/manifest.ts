@@ -1,6 +1,6 @@
 import { debug } from "../utils/debug";
 
-const VERSIONS_URL = 'https://u-agents.u-studio.cn/electron';
+const VERSIONS_URL = 'https://update.u-agents.u-studio.cn';
 
 export async function getLatestVersion(): Promise<string | null> {
     try {
