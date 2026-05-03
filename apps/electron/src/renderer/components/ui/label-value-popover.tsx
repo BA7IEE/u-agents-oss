@@ -90,7 +90,7 @@ export function LabelValuePopover({
    *  Matches the pattern used in ActiveOptionBadges. */
   const handleCloseAutoFocus = React.useCallback((e: Event) => {
     e.preventDefault()
-    window.dispatchEvent(new CustomEvent('craft:focus-input', {
+    window.dispatchEvent(new CustomEvent('u-agents:focus-input', {
       detail: { sessionId }
     }))
   }, [sessionId])

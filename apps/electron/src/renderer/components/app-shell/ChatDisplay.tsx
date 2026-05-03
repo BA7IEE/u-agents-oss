@@ -1281,7 +1281,7 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
 
     // Mimic pressing Send in the input after Save completes.
     window.setTimeout(() => {
-      window.dispatchEvent(new CustomEvent('craft:submit-input', {
+      window.dispatchEvent(new CustomEvent('u-agents:submit-input', {
         detail: { sessionId: session.id },
       }))
     }, 0)
@@ -1784,7 +1784,7 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
                           const planMessage = session?.messages.findLast(m => m.role === 'plan')
                           const planPath = planMessage?.planPath
 
-                          window.dispatchEvent(new CustomEvent('craft:approve-plan', {
+                          window.dispatchEvent(new CustomEvent('u-agents:approve-plan', {
                             detail: {
                               sessionId: session?.id,
                               planPath,
@@ -1797,7 +1797,7 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
                           const planMessage = session?.messages.findLast(m => m.role === 'plan')
                           const planPath = planMessage?.planPath
 
-                          window.dispatchEvent(new CustomEvent('craft:approve-plan-with-compact', {
+                          window.dispatchEvent(new CustomEvent('u-agents:approve-plan-with-compact', {
                             detail: {
                               sessionId: session?.id,
                               planPath,

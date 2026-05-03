@@ -375,7 +375,7 @@ function StateBadge({
         sideOffset={4}
         onCloseAutoFocus={(e) => {
           e.preventDefault()
-          window.dispatchEvent(new CustomEvent('craft:focus-input', {
+          window.dispatchEvent(new CustomEvent('u-agents:focus-input', {
             detail: { sessionId }
           }))
         }}
@@ -499,7 +499,7 @@ function PermissionModeDropdown({ permissionMode, onPermissionModeChange, sessio
           // Don't auto-focus the text input on touch devices — it pulls up the virtual keyboard
           const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0
           if (!isTouchDevice) {
-            window.dispatchEvent(new CustomEvent('craft:focus-input', {
+            window.dispatchEvent(new CustomEvent('u-agents:focus-input', {
               detail: { sessionId }
             }))
           }

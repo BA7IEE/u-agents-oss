@@ -44,7 +44,7 @@ export function SessionInfoPopover({
 
     if (!nextOpen) {
       requestAnimationFrame(() => {
-        window.dispatchEvent(new CustomEvent('craft:focus-input', {
+        window.dispatchEvent(new CustomEvent('u-agents:focus-input', {
           detail: { sessionId },
         }))
       })

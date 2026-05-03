@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Build script for standalone Craft Agent server.
+ * Build script for standalone U Agents server.
  *
  * Assembles a self-contained distribution directory with all runtime
  * dependencies, resources, and platform-specific binaries.
@@ -81,7 +81,7 @@ interface ServerBuildConfig {
 
 function showHelp(): void {
   console.log(`
-Standalone server build script for Craft Agent
+Standalone server build script for U Agents
 
 Usage:
   bun run scripts/build-server.ts [options]
@@ -578,13 +578,13 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(dirname "$SCRIPT_DIR")"
 
 # Set environment for resource resolution
-export CRAFT_BUNDLED_ASSETS_ROOT="$ROOT"
-export CRAFT_IS_PACKAGED=true
-export CRAFT_APP_ROOT="$ROOT"
+export U_AGENTS_BUNDLED_ASSETS_ROOT="$ROOT"
+export U_AGENTS_IS_PACKAGED=true
+export U_AGENTS_APP_ROOT="$ROOT"
 export CRAFT_RESOURCES_PATH="$ROOT/resources"
 
 # CLI tools (doc tools use uv + Python scripts)
-export CRAFT_UV="$ROOT/resources/bin/uv"
+export U_AGENTS_UV="$ROOT/resources/bin/uv"
 export CRAFT_SCRIPTS="$ROOT/resources/scripts"
 
 # Prepend resource bin to PATH (makes doc tool wrappers available)
@@ -597,7 +597,7 @@ exec "$ROOT/vendor/bun/bun" run "$ROOT/packages/server/src/index.ts" "$@"
 
   // start.sh — convenience entry
   const startSh = `#!/bin/sh
-# Craft Agent Server — convenience entry point
+# U-API — convenience entry point
 DIR="$(cd "$(dirname "$0")" && pwd)"
 exec "$DIR/bin/craft-server" "$@"
 `;
@@ -609,7 +609,7 @@ set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 
-echo "=== Craft Agent Server Setup ==="
+echo "=== U-API Setup ==="
 echo ""
 
 # Make binaries executable
@@ -655,7 +655,7 @@ if [ "\${1:-}" = "--systemd" ]; then
 
   cat > "$SERVICE_FILE" <<UNIT
 [Unit]
-Description=Craft Agent Server
+Description=U-API
 After=network.target
 
 [Service]
@@ -723,11 +723,11 @@ COPY . .
 RUN chmod +x bin/craft-server vendor/bun/bun resources/bin/uv && \\
     for f in resources/bin/*; do [ -f "$f" ] && chmod +x "$f"; done
 
-ENV CRAFT_IS_PACKAGED=true
-ENV CRAFT_BUNDLED_ASSETS_ROOT=/app
-ENV CRAFT_APP_ROOT=/app
+ENV U_AGENTS_IS_PACKAGED=true
+ENV U_AGENTS_BUNDLED_ASSETS_ROOT=/app
+ENV U_AGENTS_APP_ROOT=/app
 ENV CRAFT_RESOURCES_PATH=/app/resources
-ENV CRAFT_UV=/app/resources/bin/uv
+ENV U_AGENTS_UV=/app/resources/bin/uv
 ENV CRAFT_SCRIPTS=/app/resources/scripts
 ENV CRAFT_RPC_HOST=0.0.0.0
 ENV CRAFT_RPC_PORT=9100
@@ -824,7 +824,7 @@ async function main(): Promise<void> {
     version,
   };
 
-  console.log(`=== Building Craft Agent Server ${version} for ${platform}-${arch} ===`);
+  console.log(`=== Building U-API ${version} for ${platform}-${arch} ===`);
   console.log(`  Output: ${outputDir}`);
 
   // Step 1: Clean

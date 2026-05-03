@@ -1,12 +1,12 @@
-interface CraftAgentsSymbolProps {
+interface UAgentsSymbolProps {
   className?: string
 }
 
 /**
- * Craft Agents "E" symbol - the small pixel art icon
+ * U Agents "E" symbol - the small pixel art icon
  * Uses accent color from theme (currentColor from className)
  */
-export function CraftAgentsSymbol({ className }: CraftAgentsSymbolProps) {
+export function UAgentsSymbol({ className }: UAgentsSymbolProps) {
   return (
     <svg
       viewBox="452 368 115 129"

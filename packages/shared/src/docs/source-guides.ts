@@ -173,7 +173,7 @@ export function extractDomainFromSource(source: {
       github: 'github.com',
       notion: 'notion.so',
       slack: 'slack.com',
-      craft: 'craft.do',
+      'u-agents': 'u-studio.cn',
       exa: 'exa.ai',
       google: 'google.com',
     };
@@ -191,7 +191,7 @@ export function extractDomainFromSource(source: {
  * @deprecated Bundled guides have been removed.
  * Use the craft-agents-docs MCP server to search for setup guides.
  *
- * Example: mcp__craft-agents-docs__SearchCraftAgents({ query: "github source setup guide" })
+ * Example: mcp__craft-agents-docs__SearchUAgents({ query: "github source setup guide" })
  */
 export function getSourceGuideForDomain(_domain: string): ParsedSourceGuide | null {
   // Bundled guides removed - guides now come from MCP docs server

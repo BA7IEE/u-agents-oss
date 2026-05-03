@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * @u-agents/server — standalone headless Craft Agent server.
+ * @u-agents/server — standalone headless U Agents server.
  *
  * Usage:
  *   CRAFT_SERVER_TOKEN=<secret> bun run packages/server/src/index.ts
@@ -12,9 +12,9 @@
  *   CRAFT_RPC_TLS_CERT         — path to PEM certificate file (enables TLS/wss)
  *   CRAFT_RPC_TLS_KEY          — path to PEM private key file (required with cert)
  *   CRAFT_RPC_TLS_CA           — path to PEM CA chain file (optional)
- *   CRAFT_APP_ROOT             — app root path (default: cwd)
+ *   U_AGENTS_APP_ROOT             — app root path (default: cwd)
  *   CRAFT_RESOURCES_PATH       — resources path (default: cwd/resources)
- *   CRAFT_IS_PACKAGED          — 'true' for production (default: false)
+ *   U_AGENTS_IS_PACKAGED          — 'true' for production (default: false)
  *   CRAFT_VERSION              — app version (default: 0.0.0-dev)
  *   CRAFT_DEBUG                — 'true' for debug logging
  *   CRAFT_WEBUI_DIR            — path to built web UI assets (enables web UI on RPC port)
@@ -49,7 +49,7 @@ import { initModelRefreshService, setFetcherPlatform } from '@u-agents/server-co
 import { setSearchPlatform, setImageProcessor } from '@u-agents/server-core/services'
 import type { HandlerDeps } from '@u-agents/server-core/handlers'
 
-process.env.CRAFT_IS_PACKAGED ??= 'false'
+process.env.U_AGENTS_IS_PACKAGED ??= 'false'
 
 // Prevent unhandled rejections from crashing the server.
 // SDK subprocess abort can reject promises that propagate up unhandled;
@@ -91,8 +91,8 @@ function parseOptionalWebSocketUrl(name: string, value: string | undefined): str
 }
 
 // In dev (monorepo), bundled assets root is the repo root (4 levels up from this file).
-// In packaged mode, use CRAFT_BUNDLED_ASSETS_ROOT env or cwd.
-const bundledAssetsRoot = process.env.CRAFT_BUNDLED_ASSETS_ROOT
+// In packaged mode, use U_AGENTS_BUNDLED_ASSETS_ROOT env or cwd.
+const bundledAssetsRoot = process.env.U_AGENTS_BUNDLED_ASSETS_ROOT
   ?? join(import.meta.dir, '..', '..', '..', '..')
 
 // TLS configuration — when cert + key paths are provided, server listens on wss://

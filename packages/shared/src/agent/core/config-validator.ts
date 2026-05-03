@@ -27,7 +27,7 @@ const CONFIG_FILE_PATTERNS: { pattern: RegExp; type: ConfigFileType }[] = [
 ];
 
 /**
- * Craft Agent specific config files that have known schemas.
+ * U Agents specific config files that have known schemas.
  */
 const CRAFT_AGENT_CONFIG_PATTERNS = [
   // Main config
@@ -98,12 +98,12 @@ export class ConfigValidator {
   }
 
   /**
-   * Check if a file path is a Craft Agent config file.
+   * Check if a file path is a U Agents config file.
    *
    * @param filePath - Path to check
-   * @returns true if this is a Craft Agent config
+   * @returns true if this is a U Agents config
    */
-  isCraftAgentConfig(filePath: string): boolean {
+  isUAgentConfig(filePath: string): boolean {
     const normalizedPath = process.platform === 'win32'
       ? filePath.replace(/\\/g, '/').toLowerCase()
       : filePath.replace(/\\/g, '/');

@@ -1,11 +1,11 @@
 /**
  * @u-agents/shared
  *
- * Shared business logic for Craft Agent.
+ * Shared business logic for U Agents.
  * Used by the Electron app.
  *
  * Import specific modules via subpath exports:
- *   import { CraftAgent } from '@u-agents/shared/agent';
+ *   import { UAgent } from '@u-agents/shared/agent';
  *   import { loadStoredConfig } from '@u-agents/shared/config';
  *   import { getCredentialManager } from '@u-agents/shared/credentials';
  *   import { CraftMcpClient } from '@u-agents/shared/mcp';
@@ -14,7 +14,7 @@
  *   import { createWorkspace, loadWorkspace } from '@u-agents/shared/workspaces';
  *
  * Available modules:
- *   - agent: CraftAgent SDK wrapper, plan tools
+ *   - agent: UAgent SDK wrapper, plan tools
  *   - auth: OAuth, token management, auth state
  *   - clients: Craft API client
  *   - config: Storage, models, preferences

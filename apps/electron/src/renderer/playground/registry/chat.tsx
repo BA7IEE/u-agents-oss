@@ -554,7 +554,7 @@ interface InputContainerPlaygroundProps {
 function InputContainerPlayground({
   disabled = false,
   isProcessing = false,
-  placeholder = 'Message Craft Agent...',
+  placeholder = 'Message U Agents...',
   currentModel = 'claude-sonnet-4-6',
   permissionMode = 'ask',
   workingDirectory = '/Users/demo/projects/craft-agent',
@@ -693,7 +693,7 @@ function InputContainerPlayground({
     if (!showAttachments || attachmentFiles.length === 0) return
 
     const timer = setTimeout(() => {
-      window.dispatchEvent(new CustomEvent('craft:paste-files', {
+      window.dispatchEvent(new CustomEvent('u-agents:paste-files', {
         detail: {
           files: attachmentFiles,
           sessionId: playgroundSessionId,
@@ -826,7 +826,7 @@ function ActiveTasksBarContext({ tasks = sampleBackgroundTasks }: ActiveTasksBar
 
         {/* Real InputContainer */}
         <InputContainer
-          placeholder="Message Craft Agent..."
+          placeholder="Message U Agents..."
           disabled={false}
           isProcessing={false}
           currentModel="claude-sonnet-4-6"
@@ -929,7 +929,7 @@ function PermissionInputToggle({ autoToggle = false, autoToggleInterval = 3000, 
 
       {/* Real InputContainer - handles animation automatically */}
       <InputContainer
-        placeholder="Message Craft Agent..."
+        placeholder="Message U Agents..."
         disabled={false}
         isProcessing={false}
         currentModel="claude-sonnet-4-6"
@@ -1281,7 +1281,7 @@ export const chatComponents: ComponentEntry[] = [
         name: 'placeholder',
         description: 'Textarea placeholder text',
         control: { type: 'string', placeholder: 'Message...' },
-        defaultValue: 'Message Craft Agent...',
+        defaultValue: 'Message U Agents...',
       },
       {
         name: 'currentModel',

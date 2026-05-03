@@ -2,13 +2,13 @@
 
 ## Reporting a Vulnerability
 
-We take security seriously. If you discover a security vulnerability in Craft Agents, please report it responsibly.
+We take security seriously. If you discover a security vulnerability in U Agents, please report it responsibly.
 
 ### How to Report
 
 **Please do NOT report security vulnerabilities through public GitHub issues.**
 
-Instead, please send an email to: **security@craft.do**
+Instead, please send an email to: **security@u-studio.cn**
 
 Include the following information:
 - Description of the vulnerability
@@ -25,9 +25,9 @@ Include the following information:
 ### Scope
 
 This policy applies to:
-- The Craft Agents desktop application
+- The U Agents desktop application
 - The `@u-agents/*` npm packages
-- Official Craft Agents repositories
+- Official U Agents repositories
 
 ### Out of Scope
 
@@ -46,7 +46,7 @@ We only provide security updates for the latest version. Please keep your instal
 
 ## Security Best Practices
 
-When using Craft Agents:
+When using U Agents:
 
 1. **Keep credentials secure**: Never commit `.env` files or credentials
 2. **Use environment variables**: Store secrets in environment variables

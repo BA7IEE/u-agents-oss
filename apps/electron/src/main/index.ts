@@ -117,7 +117,7 @@ if (isDebugMode) {
 }
 
 // Bundle CLI tools: resolve platform-specific uv binary and wrapper scripts.
-// These are available to all agent Bash sessions via CRAFT_UV, CRAFT_SCRIPTS env vars
+// These are available to all agent Bash sessions via U_AGENTS_UV, CRAFT_SCRIPTS env vars
 // and PATH prepend. uv auto-downloads Python 3.12 on first use (~5s, then cached).
 {
   // In packaged app: resources are at process.resourcesPath/app/resources/
@@ -135,16 +135,16 @@ if (isDebugMode) {
   const fallbackUv = bundledUvExists ? null : 'uv'
 
   // Runtime resolver hints for shared session tools
-  process.env.CRAFT_IS_PACKAGED = app.isPackaged ? '1' : '0'
-  process.env.CRAFT_RESOURCES_BASE = resourcesBase
-  process.env.CRAFT_APP_ROOT = app.isPackaged ? app.getAppPath() : process.cwd()
+  process.env.U_AGENTS_IS_PACKAGED = app.isPackaged ? '1' : '0'
+  process.env.U_AGENTS_RESOURCES_BASE = resourcesBase
+  process.env.U_AGENTS_APP_ROOT = app.isPackaged ? app.getAppPath() : process.cwd()
 
-  process.env.CRAFT_UV = bundledUvExists ? uvBinary : (fallbackUv ?? uvBinary)
+  process.env.U_AGENTS_UV = bundledUvExists ? uvBinary : (fallbackUv ?? uvBinary)
 
   // Bun runtime (packaged builds should prefer bundled runtime over PATH)
   const bunBinary = join(resourcesBase, 'vendor', 'bun', process.platform === 'win32' ? 'bun.exe' : 'bun')
   if (existsSync(bunBinary)) {
-    process.env.CRAFT_BUN = bunBinary
+    process.env.U_AGENTS_BUN = bunBinary
   }
 
   process.env.CRAFT_SCRIPTS = scriptsDir
@@ -167,12 +167,12 @@ if (isDebugMode) {
   if (!bundledUvExists) {
     mainLog.warn('Bundled uv binary missing, CLI document tools may fail unless uv is available on PATH.', {
       expectedUvPath: uvBinary,
-      usingCraftUv: process.env.CRAFT_UV,
+      usingCraftUv: process.env.U_AGENTS_UV,
     })
   }
 
   if (isDebugMode) {
-    mainLog.info('CLI tools configured:', { uvBinary: process.env.CRAFT_UV, binDir, scriptsDir, bundledUvExists })
+    mainLog.info('CLI tools configured:', { uvBinary: process.env.U_AGENTS_UV, binDir, scriptsDir, bundledUvExists })
   }
 }
 
@@ -182,9 +182,9 @@ registerPiModelResolver((piAuthProvider) =>
   piAuthProvider ? getPiModelsForAuthProvider(piAuthProvider) : getAllPiModels()
 )
 
-// Custom URL scheme for deeplinks (e.g., craftagents://auth-complete)
-// Supports multi-instance dev: CRAFT_DEEPLINK_SCHEME env var (craftagents1, craftagents2, etc.)
-const DEEPLINK_SCHEME = process.env.CRAFT_DEEPLINK_SCHEME || 'craftagents'
+// Custom URL scheme for deeplinks (e.g., uagents://auth-complete)
+// Supports multi-instance dev: U_AGENTS_DEEPLINK_SCHEME env var (uagents1, uagents2, etc.)
+const DEEPLINK_SCHEME = process.env.U_AGENTS_DEEPLINK_SCHEME || 'uagents'
 
 let windowManager: WindowManager | null = null
 let sessionManager: SessionManager | null = null
@@ -204,10 +204,10 @@ let messagingHandle: MessagingBootstrapHandle | null = null
 let pendingDeepLink: string | null = null
 
 // Set app name early (before app.whenReady) to ensure correct macOS menu bar title
-// Supports multi-instance dev: CRAFT_APP_NAME env var (e.g., "Craft Agents [1]")
-app.setName(process.env.CRAFT_APP_NAME || 'Craft Agents')
+// Supports multi-instance dev: U_AGENTS_APP_NAME env var (e.g., "U Agents [1]")
+app.setName(process.env.U_AGENTS_APP_NAME || 'U Agents')
 
-// Register as default protocol client for craftagents:// URLs
+// Register as default protocol client for uagents:// URLs
 // This must be done before app.whenReady() on some platforms
 if (process.defaultApp) {
   // Development mode: need to pass the app path
@@ -360,7 +360,7 @@ async function createInitialWindows(): Promise<void> {
 
 app.whenReady().then(async () => {
   // Export packaged state as env var so logger.ts (and headless Bun) don't need 'electron'
-  process.env.CRAFT_IS_PACKAGED = app.isPackaged ? 'true' : 'false'
+  process.env.U_AGENTS_IS_PACKAGED = app.isPackaged ? 'true' : 'false'
 
   // Register bundled assets root so all seeding functions can find their files
   // (docs, permissions, themes, tool-icons resolve via getBundledAssetsDir)

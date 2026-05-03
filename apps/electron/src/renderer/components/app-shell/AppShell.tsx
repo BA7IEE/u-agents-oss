@@ -1212,7 +1212,7 @@ function AppShellContent({
       const filesArray = Array.from(files)
       const targetSessionId = focusedSessionId ?? session.selected
       if (!targetSessionId) return
-      window.dispatchEvent(new CustomEvent('craft:paste-files', {
+      window.dispatchEvent(new CustomEvent('u-agents:paste-files', {
         detail: { files: filesArray, sessionId: targetSessionId }
       }))
     }

@@ -1,7 +1,7 @@
 {
   "name": "@u-agents/server",
   "version": "0.9.0",
-  "description": "Standalone headless Craft Agent server (Bun runtime)",
+  "description": "Standalone headless U Agents server (Bun runtime)",
   "type": "module",
   "main": "src/index.ts",
   "bin": {
@@ -14,11 +14,11 @@
     "bun": ">=1.0.0"
   },
   "author": {
-    "name": "Craft Docs Ltd.",
-    "email": "support@craft.do"
+    "name": "U Studio",
+    "email": "support@u-studio.cn"
   },
   "license": "Apache-2.0",
-  "homepage": "https://agents.craft.do",
+  "homepage": "https://u-agents.u-studio.cn",
   "scripts": {
     "start": "bun run src/index.ts",
     "generate-token": "bun run src/index.ts --generate-token",

@@ -1,12 +1,12 @@
 import { describe, it, expect, afterEach } from 'bun:test';
-import { isDevRuntime, isDeveloperFeedbackEnabled, isCraftAgentsCliEnabled, isEmbeddedServerEnabled } from '../feature-flags.ts';
+import { isDevRuntime, isDeveloperFeedbackEnabled, isUAgentsCliEnabled, isEmbeddedServerEnabled } from '../feature-flags.ts';
 
 const ORIGINAL_ENV = {
   NODE_ENV: process.env.NODE_ENV,
   CRAFT_DEBUG: process.env.CRAFT_DEBUG,
-  CRAFT_FEATURE_DEVELOPER_FEEDBACK: process.env.CRAFT_FEATURE_DEVELOPER_FEEDBACK,
-  CRAFT_FEATURE_CRAFT_AGENTS_CLI: process.env.CRAFT_FEATURE_CRAFT_AGENTS_CLI,
-  CRAFT_FEATURE_EMBEDDED_SERVER: process.env.CRAFT_FEATURE_EMBEDDED_SERVER,
+  U_AGENTS_FEATURE_DEVELOPER_FEEDBACK: process.env.U_AGENTS_FEATURE_DEVELOPER_FEEDBACK,
+  U_AGENTS_FEATURE_CRAFT_AGENTS_CLI: process.env.U_AGENTS_FEATURE_CRAFT_AGENTS_CLI,
+  U_AGENTS_FEATURE_EMBEDDED_SERVER: process.env.U_AGENTS_FEATURE_EMBEDDED_SERVER,
 };
 
 afterEach(() => {
@@ -16,14 +16,14 @@ afterEach(() => {
   if (ORIGINAL_ENV.CRAFT_DEBUG === undefined) delete process.env.CRAFT_DEBUG;
   else process.env.CRAFT_DEBUG = ORIGINAL_ENV.CRAFT_DEBUG;
 
-  if (ORIGINAL_ENV.CRAFT_FEATURE_DEVELOPER_FEEDBACK === undefined) delete process.env.CRAFT_FEATURE_DEVELOPER_FEEDBACK;
-  else process.env.CRAFT_FEATURE_DEVELOPER_FEEDBACK = ORIGINAL_ENV.CRAFT_FEATURE_DEVELOPER_FEEDBACK;
+  if (ORIGINAL_ENV.U_AGENTS_FEATURE_DEVELOPER_FEEDBACK === undefined) delete process.env.U_AGENTS_FEATURE_DEVELOPER_FEEDBACK;
+  else process.env.U_AGENTS_FEATURE_DEVELOPER_FEEDBACK = ORIGINAL_ENV.U_AGENTS_FEATURE_DEVELOPER_FEEDBACK;
 
-  if (ORIGINAL_ENV.CRAFT_FEATURE_CRAFT_AGENTS_CLI === undefined) delete process.env.CRAFT_FEATURE_CRAFT_AGENTS_CLI;
-  else process.env.CRAFT_FEATURE_CRAFT_AGENTS_CLI = ORIGINAL_ENV.CRAFT_FEATURE_CRAFT_AGENTS_CLI;
+  if (ORIGINAL_ENV.U_AGENTS_FEATURE_CRAFT_AGENTS_CLI === undefined) delete process.env.U_AGENTS_FEATURE_CRAFT_AGENTS_CLI;
+  else process.env.U_AGENTS_FEATURE_CRAFT_AGENTS_CLI = ORIGINAL_ENV.U_AGENTS_FEATURE_CRAFT_AGENTS_CLI;
 
-  if (ORIGINAL_ENV.CRAFT_FEATURE_EMBEDDED_SERVER === undefined) delete process.env.CRAFT_FEATURE_EMBEDDED_SERVER;
-  else process.env.CRAFT_FEATURE_EMBEDDED_SERVER = ORIGINAL_ENV.CRAFT_FEATURE_EMBEDDED_SERVER;
+  if (ORIGINAL_ENV.U_AGENTS_FEATURE_EMBEDDED_SERVER === undefined) delete process.env.U_AGENTS_FEATURE_EMBEDDED_SERVER;
+  else process.env.U_AGENTS_FEATURE_EMBEDDED_SERVER = ORIGINAL_ENV.U_AGENTS_FEATURE_EMBEDDED_SERVER;
 });
 
 describe('feature-flags runtime helpers', () => {
@@ -43,7 +43,7 @@ describe('feature-flags runtime helpers', () => {
 
   it('isDeveloperFeedbackEnabled honors explicit override false', () => {
     process.env.NODE_ENV = 'development';
-    process.env.CRAFT_FEATURE_DEVELOPER_FEEDBACK = '0';
+    process.env.U_AGENTS_FEATURE_DEVELOPER_FEEDBACK = '0';
 
     expect(isDeveloperFeedbackEnabled()).toBe(false);
   });
@@ -51,7 +51,7 @@ describe('feature-flags runtime helpers', () => {
   it('isDeveloperFeedbackEnabled honors explicit override true', () => {
     process.env.NODE_ENV = 'production';
     delete process.env.CRAFT_DEBUG;
-    process.env.CRAFT_FEATURE_DEVELOPER_FEEDBACK = '1';
+    process.env.U_AGENTS_FEATURE_DEVELOPER_FEEDBACK = '1';
 
     expect(isDeveloperFeedbackEnabled()).toBe(true);
   });
@@ -59,43 +59,43 @@ describe('feature-flags runtime helpers', () => {
   it('isDeveloperFeedbackEnabled falls back to dev runtime when no override', () => {
     process.env.NODE_ENV = 'production';
     process.env.CRAFT_DEBUG = '1';
-    delete process.env.CRAFT_FEATURE_DEVELOPER_FEEDBACK;
+    delete process.env.U_AGENTS_FEATURE_DEVELOPER_FEEDBACK;
 
     expect(isDeveloperFeedbackEnabled()).toBe(true);
   });
 
-  it('isCraftAgentsCliEnabled defaults to false when no override is set', () => {
-    delete process.env.CRAFT_FEATURE_CRAFT_AGENTS_CLI;
+  it('isUAgentsCliEnabled defaults to false when no override is set', () => {
+    delete process.env.U_AGENTS_FEATURE_CRAFT_AGENTS_CLI;
 
-    expect(isCraftAgentsCliEnabled()).toBe(false);
+    expect(isUAgentsCliEnabled()).toBe(false);
   });
 
-  it('isCraftAgentsCliEnabled honors explicit override true', () => {
-    process.env.CRAFT_FEATURE_CRAFT_AGENTS_CLI = '1';
+  it('isUAgentsCliEnabled honors explicit override true', () => {
+    process.env.U_AGENTS_FEATURE_CRAFT_AGENTS_CLI = '1';
 
-    expect(isCraftAgentsCliEnabled()).toBe(true);
+    expect(isUAgentsCliEnabled()).toBe(true);
   });
 
-  it('isCraftAgentsCliEnabled honors explicit override false', () => {
-    process.env.CRAFT_FEATURE_CRAFT_AGENTS_CLI = '0';
+  it('isUAgentsCliEnabled honors explicit override false', () => {
+    process.env.U_AGENTS_FEATURE_CRAFT_AGENTS_CLI = '0';
 
-    expect(isCraftAgentsCliEnabled()).toBe(false);
+    expect(isUAgentsCliEnabled()).toBe(false);
   });
 
   it('isEmbeddedServerEnabled defaults to false when no override is set', () => {
-    delete process.env.CRAFT_FEATURE_EMBEDDED_SERVER;
+    delete process.env.U_AGENTS_FEATURE_EMBEDDED_SERVER;
 
     expect(isEmbeddedServerEnabled()).toBe(false);
   });
 
   it('isEmbeddedServerEnabled honors explicit override true', () => {
-    process.env.CRAFT_FEATURE_EMBEDDED_SERVER = '1';
+    process.env.U_AGENTS_FEATURE_EMBEDDED_SERVER = '1';
 
     expect(isEmbeddedServerEnabled()).toBe(true);
   });
 
   it('isEmbeddedServerEnabled honors explicit override false', () => {
-    process.env.CRAFT_FEATURE_EMBEDDED_SERVER = '0';
+    process.env.U_AGENTS_FEATURE_EMBEDDED_SERVER = '0';
 
     expect(isEmbeddedServerEnabled()).toBe(false);
   });

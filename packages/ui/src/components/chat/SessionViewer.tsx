@@ -49,9 +49,9 @@ export interface SessionViewerProps {
 }
 
 /**
- * CraftAgentLogo - The Craft Agent "C" logo for branding
+ * UAgentsLogo - The U Agents "C" logo for branding
  */
-function CraftAgentLogo({ className }: { className?: string }) {
+function UAgentsLogo({ className }: { className?: string }) {
   return (
     <svg
       className={className}
@@ -225,7 +225,7 @@ export function SessionViewer({
 
             {/* Bottom branding */}
             <div className={CHAT_CLASSES.brandingContainer}>
-              <CraftAgentLogo className="w-8 h-8 text-[#9570BE]/40" />
+              <UAgentsLogo className="w-8 h-8 text-[#9570BE]/40" />
             </div>
             </div>
           </div>

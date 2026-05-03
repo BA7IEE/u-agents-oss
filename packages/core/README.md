@@ -1,6 +1,6 @@
 # @u-agents/core
 
-Shared TypeScript types and utilities for Craft Agent applications.
+Shared TypeScript types and utilities for U Agents applications.
 
 ## Installation
 
@@ -54,7 +54,7 @@ import { generateMessageId, debug } from '@u-agents/core';
 - `MessageRole` - Message type enum
 - `ToolStatus` - Tool execution state
 - `TokenUsage` - Token counts and cost
-- `AgentEvent` - Events from CraftAgent
+- `AgentEvent` - Events from UAgent
 - `TypedError` - Structured error info
 - `Question` - AskUserQuestion format
 

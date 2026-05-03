@@ -855,7 +855,7 @@ export default function App() {
             handleInputChange(sessionId, restored)
             // handleInputChange updates the ref but ChatPage has local state.
             // Dispatch a custom event so ChatPage re-reads the draft.
-            window.dispatchEvent(new CustomEvent('craft:restore-input', {
+            window.dispatchEvent(new CustomEvent('u-agents:restore-input', {
               detail: { sessionId, text: restored },
             }))
             break
@@ -929,7 +929,7 @@ export default function App() {
       // Note: markCompactionComplete is called on the backend (sessions.ts) to ensure
       // it happens even if CMD+R occurs during compaction
       if (event.type === 'info' && event.statusType === 'compaction_complete') {
-        window.dispatchEvent(new CustomEvent('craft:compaction-complete', {
+        window.dispatchEvent(new CustomEvent('u-agents:compaction-complete', {
           detail: { sessionId }
         }))
       }

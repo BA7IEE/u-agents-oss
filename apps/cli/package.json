@@ -2,7 +2,7 @@
   "name": "@u-agents/cli",
   "version": "0.9.0",
   "license": "Apache-2.0",
-  "description": "Terminal client for Craft Agent server",
+  "description": "Terminal client for U Agents server",
   "type": "module",
   "main": "src/index.ts",
   "bin": {

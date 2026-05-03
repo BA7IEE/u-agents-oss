@@ -1,5 +1,5 @@
 /**
- * @u-agents/ui - Shared React UI components for Craft Agent
+ * @u-agents/ui - Shared React UI components for U Agents
  *
  * This package provides platform-agnostic UI components that work in both:
  * - Electron desktop app (full interactive mode)

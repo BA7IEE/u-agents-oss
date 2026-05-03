@@ -12,7 +12,7 @@ export interface ResolvedScriptRuntime {
 
 export interface ResolveScriptRuntimeContext {
   /**
-   * Whether host app is packaged. Defaults to CRAFT_IS_PACKAGED=1.
+   * Whether host app is packaged. Defaults to U_AGENTS_IS_PACKAGED=1.
    * In packaged mode, PATH fallback is blocked by default.
    */
   isPackaged?: boolean;
@@ -64,7 +64,7 @@ function getPlatformRuntimeDir(): string {
 
 function inferPackagedMode(ctx?: ResolveScriptRuntimeContext): boolean {
   if (typeof ctx?.isPackaged === 'boolean') return ctx.isPackaged;
-  return process.env.CRAFT_IS_PACKAGED === '1';
+  return process.env.U_AGENTS_IS_PACKAGED === '1';
 }
 
 function getProcessResourcesPath(): string | undefined {
@@ -72,7 +72,7 @@ function getProcessResourcesPath(): string | undefined {
 }
 
 function resolveResourcesBase(ctx?: ResolveScriptRuntimeContext): string | null {
-  const explicit = ctx?.resourcesBasePath || process.env.CRAFT_RESOURCES_BASE;
+  const explicit = ctx?.resourcesBasePath || process.env.U_AGENTS_RESOURCES_BASE;
   if (explicit) return resolve(explicit);
 
   const resourcesPath = getProcessResourcesPath();
@@ -85,7 +85,7 @@ function resolveResourcesBase(ctx?: ResolveScriptRuntimeContext): string | null 
 }
 
 function resolveAppRoot(ctx?: ResolveScriptRuntimeContext): string | null {
-  const explicit = ctx?.appRootPath || process.env.CRAFT_APP_ROOT;
+  const explicit = ctx?.appRootPath || process.env.U_AGENTS_APP_ROOT;
   return explicit ? resolve(explicit) : null;
 }
 
@@ -151,7 +151,7 @@ function validatePackagedEnvRuntime(command: string, label: string): string {
  * Resolve runtime command and fixed argument prefix for script execution tools.
  *
  * Resolution order:
- * - env override (CRAFT_UV / CRAFT_NODE / CRAFT_BUN)
+ * - env override (U_AGENTS_UV / U_AGENTS_NODE / U_AGENTS_BUN)
  * - bundled binary path (when available)
  * - PATH fallback (dev only)
  */
@@ -162,10 +162,10 @@ export function resolveScriptRuntime(
   const isPackaged = inferPackagedMode(ctx);
 
   if (language === 'python3') {
-    if (process.env.CRAFT_UV) {
+    if (process.env.U_AGENTS_UV) {
       const cmd = isPackaged
-        ? validatePackagedEnvRuntime(process.env.CRAFT_UV, 'Python/uv')
-        : process.env.CRAFT_UV;
+        ? validatePackagedEnvRuntime(process.env.U_AGENTS_UV, 'Python/uv')
+        : process.env.U_AGENTS_UV;
 
       return {
         command: cmd,
@@ -197,15 +197,15 @@ export function resolveScriptRuntime(
     throw new Error(
       isPackaged
         ? 'Python runtime unavailable in packaged app: uv was not found in env or bundled resources.'
-        : 'Python runtime unavailable: uv was not found. Configure CRAFT_UV or install uv on PATH.'
+        : 'Python runtime unavailable: uv was not found. Configure U_AGENTS_UV or install uv on PATH.'
     );
   }
 
   if (language === 'node') {
-    if (process.env.CRAFT_NODE) {
+    if (process.env.U_AGENTS_NODE) {
       const cmd = isPackaged
-        ? validatePackagedEnvRuntime(process.env.CRAFT_NODE, 'Node')
-        : process.env.CRAFT_NODE;
+        ? validatePackagedEnvRuntime(process.env.U_AGENTS_NODE, 'Node')
+        : process.env.U_AGENTS_NODE;
       return { command: cmd, argsPrefix: [], source: 'env' };
     }
 
@@ -224,14 +224,14 @@ export function resolveScriptRuntime(
     throw new Error(
       isPackaged
         ? 'Node runtime unavailable in packaged app: node was not found in env or bundled resources.'
-        : 'Node runtime unavailable: configure CRAFT_NODE or install node on PATH.'
+        : 'Node runtime unavailable: configure U_AGENTS_NODE or install node on PATH.'
     );
   }
 
-  if (process.env.CRAFT_BUN) {
+  if (process.env.U_AGENTS_BUN) {
     const cmd = isPackaged
-      ? validatePackagedEnvRuntime(process.env.CRAFT_BUN, 'Bun')
-      : process.env.CRAFT_BUN;
+      ? validatePackagedEnvRuntime(process.env.U_AGENTS_BUN, 'Bun')
+      : process.env.U_AGENTS_BUN;
     return { command: cmd, argsPrefix: [], source: 'env' };
   }
 
@@ -250,6 +250,6 @@ export function resolveScriptRuntime(
   throw new Error(
     isPackaged
       ? 'Bun runtime unavailable in packaged app: bun was not found in env or bundled resources.'
-      : 'Bun runtime unavailable: configure CRAFT_BUN or install bun on PATH.'
+      : 'Bun runtime unavailable: configure U_AGENTS_BUN or install bun on PATH.'
   );
 }

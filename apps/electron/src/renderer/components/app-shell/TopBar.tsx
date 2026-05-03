@@ -10,7 +10,7 @@
 import { useTranslation } from "react-i18next"
 import * as Icons from "lucide-react"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@u-agents/ui"
-import { CraftAgentsSymbol } from "../icons/CraftAgentsSymbol"
+import { UAgentsSymbol } from "../icons/UAgentsSymbol"
 import { PanelLeftRounded } from "../icons/PanelLeftRounded"
 import { TopBarButton } from "../ui/TopBarButton"
 import { cn } from "@/lib/utils"
@@ -268,7 +268,7 @@ export function TopBar({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <TopBarButton aria-label={t("menu.craftMenu")}>
-              <CraftAgentsSymbol className="h-4 text-accent" />
+              <UAgentsSymbol className="h-4 text-accent" />
             </TopBarButton>
           </DropdownMenuTrigger>
           <StyledDropdownMenuContent align="start" minWidth="min-w-48">
@@ -326,7 +326,7 @@ export function TopBar({
                 {t("menu.help")}
               </StyledDropdownMenuSubTrigger>
               <StyledDropdownMenuSubContent>
-                <StyledDropdownMenuItem onClick={() => window.electronAPI.openUrl('https://agents.craft.do/docs')}>
+                <StyledDropdownMenuItem onClick={() => window.electronAPI.openUrl('https://u-agents.u-studio.cn/docs')}>
                   <Icons.HelpCircle className="h-3.5 w-3.5" />
                   {t("menu.helpAndDocs")}
                   <Icons.ExternalLink className="h-3 w-3 ml-auto text-muted-foreground" />
@@ -370,7 +370,7 @@ export function TopBar({
 
             <StyledDropdownMenuItem onClick={() => window.electronAPI.menuQuit()}>
               <Icons.LogOut className="h-3.5 w-3.5" />
-              {t("menu.quitCraftAgents")}
+              {t("menu.quitUAgents")}
               {quitHotkey && <DropdownMenuShortcut className="pl-6">{quitHotkey}</DropdownMenuShortcut>}
             </StyledDropdownMenuItem>
           </StyledDropdownMenuContent>
@@ -474,7 +474,7 @@ export function TopBar({
               <Icons.ExternalLink className="h-3 w-3 text-muted-foreground" />
             </StyledDropdownMenuItem>
             <StyledDropdownMenuSeparator />
-            <StyledDropdownMenuItem onClick={() => window.electronAPI.openUrl('https://agents.craft.do/docs')}>
+            <StyledDropdownMenuItem onClick={() => window.electronAPI.openUrl('https://u-agents.u-studio.cn/docs')}>
               <Icons.ExternalLink className="h-3.5 w-3.5" />
               <span className="flex-1">{t("menu.allDocumentation")}</span>
             </StyledDropdownMenuItem>

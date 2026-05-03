@@ -40,8 +40,8 @@ describe('classifyExternalUrl — safe external (custom app schemes)', () => {
 })
 
 describe('classifyExternalUrl — internal deep links', () => {
-  it('classifies craftagents:// as internal-deeplink', () => {
-    expect(classifyExternalUrl('craftagents://settings').kind).toBe('internal-deeplink')
+  it('classifies uagents:// as internal-deeplink', () => {
+    expect(classifyExternalUrl('uagents://settings').kind).toBe('internal-deeplink')
   })
 
   it('is case-insensitive for the scheme', () => {
@@ -101,7 +101,7 @@ describe('isSafeExternalUrl', () => {
   })
 
   it('returns false for internal deep links', () => {
-    expect(isSafeExternalUrl('craftagents://settings')).toBe(false)
+    expect(isSafeExternalUrl('uagents://settings')).toBe(false)
   })
 
   it('returns false for dangerous schemes', () => {

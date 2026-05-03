@@ -1,4 +1,4 @@
-# Craft Agent CLI Guide
+# U Agents CLI Guide
 
 `craft-agent` is the preferred interface for managing workspace config domains such as labels, sources, skills, and automations.
 

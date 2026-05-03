@@ -367,7 +367,7 @@ export function FreeFormInput({
     const groups: Record<string, typeof llmConnections> = {
       'Anthropic': [],
       'Local': [],
-      'Craft Agents Backend': [],
+      'U-API': [],
     }
     for (const conn of llmConnections) {
       const provider = conn.providerType || 'anthropic'
@@ -377,7 +377,7 @@ export function FreeFormInput({
       } else if (provider === 'pi_compat' && isLocalConnection(conn)) {
         groups['Local'].push(conn)
       } else if (provider === 'pi' || provider === 'pi_compat') {
-        groups['Craft Agents Backend'].push(conn)
+        groups['U-API'].push(conn)
       }
     }
     // Return only non-empty groups
@@ -603,7 +603,7 @@ export function FreeFormInput({
   // Track last caret position for focus restoration (e.g., after permission mode popover closes)
   const lastCaretPositionRef = React.useRef<number | null>(null)
 
-  // Listen for craft:insert-text events (generic mechanism for inserting text into input)
+  // Listen for u-agents:insert-text events (generic mechanism for inserting text into input)
   // Used by components that want to pre-fill the input with text
   React.useEffect(() => {
     const handleInsertText = (e: CustomEvent<{ text: string; sessionId?: string }>) => {
@@ -621,8 +621,8 @@ export function FreeFormInput({
       }, 0)
     }
 
-    window.addEventListener('craft:insert-text', handleInsertText as EventListener)
-    return () => window.removeEventListener('craft:insert-text', handleInsertText as EventListener)
+    window.addEventListener('u-agents:insert-text', handleInsertText as EventListener)
+    return () => window.removeEventListener('u-agents:insert-text', handleInsertText as EventListener)
   }, [sessionId, isFocusedPanel, syncToParent, richInputRef])
 
   const clearInputDraft = React.useCallback(() => {
@@ -645,7 +645,7 @@ export function FreeFormInput({
     source?: string
   }
 
-  // Listen for craft:approve-plan events (used by ResponseCard's Accept Plan button)
+  // Listen for u-agents:approve-plan events (used by ResponseCard's Accept Plan button)
   // This disables safe mode AND submits the message in one action
   // Only process events for this session (sessionId must match)
   React.useEffect(() => {
@@ -671,11 +671,11 @@ export function FreeFormInput({
       onSubmit(text, undefined)
     }
 
-    window.addEventListener('craft:approve-plan', handleApprovePlan as EventListener)
-    return () => window.removeEventListener('craft:approve-plan', handleApprovePlan as EventListener)
+    window.addEventListener('u-agents:approve-plan', handleApprovePlan as EventListener)
+    return () => window.removeEventListener('u-agents:approve-plan', handleApprovePlan as EventListener)
   }, [sessionId, permissionMode, onPermissionModeChange, onSubmit, consumeInputDraftSnapshot])
 
-  // Listen for craft:approve-plan-with-compact events (Accept & Compact option)
+  // Listen for u-agents:approve-plan-with-compact events (Accept & Compact option)
   // This compacts the conversation first, then executes the plan.
   // The pending state is persisted to survive page reloads (CMD+R).
   React.useEffect(() => {
@@ -716,7 +716,7 @@ export function FreeFormInput({
         }
 
         // Remove the listener (one-time use)
-        window.removeEventListener('craft:compaction-complete', handleCompactionComplete as unknown as EventListener)
+        window.removeEventListener('u-agents:compaction-complete', handleCompactionComplete as unknown as EventListener)
 
         const executionMessage = buildPlanApprovalMessage({
           planPath,
@@ -732,11 +732,11 @@ export function FreeFormInput({
         }
       }
 
-      window.addEventListener('craft:compaction-complete', handleCompactionComplete as unknown as EventListener)
+      window.addEventListener('u-agents:compaction-complete', handleCompactionComplete as unknown as EventListener)
     }
 
-    window.addEventListener('craft:approve-plan-with-compact', handleApprovePlanWithCompact as unknown as EventListener)
-    return () => window.removeEventListener('craft:approve-plan-with-compact', handleApprovePlanWithCompact as unknown as EventListener)
+    window.addEventListener('u-agents:approve-plan-with-compact', handleApprovePlanWithCompact as unknown as EventListener)
+    return () => window.removeEventListener('u-agents:approve-plan-with-compact', handleApprovePlanWithCompact as unknown as EventListener)
   }, [sessionId, permissionMode, onPermissionModeChange, onSubmit, consumeInputDraftSnapshot])
 
   // Reload recovery: Check for pending plan execution on mount.
@@ -800,13 +800,13 @@ export function FreeFormInput({
       executePendingPlan()
     }
 
-    window.addEventListener('craft:compaction-complete', handleCompactionComplete as unknown as EventListener)
+    window.addEventListener('u-agents:compaction-complete', handleCompactionComplete as unknown as EventListener)
     return () => {
-      window.removeEventListener('craft:compaction-complete', handleCompactionComplete as unknown as EventListener)
+      window.removeEventListener('u-agents:compaction-complete', handleCompactionComplete as unknown as EventListener)
     }
   }, [sessionId, onSubmit])
 
-  // Listen for craft:focus-input events (restore focus after popover/dropdown closes)
+  // Listen for u-agents:focus-input events (restore focus after popover/dropdown closes)
   React.useEffect(() => {
     const handleFocusInput = (e: Event) => {
       const detail = (e as CustomEvent<{ sessionId?: string }>).detail
@@ -828,8 +828,8 @@ export function FreeFormInput({
       }
     }
 
-    window.addEventListener('craft:focus-input', handleFocusInput)
-    return () => window.removeEventListener('craft:focus-input', handleFocusInput)
+    window.addEventListener('u-agents:focus-input', handleFocusInput)
+    return () => window.removeEventListener('u-agents:focus-input', handleFocusInput)
   }, [sessionId, isFocusedPanel, richInputRef])
 
   // Recover queued focus requests after session switch/mount races.
@@ -857,7 +857,7 @@ export function FreeFormInput({
     return maxNum + 1
   }
 
-  // Listen for craft:paste-files events (for global paste when input not focused)
+  // Listen for u-agents:paste-files events (for global paste when input not focused)
   React.useEffect(() => {
     const handlePasteFiles = async (e: CustomEvent<{ files: File[]; sessionId?: string }>) => {
       if (disabled) return
@@ -896,8 +896,8 @@ export function FreeFormInput({
       richInputRef.current?.focus()
     }
 
-    window.addEventListener('craft:paste-files', handlePasteFiles as unknown as EventListener)
-    return () => window.removeEventListener('craft:paste-files', handlePasteFiles as unknown as EventListener)
+    window.addEventListener('u-agents:paste-files', handlePasteFiles as unknown as EventListener)
+    return () => window.removeEventListener('u-agents:paste-files', handlePasteFiles as unknown as EventListener)
   }, [disabled, sessionId, isFocusedPanel, richInputRef])
 
   // Build active commands list for slash command menu
@@ -1272,7 +1272,7 @@ export function FreeFormInput({
     return true
   }, [input, attachments, followUpItems, disabled, disableSend, onInputChange, onAttachmentsChange, onSubmit, skills, sources, optimisticSourceSlugs, onSourcesChange, onWorkingDirectoryChange, homeDir])
 
-  // Listen for craft:submit-input events (simulate pressing the Send button)
+  // Listen for u-agents:submit-input events (simulate pressing the Send button)
   React.useEffect(() => {
     const handleSubmitInput = (e: CustomEvent<{ sessionId?: string }>) => {
       const targetSessionId = e.detail?.sessionId
@@ -1280,8 +1280,8 @@ export function FreeFormInput({
       submitMessage()
     }
 
-    window.addEventListener('craft:submit-input', handleSubmitInput as EventListener)
-    return () => window.removeEventListener('craft:submit-input', handleSubmitInput as EventListener)
+    window.addEventListener('u-agents:submit-input', handleSubmitInput as EventListener)
+    return () => window.removeEventListener('u-agents:submit-input', handleSubmitInput as EventListener)
   }, [sessionId, isFocusedPanel, submitMessage])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -1576,7 +1576,7 @@ export function FreeFormInput({
             `displayLabel`, and `displayLabelKey` reach the popover. The previous
             cherry-pick dropped `inlineExecution: true`, which made the popover
             fall back to the same-window deep-link path; that worked inside
-            Electron but launched the desktop app from the WebUI via `craftagents://`.
+            Electron but launched the desktop app from the WebUI via `uagents://`.
             Match the AppShell pattern (which already uses spread). */}
         {addLabelEditConfig && (
           <EditPopover
@@ -1699,7 +1699,7 @@ export function FreeFormInput({
           onLongTextPaste={handleLongTextPaste}
           onFocus={() => { setIsFocused(true); onFocusChange?.(true) }}
           onBlur={() => {
-            // Save caret position before losing focus (for restoration via craft:focus-input)
+            // Save caret position before losing focus (for restoration via u-agents:focus-input)
             lastCaretPositionRef.current = richInputRef.current?.selectionStart ?? null
             setIsFocused(false)
             onFocusChange?.(false)
