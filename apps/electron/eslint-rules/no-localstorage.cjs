@@ -34,7 +34,7 @@ module.exports = {
     },
     messages: {
       noLocalStorage:
-        "Avoid localStorage in U Agents. Store settings in ~/.craft-agent/preferences.json using window.electronAPI.readPreferences/writePreferences. See packages/shared/src/config/preferences.ts for the preferences API.",
+        "Avoid localStorage in U Agents. Store settings in ~/.u-agents/preferences.json using window.electronAPI.readPreferences/writePreferences. See packages/shared/src/config/preferences.ts for the preferences API.",
     },
     schema: [],
   },

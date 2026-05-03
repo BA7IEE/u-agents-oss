@@ -27,6 +27,10 @@ const PROVIDER_METADATA: Record<string, ProviderMetadata> = {
     statusPageUrl: 'https://status.openai.com',
     dashboardUrl: 'https://platform.openai.com',
   },
+  'u-api': {
+    name: 'U-API',
+    dashboardUrl: 'https://token.u-studio.cn/console/token',
+  },
   google: {
     name: 'Google AI Studio',
     statusPageUrl: 'https://status.cloud.google.com',
@@ -79,7 +83,11 @@ const PROVIDER_METADATA: Record<string, ProviderMetadata> = {
 export function getProviderMetadata(
   providerType: string,
   piAuthProvider?: string,
+  slug?: string,
 ): ProviderMetadata | undefined {
+  if (slug === 'u-api-default') {
+    return PROVIDER_METADATA['u-api']
+  }
   if (providerType === 'anthropic') {
     return PROVIDER_METADATA.anthropic
   }

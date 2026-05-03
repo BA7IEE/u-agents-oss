@@ -16,6 +16,7 @@ import { expandPath, toPortablePath, getBundledAssetsDir } from '../utils/paths.
 import { debug } from '../utils/debug.ts';
 import { readJsonFileSync } from '../utils/files.ts';
 import { CONFIG_DIR } from './paths.ts';
+import { buildDefaultConnection, U_API_BASE_URL, U_API_NAME, U_API_SLUG } from './u-api-defaults.ts';
 import type { StoredAttachment, StoredMessage } from '@u-agents/core/types';
 import type { Plan } from '../agent/plan-types.ts';
 import type { PermissionMode } from '../agent/mode-manager.ts';
@@ -157,7 +158,7 @@ function syncConfigDefaults(): void {
 }
 
 /**
- * Load config defaults from ~/.craft-agent/config-defaults.json
+ * Load config defaults from ~/.u-agents/config-defaults.json
  * This file is synced from bundled assets on every launch.
  */
 export function loadConfigDefaults(): ConfigDefaults {
@@ -209,7 +210,7 @@ export function ensureConfigDir(): void {
   if (!existsSync(CONFIG_DIR)) {
     mkdirSync(CONFIG_DIR, { recursive: true });
   }
-  // Initialize bundled docs (creates ~/.craft-agent/docs/ with sources.md, agents.md, permissions.md)
+  // Initialize bundled docs (creates ~/.u-agents/docs/ with sources.md, agents.md, permissions.md)
   initializeDocs();
 
   // Initialize config defaults
@@ -1156,7 +1157,7 @@ const APP_THEME_FILE = join(CONFIG_DIR, 'theme.json');
 const APP_THEMES_DIR = join(CONFIG_DIR, 'themes');
 
 /**
- * Get the path to the app-level theme override file (~/.craft-agent/theme.json).
+ * Get the path to the app-level theme override file (~/.u-agents/theme.json).
  */
 export function getAppThemePath(): string {
   return APP_THEME_FILE;
@@ -1167,7 +1168,7 @@ let presetsInitialized = false;
 
 /**
  * Get the app-level themes directory.
- * Preset themes are stored at ~/.craft-agent/themes/
+ * Preset themes are stored at ~/.u-agents/themes/
  */
 export function getAppThemesDir(): string {
   return APP_THEMES_DIR;
@@ -1622,6 +1623,9 @@ function backfillAllConnectionModels(config: StoredConfig): boolean {
   if (!config.llmConnections) return false;
   let changed = false;
   for (const connection of config.llmConnections) {
+    // U-API: user-managed model lists must not be overwritten by provider defaults.
+    if (connection.slug === U_API_SLUG) continue;
+
     // Repair previously broken API-key migration first.
     if (shouldRepairPiApiKeyCodexProvider(connection)) {
       connection.piAuthProvider = 'openai';
@@ -2100,6 +2104,45 @@ function migrateModelDefaultsToConnections(config: StoredConfig): boolean {
   return changed;
 }
 
+export function enforceUApiBaseUrl(config: StoredConfig): boolean {
+  const before = JSON.stringify({
+    llmConnections: config.llmConnections,
+    defaultLlmConnection: config.defaultLlmConnection,
+  });
+
+  const connections = (config.llmConnections ?? []).filter(connection => connection.slug === U_API_SLUG);
+  if (connections.length === 0) {
+    connections.push(buildDefaultConnection());
+  }
+
+  const [primary] = connections;
+  if (primary) {
+    primary.slug = U_API_SLUG;
+    primary.name = U_API_NAME;
+    primary.providerType = 'pi_compat';
+    primary.baseUrl = U_API_BASE_URL;
+    primary.authType = 'api_key_with_endpoint';
+    primary.modelSelectionMode ??= 'userDefined3Tier';
+
+    const api = primary.customEndpoint?.api ?? 'anthropic-messages';
+    primary.customEndpoint = {
+      ...primary.customEndpoint,
+      api,
+      supportsImages: true,
+    };
+    primary.piAuthProvider = api === 'anthropic-messages' ? 'anthropic' : 'openai';
+  }
+
+  config.llmConnections = primary ? [primary] : [];
+  config.defaultLlmConnection = U_API_SLUG;
+
+  const after = JSON.stringify({
+    llmConnections: config.llmConnections,
+    defaultLlmConnection: config.defaultLlmConnection,
+  });
+  return before !== after;
+}
+
 /**
  * Migrate legacy auth config to LLM connections.
  * Call this on app startup before any getLlmConnections() calls.
@@ -2236,6 +2279,10 @@ export function migrateLegacyLlmConnectionsConfig(): void {
     if (migrateLegacyProviderTypes(config)) {
       needsSave = true;
     }
+    // U-API: this is a continuous startup lock, not a one-shot migration.
+    if (enforceUApiBaseUrl(config)) {
+      needsSave = true;
+    }
 
     if (needsSave) {
       saveConfig(config);
@@ -2356,6 +2403,7 @@ export function migrateLegacyLlmConnectionsConfig(): void {
   migrateCodexCopilotToPi(config);
   backfillAllConnectionModels(config);
   migrateModelDefaultsToConnections(config);
+  enforceUApiBaseUrl(config);
 
   saveConfig(config);
 }
@@ -2845,7 +2893,7 @@ import { copyFileSync } from 'fs';
 const TOOL_ICONS_DIR_NAME = 'tool-icons';
 
 /**
- * Returns the path to the tool-icons directory: ~/.craft-agent/tool-icons/
+ * Returns the path to the tool-icons directory: ~/.u-agents/tool-icons/
  */
 export function getToolIconsDir(): string {
   return join(CONFIG_DIR, TOOL_ICONS_DIR_NAME);

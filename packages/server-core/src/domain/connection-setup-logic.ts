@@ -9,8 +9,12 @@ import type { ModelDefinition } from '@u-agents/shared/config/models'
 import {
   type LlmConnection,
   type CustomEndpointApi,
+  type CustomEndpointConfig,
   getDefaultModelsForConnection,
   getDefaultModelForConnection,
+  U_API_BASE_URL,
+  U_API_NAME,
+  U_API_SLUG,
 } from '@u-agents/shared/config'
 
 // ============================================================
@@ -55,9 +59,10 @@ export function validateSetupTestInput(params: {
   provider: 'anthropic' | 'pi'
   baseUrl?: string
   piAuthProvider?: string
+  customEndpoint?: CustomEndpointConfig
 }): { valid: true } | { valid: false; error: string } {
   const hasCustomEndpoint = !!params.baseUrl?.trim()
-  if (params.provider === 'pi' && hasCustomEndpoint && !params.piAuthProvider) {
+  if (params.provider === 'pi' && hasCustomEndpoint && !params.piAuthProvider && !params.customEndpoint) {
     return {
       valid: false,
       error: 'Custom endpoint in U-API mode requires selecting a provider preset. For arbitrary Anthropic-compatible endpoints, use Anthropic API Key mode.',
@@ -135,7 +140,17 @@ export const BUILT_IN_CONNECTION_TEMPLATES: Record<string, {
   providerType: LlmConnection['providerType'] | ((hasCustomEndpoint: boolean) => LlmConnection['providerType'])
   authType: LlmConnection['authType'] | ((hasCustomEndpoint: boolean) => LlmConnection['authType'])
   piAuthProvider?: string
+  baseUrl?: string
+  customEndpoint?: { api: CustomEndpointApi }
 }> = {
+  [U_API_SLUG]: {
+    name: U_API_NAME,
+    providerType: 'pi_compat',
+    authType: 'api_key_with_endpoint',
+    baseUrl: U_API_BASE_URL,
+    customEndpoint: { api: 'anthropic-messages' },
+    piAuthProvider: 'anthropic',
+  },
   'anthropic-api': {
     name: (h) => h ? 'Custom Anthropic-Compatible' : 'Anthropic (API Key)',
     providerType: (h) => h ? 'pi_compat' : 'anthropic',
@@ -234,6 +249,10 @@ export function createBuiltInConnection(slug: string, baseUrl?: string | null): 
     name,
     providerType,
     authType,
+    baseUrl: template.baseUrl ?? undefined,
+    customEndpoint: template.customEndpoint
+      ? { ...template.customEndpoint, supportsImages: true }
+      : undefined,
     models: getDefaultModelsForConnection(providerType, template.piAuthProvider),
     defaultModel: getDefaultModelForConnection(providerType, template.piAuthProvider),
     modelSelectionMode: providerType === 'pi' ? 'automaticallySyncedFromProvider' : undefined,

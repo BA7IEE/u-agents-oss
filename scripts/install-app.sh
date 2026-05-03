@@ -3,7 +3,7 @@
 set -e
 
 VERSIONS_URL="https://u-agents.u-studio.cn/electron"
-DOWNLOAD_DIR="$HOME/.craft-agent/downloads"
+DOWNLOAD_DIR="$HOME/.u-agents/downloads"
 
 # Colors for output
 RED='\033[0;31m'
@@ -315,7 +315,7 @@ else
     appimage_path="$installer_path"
 
     # New paths
-    APP_DIR="$HOME/.craft-agent/app"
+    APP_DIR="$HOME/.u-agents/app"
     WRAPPER_PATH="$INSTALL_DIR/craft-agents"
     APPIMAGE_INSTALL_PATH="$APP_DIR/U-Agents-x64.AppImage"
 
@@ -344,7 +344,7 @@ else
 #!/bin/bash
 # U Agents launcher - handles Linux-specific AppImage issues
 
-APPIMAGE_PATH="$HOME/.craft-agent/app/U-Agents-x64.AppImage"
+APPIMAGE_PATH="$HOME/.u-agents/app/U-Agents-x64.AppImage"
 ELECTRON_CACHE="$HOME/.config/@u-agents"
 ELECTRON_CACHE_ALT="$HOME/.cache/@u-agents"
 
