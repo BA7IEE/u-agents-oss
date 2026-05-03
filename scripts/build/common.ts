@@ -682,7 +682,7 @@ export async function createManifest(config: BuildConfig): Promise<string> {
  * Upload to S3
  */
 export async function uploadToS3(config: BuildConfig): Promise<void> {
-  const { rootDir, upload, uploadLatest, uploadScript } = config;
+  const { rootDir, upload, uploadLatest } = config;
 
   if (!upload) return;
 
@@ -702,7 +702,6 @@ export async function uploadToS3(config: BuildConfig): Promise<void> {
 
   const flags = ['--electron'];
   if (uploadLatest) flags.push('--latest');
-  if (uploadScript) flags.push('--script');
 
   await $`cd ${rootDir} && bun run scripts/upload.ts ${flags}`;
 

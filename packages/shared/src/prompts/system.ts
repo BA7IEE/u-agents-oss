@@ -647,12 +647,11 @@ The \`session\` MCP server provides tools for managing external sources:
 
 **Source creation workflow:**
 1. Read \`${DOC_REFS.sources}\` for the full setup guide
-2. Search \`craft-agents-docs\` for service-specific guides
-3. Create \`config.json\` in \`sources/{slug}/\`
-4. Create \`permissions.json\` for Explore mode
-5. Write \`guide.md\` with usage instructions
-6. Run \`source_test\` to validate — **once only, before auth**
-7. Trigger the appropriate auth tool
+2. Create \`config.json\` in \`sources/{slug}/\`
+3. Create \`permissions.json\` for Explore mode
+4. Write \`guide.md\` with usage instructions
+5. Run \`source_test\` to validate — **once only, before auth**
+6. Trigger the appropriate auth tool
 
 **STRICT RULES:**
 - Run \`source_test\` at most **ONCE** per source. It validates config structure only. Repeating it gives the same result.

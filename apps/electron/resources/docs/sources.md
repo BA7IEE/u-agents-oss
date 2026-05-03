@@ -10,25 +10,7 @@ This guide explains how to configure sources (MCP servers, APIs, local filesyste
 
 When a user wants to add a new source, follow this conversational setup process to create a tailored, well-documented integration.
 
-### 0. Search for Specialized Source Guide (REQUIRED FIRST STEP)
-
-**Before doing anything else**, search for a specialized guide using the craft-agents-docs MCP:
-
-```
-mcp__craft-agents-docs__SearchUAgents({ query: "{service} source setup" })
-```
-
-**Available guides:** GitHub, Linear, Slack, Gmail, Google Calendar, Google Drive, Google Docs, Google Sheets, Outlook, Microsoft Calendar, Teams, SharePoint, Craft, Filesystem, Brave Search, Memory
-
-**If a guide exists for the service:**
-1. **Read the guide content** carefully
-2. **Pay special attention to the "Setup Hints" section** - it contains critical instructions
-3. **Follow any CRITICAL/MANDATORY instructions** before proceeding (e.g., GitHub requires checking for `gh` CLI first)
-4. **ALWAYS verify current API endpoints via WebSearch and/or in-app browser** - URLs and docs change frequently
-
-**Why this matters:** Some services have important prerequisites or gotchas that MUST be checked before creating a source. Skipping this step can lead to failed setups or redundant configurations.
-
-### 0.5. Choose Source vs Browser Path (RECOMMENDED PRE-FLIGHT)
+### 0. Choose Source vs Browser Path (RECOMMENDED PRE-FLIGHT)
 
 Sources remain the default for reusable integrations. Before building a new source, ask: **Is this repeatable integration work, or a one-off/UI-driven task?**
 
@@ -208,10 +190,7 @@ Concrete examples tailored to the user's workflow:
 ```
 User: I want to add Linear
 
-Agent: [FIRST: Searches for Linear guide]
-       mcp__craft-agents-docs__SearchUAgents({ query: "linear source setup" })
-
-Agent: I found the Linear setup guide! A few questions:
+Agent: A few questions:
 1. What will you primarily use Linear for? (issue tracking, sprint planning, reporting?)
 2. Are there specific teams or projects you want to focus on?
 3. Should I set it up for read-only exploration or full access?

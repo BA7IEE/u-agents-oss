@@ -832,7 +832,7 @@ export class ClaudeAgent extends BaseAgent {
 
       // Build MCP servers config
       // Mini agents: only session tools (config_validate) to minimize token usage
-      // Regular agents: full set including preferences, docs, and user sources
+      // Regular agents: full set including preferences and user sources
 
       // Build per-source proxy servers from centralized MCP pool (if available)
       const sourceProxies = this.config.mcpPool ? createSourceProxyServers(this.config.mcpPool) : {};
@@ -845,12 +845,6 @@ export class ClaudeAgent extends BaseAgent {
       const fullMcpServers: Options['mcpServers'] = {
         // Session-scoped tools (SubmitPlan, source_test, update_user_preferences, transform_data, etc.)
         session: getSessionScopedTools(sessionId, this.workspaceRootPath),
-        // U Agents documentation - always available for searching setup guides
-        // This is a public Mintlify MCP server, no auth needed
-        'craft-agents-docs': {
-          type: 'http',
-          url: 'https://u-agents.u-studio.cn/docs/mcp',
-        },
         // Per-source proxy servers from centralized MCP pool (MCP + API sources)
         // Each source gets its own SDK server keyed by slug (e.g., 'linear', 'github', 'gmail')
         // so the SDK produces correct tool names: mcp__{slug}__{toolName}
@@ -858,7 +852,7 @@ export class ClaudeAgent extends BaseAgent {
       };
 
       // Mini agents: filter to minimal set using centralized keys
-      // Regular agents: use full set including docs and user sources
+      // Regular agents: use full set including user sources
       const mcpServers: Options['mcpServers'] = miniConfig.enabled
         ? this.filterMcpServersForMiniAgent(fullMcpServers, miniConfig.mcpServerKeys)
         : fullMcpServers;

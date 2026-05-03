@@ -92,7 +92,6 @@ export type {
 
 // Built-in Sources (always available in every workspace)
 export {
-  getDocsSource,
   getBuiltinSources,
   isBuiltinSource,
 } from './builtin-sources.ts';

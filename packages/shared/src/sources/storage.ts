@@ -20,7 +20,7 @@ import type {
 import { validateSourceConfig } from '../config/validators.ts';
 import { debug } from '../utils/debug.ts';
 import { readJsonFileSync } from '../utils/files.ts';
-import { getBuiltinSources, isBuiltinSource, getDocsSource } from './builtin-sources.ts';
+import { getBuiltinSources, isBuiltinSource } from './builtin-sources.ts';
 import { expandPath, toPortablePath } from '../utils/paths.ts';
 import { getWorkspaceSourcesPath } from '../workspaces/storage.ts';
 import {
@@ -375,8 +375,8 @@ export function isSourceUsable(source: LoadedSource): boolean {
 
 /**
  * Get sources by slugs for a workspace.
- * Includes both user-configured sources from disk and builtin sources
- * (like craft-agents-docs) that don't have filesystem folders.
+ * Includes both user-configured sources from disk and built-in sources that
+ * don't have filesystem folders.
  */
 export function getSourcesBySlugs(workspaceRootPath: string, slugs: string[]): LoadedSource[] {
   const workspaceId = basename(workspaceRootPath);
@@ -384,10 +384,6 @@ export function getSourcesBySlugs(workspaceRootPath: string, slugs: string[]): L
   for (const slug of slugs) {
     // Check builtin sources first (they don't exist on disk)
     if (isBuiltinSource(slug)) {
-      // Currently only craft-agents-docs is a builtin source
-      if (slug === 'craft-agents-docs') {
-        sources.push(getDocsSource(workspaceId, workspaceRootPath));
-      }
       continue;
     }
     // Load user-configured source from disk
@@ -401,8 +397,8 @@ export function getSourcesBySlugs(workspaceRootPath: string, slugs: string[]): L
 
 /**
  * Load all sources for a workspace INCLUDING built-in sources.
- * Built-in sources (like craft-agents-docs) are always available and merged
- * with user-configured sources from the workspace.
+ * Built-in sources are always available and merged with user-configured
+ * sources from the workspace.
  *
  * Use this when the agent needs visibility into all available sources,
  * including system-provided ones that don't live on disk.
@@ -537,8 +533,7 @@ export async function createSource(
     }
   }
 
-  // Create guide.md with skeleton template
-  // (bundled guides removed - agent should search craft-agents-docs MCP for service-specific guidance)
+  // Create guide.md with skeleton template.
   const guideContent = `# ${input.name}
 
 ## Guidelines
@@ -583,4 +578,3 @@ export function sourceExists(workspaceRootPath: string, sourceSlug: string): boo
 // ============================================================
 
 export { parseGuideMarkdown };
-

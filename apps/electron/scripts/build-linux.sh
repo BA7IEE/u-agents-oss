@@ -29,17 +29,15 @@ fi
 ARCH="x64"
 UPLOAD=false
 UPLOAD_LATEST=false
-UPLOAD_SCRIPT=false
 
 show_help() {
     cat << EOF
-Usage: build-linux.sh [x64|arm64] [--upload] [--latest] [--script]
+Usage: build-linux.sh [x64|arm64] [--upload] [--latest]
 
 Arguments:
   x64|arm64    Target architecture (default: x64)
   --upload     Upload AppImage to S3 after building
   --latest     Also update electron/latest (requires --upload)
-  --script     Also upload install-app.sh (requires --upload)
 
 Environment variables (from .env or environment):
   S3_VERSIONS_BUCKET_*      - S3 credentials (for --upload)
@@ -52,7 +50,6 @@ while [[ $# -gt 0 ]]; do
         x64|arm64)     ARCH="$1"; shift ;;
         --upload)      UPLOAD=true; shift ;;
         --latest)      UPLOAD_LATEST=true; shift ;;
-        --script)      UPLOAD_SCRIPT=true; shift ;;
         -h|--help)     show_help ;;
         *)
             echo "Unknown option: $1"
@@ -251,7 +248,6 @@ EOF
     # Build upload flags
     UPLOAD_FLAGS="--electron"
     [ "$UPLOAD_LATEST" = true ] && UPLOAD_FLAGS="$UPLOAD_FLAGS --latest"
-    [ "$UPLOAD_SCRIPT" = true ] && UPLOAD_FLAGS="$UPLOAD_FLAGS --script"
 
     cd "$ROOT_DIR"
     bun run scripts/upload.ts $UPLOAD_FLAGS

@@ -515,7 +515,7 @@ export interface LoadedSource {
   workspaceId: string;
 
   /**
-   * Whether this is a built-in source (e.g., craft-agents-docs).
+   * Whether this is a built-in source.
    * Built-in sources are always available and not shown in the sources UI.
    */
   isBuiltin?: boolean;

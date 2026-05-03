@@ -2,9 +2,7 @@
  * Source Guides System
  *
  * Provides parsing utilities for source guides.
- * Guides are now served exclusively via the craft-agents-docs MCP server.
- *
- * The agent should search the MCP docs for setup guidance when creating sources.
+ * Bundled source guides were removed for M1.
  */
 
 // ============================================================
@@ -184,23 +182,18 @@ export function extractDomainFromSource(source: {
 }
 
 // ============================================================
-// Guide Lookup (Deprecated - Use MCP docs instead)
+// Guide Lookup (Deprecated)
 // ============================================================
 
 /**
  * @deprecated Bundled guides have been removed.
- * Use the craft-agents-docs MCP server to search for setup guides.
- *
- * Example: mcp__craft-agents-docs__SearchUAgents({ query: "github source setup guide" })
  */
 export function getSourceGuideForDomain(_domain: string): ParsedSourceGuide | null {
-  // Bundled guides removed - guides now come from MCP docs server
   return null;
 }
 
 /**
  * @deprecated Bundled guides have been removed.
- * Use the craft-agents-docs MCP server to search for setup guides.
  */
 export function getSourceGuide(_source: {
   type?: string;
@@ -208,13 +201,11 @@ export function getSourceGuide(_source: {
   mcp?: { url?: string };
   api?: { baseUrl?: string };
 }): ParsedSourceGuide | null {
-  // Bundled guides removed - guides now come from MCP docs server
   return null;
 }
 
 /**
  * @deprecated Bundled guides have been removed.
- * Use the craft-agents-docs MCP server to search for setup guides.
  */
 export function getSourceKnowledge(_source: {
   type?: string;
@@ -222,6 +213,5 @@ export function getSourceKnowledge(_source: {
   mcp?: { url?: string };
   api?: { baseUrl?: string };
 }): string | null {
-  // Bundled guides removed - guides now come from MCP docs server
   return null;
 }
