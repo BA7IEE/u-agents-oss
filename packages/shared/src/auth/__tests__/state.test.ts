@@ -7,8 +7,33 @@
  * - Migration detection for legacy CLI tokens
  */
 import { describe, it, expect, beforeEach, mock } from 'bun:test';
+
+// Module mocks for getAuthState tests — must be registered before importing state.ts
+// so that state.ts picks up the stubbed exports during module resolution.
+let mockActiveWorkspace: any = null;
+let mockDefaultSlug: string | null = null;
+const mockConnections: Record<string, any> = {};
+let mockCredManager: any = {
+  hasLlmCredentials: async () => false,
+  getLlmApiKey: async () => null,
+  getLlmOAuth: async () => null,
+  getClaudeOAuthCredentials: async () => null,
+};
+
+mock.module('../../config/storage.ts', () => ({
+  loadStoredConfig: () => null,
+  getActiveWorkspace: () => mockActiveWorkspace,
+  getDefaultLlmConnection: () => mockDefaultSlug,
+  getLlmConnection: (slug: string) => mockConnections[slug] ?? null,
+}));
+
+mock.module('../../credentials/index.ts', () => ({
+  getCredentialManager: () => mockCredManager,
+}));
+
 import {
   getSetupNeeds,
+  getAuthState,
   performTokenRefresh,
   _resetRefreshMutex,
   type AuthState,
@@ -378,5 +403,88 @@ describe('MigrationInfo', () => {
     };
 
     expect(validInfo.reason).toBe('legacy_token');
+  });
+});
+
+// ============================================
+// hasCredentials keyless special case (multi-connection)
+// ============================================
+//
+// Regression coverage for `state.ts` keyless branch (auth/state.ts: getAuthState):
+//
+//   if (!apiKey && connection.baseUrl) {
+//     // U-API: the fixed remote base URL still requires a user token.
+//     hasCredentials = !isUApiSlug(defaultConnectionSlug);
+//   }
+//
+// Upstream Ollama-style keyless providers must remain valid; every U-API slug
+// (`u-api`, `u-api-default`, `u-api-N`) must be reported as missing credentials.
+
+describe('hasCredentials keyless special case (multi-connection)', () => {
+  beforeEach(() => {
+    mockActiveWorkspace = {
+      id: 'ws-1',
+      name: 'Workspace',
+      rootPath: '/tmp/ws-1',
+      createdAt: Date.now(),
+    };
+    mockDefaultSlug = null;
+    for (const k of Object.keys(mockConnections)) delete mockConnections[k];
+    mockCredManager = {
+      hasLlmCredentials: async () => false,
+      getLlmApiKey: async () => null,
+      getLlmOAuth: async () => null,
+      getClaudeOAuthCredentials: async () => null,
+    };
+  });
+
+  it('returns false for u-api-default with no apiKey', async () => {
+    mockDefaultSlug = 'u-api-default';
+    mockConnections['u-api-default'] = {
+      slug: 'u-api-default',
+      name: 'U-API',
+      providerType: 'pi_compat',
+      baseUrl: 'https://token.u-studio.cn/v1',
+      authType: 'api_key_with_endpoint',
+      models: [],
+      createdAt: Date.now(),
+    };
+
+    const state = await getAuthState();
+    expect(state.billing.hasCredentials).toBe(false);
+  });
+
+  it('returns false for u-api-2 with no apiKey', async () => {
+    mockDefaultSlug = 'u-api-2';
+    mockConnections['u-api-2'] = {
+      slug: 'u-api-2',
+      name: 'U-API #2',
+      providerType: 'pi_compat',
+      baseUrl: 'https://token.u-studio.cn/v1',
+      authType: 'api_key_with_endpoint',
+      models: [],
+      createdAt: Date.now(),
+    };
+
+    const state = await getAuthState();
+    expect(state.billing.hasCredentials).toBe(false);
+  });
+
+  it('returns true for non-U-API connection (anthropic-api) with no apiKey', async () => {
+    // Simulates an Ollama-style keyless connection — non-U-API slug + custom baseUrl
+    // must still resolve to hasCredentials = true (upstream behaviour preserved).
+    mockDefaultSlug = 'anthropic-api';
+    mockConnections['anthropic-api'] = {
+      slug: 'anthropic-api',
+      name: 'Anthropic Local',
+      providerType: 'anthropic',
+      baseUrl: 'http://localhost:11434',
+      authType: 'api_key_with_endpoint',
+      models: [],
+      createdAt: Date.now(),
+    };
+
+    const state = await getAuthState();
+    expect(state.billing.hasCredentials).toBe(true);
   });
 });
