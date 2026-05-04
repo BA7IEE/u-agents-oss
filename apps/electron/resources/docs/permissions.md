@@ -2,10 +2,6 @@
 
 This guide explains how to configure custom permission rules for Explore mode.
 
-> **CLI-first workflow (recommended):** Use `craft-agent permission ...` commands instead of editing JSON directly.
-> - `craft-agent permission --help`
-> - Canonical command reference: [craft-cli.md](./craft-cli.md)
-
 ## Overview
 
 Explore mode is a read-only mode that blocks potentially destructive operations.

@@ -2,10 +2,6 @@
 
 This guide explains how to configure automations in U Agents to automate workflows based on events.
 
-> **CLI-first workflow (recommended):** Use `craft-agent automation ...` commands instead of editing JSON directly.
-> - `craft-agent automation --help`
-> - Canonical command reference: [craft-cli.md](./craft-cli.md)
-
 ## What Are Automations?
 
 Automations allow you to trigger actions automatically when specific events occur in U Agents. You can:
@@ -20,23 +16,6 @@ Automations are configured in `automations.json` at the root of your workspace:
 
 ```
 ~/.u-agents/workspaces/{workspaceId}/automations.json
-```
-
-## Recommended CLI Commands
-
-```bash
-craft-agent automation list
-craft-agent automation get <id>
-craft-agent automation create --event UserPromptSubmit --prompt "..."
-craft-agent automation update <id> --json '{...}'
-craft-agent automation enable <id>
-craft-agent automation disable <id>
-craft-agent automation duplicate <id>
-craft-agent automation history [<id>] --limit 20
-craft-agent automation last-executed <id>
-craft-agent automation test <id> --match "..."
-craft-agent automation lint
-craft-agent automation validate
 ```
 
 ## Basic Structure
@@ -763,11 +742,11 @@ A single automation can have both prompt and webhook actions. They execute in or
         "actions": [
           {
             "type": "webhook",
-            "url": "https://api.example.com/craft-events",
+            "url": "https://api.example.com/u-agents-events",
             "method": "POST",
             "headers": {
               "Authorization": "Bearer ${CRAFT_WH_API_TOKEN}",
-              "X-Source": "craft-agent"
+              "X-Source": "u-agents"
             },
             "body": {
               "event": "${CRAFT_EVENT}",

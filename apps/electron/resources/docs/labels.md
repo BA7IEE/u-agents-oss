@@ -2,10 +2,6 @@
 
 Labels are additive tags that can be applied to sessions. Unlike statuses (which are exclusive — one per session), labels are multi-select (many per session). They support hierarchical organization via nested JSON trees.
 
-> **CLI-first workflow (recommended):** Use `craft-agent label ...` commands instead of editing JSON directly.
-> - `craft-agent label --help`
-> - Canonical command reference: [craft-cli.md](./craft-cli.md)
-
 ## Storage Locations
 
 - Config: `~/.u-agents/workspaces/{id}/labels/config.json`
@@ -136,21 +132,6 @@ Values are inferred from the raw string at parse time:
 **Inference order:** ISO date check → number check → string fallback.
 
 The optional `valueType` in config is a hint only — the parser always infers from the raw value regardless.
-
-## Adding Labels
-
-Prefer `craft-agent` commands:
-
-```bash
-craft-agent label create --name "Bug" --color "destructive"
-craft-agent label create --name "Priority" --color "accent" --value-type number
-craft-agent label create --name "Due Date" --color "info" --value-type date
-craft-agent label create --name "Project" --color "foreground/60"
-craft-agent label create --name "Alpha" --color "info" --parent-id project
-craft-agent label create --name "Beta" --color "success" --parent-id project
-```
-
-Use direct JSON edits only for bulk/manual operations where CLI is not sufficient.
 
 ## Color Conventions
 

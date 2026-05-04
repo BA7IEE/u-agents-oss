@@ -1287,7 +1287,7 @@
   "toast.webhookReplayCompleted": "Webhook-Wiedergabe abgeschlossen",
   "toast.workspaceReconnected": "Workspace wiederverbunden",
   "toolbar.escapeToInterrupt": "Drücken Sie <kbd>Esc</kbd> erneut, um zu unterbrechen",
-  "transport.authFailed": "Authentifizierung fehlgeschlagen. CRAFT_SERVER_TOKEN überprüfen.",
+  "transport.authFailed": "Authentication failed. Verify your server token.",
   "transport.connecting": "Verbindung zum Remote-Server wird hergestellt",
   "transport.connectingDesc": "Verbindung zu {{url}} wird hergestellt...",
   "transport.defaultStatus": "Verbindungsstatus des Remote-Servers",
