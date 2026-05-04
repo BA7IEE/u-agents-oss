@@ -26,7 +26,7 @@ import {
   type AuthType,
   type Workspace,
 } from '../config/storage.ts';
-import { U_API_SLUG } from '../config/u-api-defaults.ts';
+import { U_API_SLUG, isUApiSlug } from '../config/u-api-defaults.ts';
 import { refreshClaudeToken, isTokenExpired } from './claude-token.ts';
 import { debug } from '../utils/debug.ts';
 
@@ -303,7 +303,7 @@ export async function getAuthState(): Promise<AuthState> {
       // Keyless providers (Ollama) are valid when a custom base URL is configured
       if (!apiKey && connection.baseUrl) {
         // U-API: the fixed remote base URL still requires a user token.
-        hasCredentials = defaultConnectionSlug !== U_API_SLUG;
+        hasCredentials = !isUApiSlug(defaultConnectionSlug);
       }
     } else if (connection.authType === 'oauth') {
       const llmOAuth = await manager.getLlmOAuth(defaultConnectionSlug);
