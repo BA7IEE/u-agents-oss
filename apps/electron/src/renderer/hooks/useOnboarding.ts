@@ -19,7 +19,8 @@ import type { ProviderChoice } from '@/components/onboarding/ProviderSelectStep'
 import type { LocalModelSubmitData } from '@/components/onboarding/LocalModelStep'
 import type { ApiKeySubmitData } from '@/components/apisetup'
 import type { CustomEndpointConfig } from '@config/llm-connections'
-import { U_API_BASE_URL, U_API_SLUG } from '@config/u-api-defaults'
+// U-API: multi-connection soft lockdown — U_API_SLUG no longer needed here, slug now resolved per call (02 §6.2.2)
+import { U_API_BASE_URL } from '@config/u-api-defaults'
 import type { SetupNeeds, LlmConnectionSetup } from '../../shared/types'
 
 interface UseOnboardingOptions {
@@ -98,7 +99,11 @@ export const BASE_SLUG_FOR_METHOD: Record<ApiSetupMethod, string> = {
   pi_chatgpt_oauth: 'chatgpt-plus',
   pi_copilot_oauth: 'github-copilot',
   pi_api_key: 'pi-api-key',
-  u_api: U_API_SLUG,
+  // U-API: multi-connection soft lockdown — base 'u-api' makes resolveSlugForMethod yield
+  // 'u-api' / 'u-api-2' / 'u-api-3' for new connections; first-install path keeps 'u-api-default'
+  // because that slug is pre-seeded by buildDefaultConnection() and isUApiSlug() recognizes both forms.
+  // Detail: 02 §6.2.2 / §6.2.3
+  u_api: 'u-api',
 }
 
 /**
@@ -157,8 +162,11 @@ export function apiSetupMethodToConnectionSetup(
 
   switch (method) {
     case 'u_api':
+      /* U-API START: multi-connection soft lockdown — let resolveSlugForMethod
+         generate u-api-2 / u-api-3 for new connections (02 §6.2.2). Editing the
+         existing u-api-default reuses that slug via editingSlug. */
       return {
-        slug: U_API_SLUG,
+        slug,
         credential: options.credential,
         baseUrl: U_API_BASE_URL,
         customEndpoint: options.customEndpoint ?? { api: 'anthropic-messages', supportsImages: true },
@@ -166,6 +174,7 @@ export function apiSetupMethodToConnectionSetup(
         models: options.models,
         modelSelectionMode: options.modelSelectionMode ?? 'userDefined3Tier',
       }
+      /* U-API END */
     case 'anthropic_api_key':
       return {
         slug,

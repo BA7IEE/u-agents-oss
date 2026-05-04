@@ -157,6 +157,19 @@ export const BUILT_IN_CONNECTION_TEMPLATES: Record<string, {
     customEndpoint: { api: 'anthropic-messages' },
     piAuthProvider: 'anthropic',
   },
+  /* U-API START: multi-connection soft lockdown — base 'u-api' template for new connections
+     created via "Add Connection" in settings. Stripped numeric suffix in createBuiltInConnection
+     (e.g. 'u-api-2' → 'u-api') falls back to this entry. Same constraint fields as 'u-api-default';
+     only difference is the user-shown name will be auto-suffixed (e.g. "U-API 2"). 02 §6.2.2 */
+  'u-api': {
+    name: U_API_NAME,
+    providerType: 'pi_compat',
+    authType: 'api_key_with_endpoint',
+    baseUrl: U_API_BASE_URL,
+    customEndpoint: { api: 'anthropic-messages' },
+    piAuthProvider: 'anthropic',
+  },
+  /* U-API END */
   'anthropic-api': {
     name: (h) => h ? 'Custom Anthropic-Compatible' : 'Anthropic (API Key)',
     providerType: (h) => h ? 'pi_compat' : 'anthropic',

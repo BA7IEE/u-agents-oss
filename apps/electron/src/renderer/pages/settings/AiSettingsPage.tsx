@@ -51,7 +51,8 @@ import { RenameDialog } from '@/components/ui/rename-dialog'
 import { useAppShellContext } from '@/context/AppShellContext'
 import { getModelShortName, type ModelDefinition } from '@config/models'
 import { getModelsForProviderType, type CustomEndpointApi } from '@config/llm-connections'
-import { U_API_SLUG } from '@config/u-api-defaults'
+// U-API: multi-connection soft lockdown — isUApiSlug recognizes 'u-api-default' / 'u-api' / 'u-api-N' (02 §6.2.2)
+import { isUApiSlug } from '@config/u-api-defaults'
 import { toast } from 'sonner'
 
 /**
@@ -188,7 +189,10 @@ function ConnectionRow({ connection, isLastConnection, onRenameClick, onDelete, 
   const { t } = useTranslation()
   const [menuOpen, setMenuOpen] = useState(false)
   const [piBaseUrl, setPiBaseUrl] = useState<string | undefined>(undefined)
-  const isUApiConnection = connection.slug === U_API_SLUG
+  /* U-API: multi-connection soft lockdown — Rename / Set Default / Delete are all allowed for
+     every U-API connection now. Delete still respects isLastConnection (caller passes
+     uApiConnections.length === 1) so the lockdown invariant "at least one connection" holds.
+     The previous single-connection lockdown hid these via !isUApiConnection guards; removed. (02 §6.2) */
 
   // Opening dialog/overlay flows directly from a dropdown item can race with
   // menu teardown and leave a transient interaction lock behind on some systems.
@@ -287,13 +291,11 @@ function ConnectionRow({ connection, isLastConnection, onRenameClick, onDelete, 
           </button>
         </DropdownMenuTrigger>
         <StyledDropdownMenuContent align="end">
-          {!isUApiConnection && (
-            <StyledDropdownMenuItem onClick={() => runAfterMenuClose(onRenameClick)}>
-              <Pencil className="h-3.5 w-3.5" />
-              <span>{t("common.rename")}</span>
-            </StyledDropdownMenuItem>
-          )}
-          {!isUApiConnection && !connection.isDefault && (
+          <StyledDropdownMenuItem onClick={() => runAfterMenuClose(onRenameClick)}>
+            <Pencil className="h-3.5 w-3.5" />
+            <span>{t("common.rename")}</span>
+          </StyledDropdownMenuItem>
+          {!connection.isDefault && (
             <StyledDropdownMenuItem onClick={onSetDefault}>
               <Star className="h-3.5 w-3.5" />
               <span>{t("settings.ai.setAsDefault")}</span>
@@ -317,19 +319,15 @@ function ConnectionRow({ connection, isLastConnection, onRenameClick, onDelete, 
             <CheckCircle2 className="h-3.5 w-3.5" />
             <span>{t("settings.ai.validateConnection")}</span>
           </StyledDropdownMenuItem>
-          {!isUApiConnection && (
-            <>
-              <StyledDropdownMenuSeparator />
-              <StyledDropdownMenuItem
-                onClick={onDelete}
-                variant="destructive"
-                disabled={isLastConnection}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                <span>{t("common.delete")}</span>
-              </StyledDropdownMenuItem>
-            </>
-          )}
+          <StyledDropdownMenuSeparator />
+          <StyledDropdownMenuItem
+            onClick={onDelete}
+            variant="destructive"
+            disabled={isLastConnection}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            <span>{t("common.delete")}</span>
+          </StyledDropdownMenuItem>
         </StyledDropdownMenuContent>
       </DropdownMenu>
     </SettingsRow>
@@ -556,7 +554,8 @@ function WorkspaceOverrideCard({ workspace, llmConnections, onSettingsChange }: 
 
 /** Map a connection's provider type to the corresponding API key setup method. */
 function getApiKeyMethodForConnection(conn: LlmConnectionWithStatus): ApiSetupMethod {
-  if (conn.slug === U_API_SLUG) return 'u_api'
+  // U-API: multi-connection soft lockdown — every U-API slug routes to the U-API setup wizard (02 §6.2.2)
+  if (isUApiSlug(conn.slug)) return 'u_api'
   const provider = conn.providerType || conn.type
   if (provider === 'pi' || provider === 'pi_compat') return 'pi_api_key'
   return 'anthropic_api_key'
@@ -570,7 +569,8 @@ export default function AiSettingsPage() {
   const { t } = useTranslation()
   const { llmConnections, refreshLlmConnections, activeWorkspaceId } = useAppShellContext()
   const uApiConnections = useMemo(
-    () => llmConnections.filter(c => c.slug === U_API_SLUG),
+    // U-API: multi-connection soft lockdown — show every U-API slug, not just primary (02 §6.2.2)
+    () => llmConnections.filter(c => isUApiSlug(c.slug)),
     [llmConnections],
   )
 
@@ -923,6 +923,22 @@ export default function AiSettingsPage() {
               {uApiConnections.length > 0 && (
               <SettingsSection title={t("settings.ai.defaultSection")} description={t("settings.ai.defaultSectionDesc")}>
                 <SettingsCard>
+                  {/* U-API START: multi-connection soft lockdown — always show Default Connection
+                      selector when ≥1 U-API connection exists, so user discovers the control even
+                      before adding a second connection. With 1 connection the dropdown is
+                      effectively a single-item label, but proves the feature exists. (02 §6.2 Q3) */}
+                  <SettingsMenuSelectRow
+                    label={t("settings.ai.connection")}
+                    description={t("settings.ai.connectionDesc")}
+                    value={defaultConnection?.slug || ''}
+                    onValueChange={handleSetDefaultConnection}
+                    options={uApiConnections.map((conn) => ({
+                      value: conn.slug,
+                      label: conn.name,
+                      description: 'U-API',
+                    }))}
+                  />
+                  {/* U-API END */}
                   <SettingsMenuSelectRow
                     label={t("settings.ai.model")}
                     description={t("settings.ai.modelDesc")}
@@ -981,7 +997,8 @@ export default function AiSettingsPage() {
                       <ConnectionRow
                         key={conn.slug}
                         connection={conn}
-                        isLastConnection={false}
+                        // U-API: multi-connection soft lockdown — last U-API connection cannot be deleted (02 §6.2 Q2)
+                        isLastConnection={uApiConnections.length === 1}
                         onRenameClick={() => handleRenameClick(conn)}
                         onDelete={() => handleDeleteConnection(conn.slug)}
                         onSetDefault={() => handleSetDefaultConnection(conn.slug)}
@@ -994,6 +1011,18 @@ export default function AiSettingsPage() {
                     ))
                   )}
                 </SettingsCard>
+                {/* U-API START: multi-connection soft lockdown — restore Add Connection button removed by 540509b.
+                    Click opens the same U-API onboarding form (Token + protocol + model id), NOT a provider picker.
+                    New connections get slug u-api-2 / u-api-3 via resolveSlugForMethod (02 §6.2.2). */}
+                <div className="pt-0">
+                  <button
+                    onClick={() => openApiSetup()}
+                    className="inline-flex items-center h-8 px-3 text-sm rounded-lg bg-background shadow-minimal hover:bg-foreground/[0.02] transition-colors"
+                  >
+                    {t("settings.ai.addConnection")}
+                  </button>
+                </div>
+                {/* U-API END */}
               </SettingsSection>
 
               {/* Performance */}

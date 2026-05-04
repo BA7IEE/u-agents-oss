@@ -22,6 +22,8 @@ import { ModalProvider } from '@/context/ModalContext'
 import { DismissibleLayerProvider } from '@/context/DismissibleLayerContext'
 import { useWindowCloseHandler } from '@/hooks/useWindowCloseHandler'
 import { useOnboarding } from '@/hooks/useOnboarding'
+// U-API: multi-connection soft lockdown — first-install onboarding edits the placeholder 'u-api-default' (02 §6.2.3)
+import { U_API_SLUG } from '@config/u-api-defaults'
 import { useNotifications } from '@/hooks/useNotifications'
 import { useSession } from '@/hooks/useSession'
 import { useUpdateChecker } from '@/hooks/useUpdateChecker'
@@ -632,6 +634,11 @@ export default function App() {
     onComplete: handleOnboardingComplete,
     onConfigSaved: refreshLlmConnections,
     initialSetupNeeds: setupNeeds || undefined,
+    // U-API: first-install onboarding always targets the placeholder 'u-api-default' that
+    // enforceUApiBaseUrl pre-creates. Without this, resolveSlugForMethod would produce a
+    // fresh 'u-api' slug and SETUP_LLM_CONNECTION would create a second connection alongside
+    // the placeholder. Editing the placeholder gives a clean single-connection first-install. (02 §6.2.3)
+    editingSlug: U_API_SLUG,
   })
 
   // Reauth login handler - placeholder (reauth is not currently used)

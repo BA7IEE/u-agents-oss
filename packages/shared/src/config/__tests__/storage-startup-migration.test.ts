@@ -128,7 +128,7 @@ describe('startup migration U-API lockdown (integration)', () => {
         },
         {
           slug: 'u-api-default',
-          name: 'Tampered Name',
+          name: '我的国产模型 Key',  // user-set rename — multi-connection soft lockdown preserves names (02 §6.2)
           providerType: 'pi',
           baseUrl: 'https://evil.example/v1',
           authType: 'api_key',
@@ -148,7 +148,7 @@ describe('startup migration U-API lockdown (integration)', () => {
     expect(migrated.llmConnections).toHaveLength(1)
     expect(migrated.llmConnections[0]).toMatchObject({
       slug: 'u-api-default',
-      name: 'U-API',
+      name: '我的国产模型 Key',  // user rename preserved; only baseUrl/providerType/authType are force-reset
       providerType: 'pi_compat',
       baseUrl: 'https://token.u-studio.cn/v1',
       authType: 'api_key_with_endpoint',
@@ -160,6 +160,66 @@ describe('startup migration U-API lockdown (integration)', () => {
       defaultModel: 'gpt-5.5',
       modelSelectionMode: 'userDefined3Tier',
       piAuthProvider: 'openai',
+    })
+  })
+
+  it('preserves multiple U-API connections and user-selected default', () => {
+    // Multi-connection soft lockdown: user adds u-api-2 alongside u-api-default,
+    // sets u-api-2 as default. enforceUApiBaseUrl must keep both rows, force constraint
+    // fields on each, and respect the user's defaultLlmConnection choice. (02 §6.2)
+    const { configDir, workspaceRoot, configPath } = setupWorkspaceConfigDir()
+
+    writeRootConfig(configPath, workspaceRoot, {
+      defaultLlmConnection: 'u-api-2',
+      llmConnections: [
+        {
+          slug: 'u-api-default',
+          name: '主 Key',
+          providerType: 'pi_compat',
+          baseUrl: 'https://token.u-studio.cn/v1',
+          authType: 'api_key_with_endpoint',
+          customEndpoint: { api: 'anthropic-messages', supportsImages: true },
+          models: ['claude-sonnet-4-6'],
+          defaultModel: 'claude-sonnet-4-6',
+          modelSelectionMode: 'userDefined3Tier',
+          createdAt: Date.now(),
+        },
+        {
+          slug: 'u-api-2',
+          name: 'DeepSeek Key',
+          providerType: 'pi',
+          baseUrl: 'https://evil.example/v1',  // tampered — should be reset
+          authType: 'api_key',
+          customEndpoint: { api: 'openai-completions' },
+          models: ['deepseek-chat'],
+          defaultModel: 'deepseek-chat',
+          modelSelectionMode: 'userDefined3Tier',
+          createdAt: Date.now(),
+        },
+      ],
+    })
+
+    runMigration(configDir)
+
+    const migrated = readConfigJson(configPath)
+    expect(migrated.llmConnections).toHaveLength(2)
+    expect(migrated.defaultLlmConnection).toBe('u-api-2')  // user choice preserved
+
+    const primary = migrated.llmConnections.find((c: { slug: string }) => c.slug === 'u-api-default')
+    const second = migrated.llmConnections.find((c: { slug: string }) => c.slug === 'u-api-2')
+
+    expect(primary).toMatchObject({
+      name: '主 Key',
+      providerType: 'pi_compat',
+      baseUrl: 'https://token.u-studio.cn/v1',
+      authType: 'api_key_with_endpoint',
+    })
+    expect(second).toMatchObject({
+      name: 'DeepSeek Key',
+      providerType: 'pi_compat',  // force-reset from 'pi'
+      baseUrl: 'https://token.u-studio.cn/v1',  // force-reset from 'evil.example'
+      authType: 'api_key_with_endpoint',
+      models: ['deepseek-chat'],
     })
   })
 

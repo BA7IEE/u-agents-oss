@@ -3,6 +3,9 @@
  * Maps provider identifiers to their status pages and dashboards.
  */
 
+// U-API: import multi-connection slug helper (02 §6.2.2)
+import { isUApiSlug } from './u-api-defaults.ts'
+
 export interface ProviderMetadata {
   /** Display name (e.g., "Anthropic", "OpenAI") */
   name: string
@@ -85,7 +88,8 @@ export function getProviderMetadata(
   piAuthProvider?: string,
   slug?: string,
 ): ProviderMetadata | undefined {
-  if (slug === 'u-api-default') {
+  // U-API: multi-connection soft lockdown — match all U-API slugs (02 §6.2.2)
+  if (slug && isUApiSlug(slug)) {
     return PROVIDER_METADATA['u-api']
   }
   if (providerType === 'anthropic') {

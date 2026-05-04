@@ -24,7 +24,7 @@ import { expandPath, toPortablePath, getBundledAssetsDir } from '../utils/paths.
 import { debug } from '../utils/debug.ts';
 import { readJsonFileSync } from '../utils/files.ts';
 import { CONFIG_DIR } from './paths.ts';
-import { buildDefaultConnection, U_API_BASE_URL, U_API_NAME, U_API_SLUG } from './u-api-defaults.ts';
+import { buildDefaultConnection, isUApiSlug, U_API_BASE_URL, U_API_NAME, U_API_SLUG } from './u-api-defaults.ts';
 import type { StoredAttachment, StoredMessage } from '@u-agents/core/types';
 import type { Plan } from '../agent/plan-types.ts';
 import type { PermissionMode } from '../agent/mode-manager.ts';
@@ -1631,8 +1631,8 @@ function backfillAllConnectionModels(config: StoredConfig): boolean {
   if (!config.llmConnections) return false;
   let changed = false;
   for (const connection of config.llmConnections) {
-    // U-API: user-managed model lists must not be overwritten by provider defaults.
-    if (connection.slug === U_API_SLUG) continue;
+    // U-API: user-managed model lists must not be overwritten by provider defaults (multi-connection — 02 §6.2.2).
+    if (isUApiSlug(connection.slug)) continue;
 
     // Repair previously broken API-key migration first.
     if (shouldRepairPiApiKeyCodexProvider(connection)) {
@@ -2112,37 +2112,57 @@ function migrateModelDefaultsToConnections(config: StoredConfig): boolean {
   return changed;
 }
 
+/* U-API START: multi-connection soft lockdown — 02-llm-gateway-spec.md §6.2.1
+   Goal: allow N U-API connections (different Keys for different model vendors)
+   while keeping every connection's baseUrl / providerType / authType locked to
+   `https://token.u-studio.cn/v1` + `pi_compat` + `api_key_with_endpoint`.
+   The previous implementation hard-discarded all non-`u-api-default` connections;
+   this rewrite keeps them, normalizes constraint fields, and preserves user
+   choice of `defaultLlmConnection` unless it dangles. */
 export function enforceUApiBaseUrl(config: StoredConfig): boolean {
   const before = JSON.stringify({
     llmConnections: config.llmConnections,
     defaultLlmConnection: config.defaultLlmConnection,
   });
 
-  const connections = (config.llmConnections ?? []).filter(connection => connection.slug === U_API_SLUG);
-  if (connections.length === 0) {
-    connections.push(buildDefaultConnection());
+  const all = config.llmConnections ?? [];
+  // Drop any non-U-API connections (legacy upstream provider rows that may have
+  // sneaked in from migrations) but keep ALL U-API-slugged rows.
+  const uApi = all.filter(connection => isUApiSlug(connection.slug));
+
+  // Ensure at least one U-API connection exists; first-install path.
+  if (uApi.length === 0) {
+    uApi.push(buildDefaultConnection());
   }
 
-  const [primary] = connections;
-  if (primary) {
-    primary.slug = U_API_SLUG;
-    primary.name = U_API_NAME;
-    primary.providerType = 'pi_compat';
-    primary.baseUrl = U_API_BASE_URL;
-    primary.authType = 'api_key_with_endpoint';
-    primary.modelSelectionMode ??= 'userDefined3Tier';
+  // Force constraint fields on every U-API connection.
+  for (const conn of uApi) {
+    // name only auto-resets when unset — users can rename to "国产模型 Key" etc.
+    if (!conn.name) conn.name = U_API_NAME;
+    conn.providerType = 'pi_compat';
+    conn.baseUrl = U_API_BASE_URL;
+    conn.authType = 'api_key_with_endpoint';
+    conn.modelSelectionMode ??= 'userDefined3Tier';
 
-    const api = primary.customEndpoint?.api ?? 'anthropic-messages';
-    primary.customEndpoint = {
-      ...primary.customEndpoint,
+    const api = conn.customEndpoint?.api ?? 'anthropic-messages';
+    conn.customEndpoint = {
+      ...conn.customEndpoint,
       api,
       supportsImages: true,
     };
-    primary.piAuthProvider = api === 'anthropic-messages' ? 'anthropic' : 'openai';
+    conn.piAuthProvider = api === 'anthropic-messages' ? 'anthropic' : 'openai';
   }
 
-  config.llmConnections = primary ? [primary] : [];
-  config.defaultLlmConnection = U_API_SLUG;
+  config.llmConnections = uApi;
+
+  // Preserve user's defaultLlmConnection choice unless it dangles. Fallback
+  // priority: existing primary slug → first U-API slug. uApi is guaranteed
+  // non-empty because we push buildDefaultConnection() above when needed.
+  const validSlugs = new Set(uApi.map(c => c.slug));
+  if (!config.defaultLlmConnection || !validSlugs.has(config.defaultLlmConnection)) {
+    const first = uApi[0];
+    config.defaultLlmConnection = validSlugs.has(U_API_SLUG) ? U_API_SLUG : (first ? first.slug : U_API_SLUG);
+  }
 
   const after = JSON.stringify({
     llmConnections: config.llmConnections,
@@ -2150,6 +2170,7 @@ export function enforceUApiBaseUrl(config: StoredConfig): boolean {
   });
   return before !== after;
 }
+/* U-API END */
 
 /**
  * Migrate legacy auth config to LLM connections.

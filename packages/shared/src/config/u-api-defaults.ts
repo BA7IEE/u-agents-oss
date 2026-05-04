@@ -7,6 +7,14 @@ export const U_API_CONSOLE_URL = 'https://token.u-studio.cn/console/token';
 export const U_API_TOPUP_URL = 'https://token.u-studio.cn/console/topup';
 export const U_API_PRICING_URL = 'https://token.u-studio.cn/pricing';
 
+// U-API: 多连接软锁定 — 识别一个 connection 是否属于 U-API（详见 02-llm-gateway-spec.md §6.2.2）。
+// 匹配 'u-api-default'（首装机的 primary slug，保留兼容）或 'u-api' / 'u-api-2' / 'u-api-3'...（resolveSlugForMethod 生成）
+export function isUApiSlug(slug: string | undefined | null): boolean {
+  if (!slug) return false;
+  if (slug === U_API_SLUG) return true;
+  return /^u-api(-\d+)?$/.test(slug);
+}
+
 export function buildDefaultConnection(): LlmConnection {
   return {
     slug: U_API_SLUG,
