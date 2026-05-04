@@ -148,31 +148,38 @@ if (!apiKey && connection.baseUrl) {
 
 **M1 必加 `// U-API:` 标记的改造点**（与 `01 §2.0 子节分级总览表`对应）：
 
-| 改造类别 | 文件 | 标记类型 |
-|---|---|---|
-| baseUrl 锁定 | `storage.ts` enforceUApiBaseUrl 注入点 | `/* U-API START */ ... /* U-API END */` |
-| 凭证 keyless 特判 | `state.ts:296-299` | `// U-API:` 单行 |
-| BUILT_IN_CONNECTION_TEMPLATES | `connection-setup-logic.ts:133` | START/END 块 |
-| validateSetupTestInput 扩展 | `connection-setup-logic.ts:54-67` | START/END 块 |
-| u_api ApiSetupMethod | `APISetupStep.tsx` | START/END 块 |
-| API_SETUP_ICONS u_api 项 | `APISetupStep.tsx:63` | `// U-API:` 单行 |
-| BASE_SLUG_FOR_METHOD u_api 项 | `useOnboarding.ts:94` | `// U-API:` 单行 |
-| apiSetupMethodToConnectionSetup case 'u_api' | `useOnboarding.ts:157` | START/END 块 |
-| ApiKeyInput mode='u_api' | `apisetup/ApiKeyInput.tsx` | START/END 块 |
-| CredentialsStep isUApi 路由 | `CredentialsStep.tsx` | START/END 块 |
-| paths.ts CONFIG_DIR 改名 | `paths.ts:19` | `// U-API:` 单行 |
-| interceptor-common 路径迁移 | `interceptor-common.ts:30, 39, 174` | `// U-API:` 单行 |
-| **isUApiSlug helper（多连接判定）** | `u-api-defaults.ts` 新增 export | `// U-API:` 单行（fn 上方） |
-| 多连接 — model 列表保护 loop | `storage.ts:1635` | `// U-API:` 单行 |
-| 多连接 — enforceUApiBaseUrl 重写 | `storage.ts:2115-2152` | START/END 块（整个函数）|
-| 多连接 — provider-metadata 判定 | `provider-metadata.ts:88` | `// U-API:` 单行 |
-| 多连接 — uApiConnections filter | `AiSettingsPage.tsx:572` | `// U-API:` 单行 |
-| 多连接 — getApiKeyMethodForConnection | `AiSettingsPage.tsx:559` | `// U-API:` 单行 |
-| 多连接 — ConnectionRow isUApiConnection | `AiSettingsPage.tsx:191` | `// U-API:` 单行 |
-| 多连接 — 恢复 default-connection selector | `AiSettingsPage.tsx` Default Settings card | START/END 块 |
-| 多连接 — 恢复 add-connection 按钮 | `AiSettingsPage.tsx` SettingsSection 末尾 | START/END 块 |
-| 多连接 — ConnectionRow 删除按钮 last-connection 保护 | `AiSettingsPage.tsx:isLastConnection` | `// U-API:` 单行 |
-| **防护性禁用标记**（onboarding step intentionally not reached）| `LocalModelStep.tsx:15` + `ProviderSelectStep.tsx:11` | `// U-API:` 单行（每文件 1 处）|
+> **定位策略说明（REVIEW-2 P1 改进，2026-05-04）**：
+> 本表用**函数/变量名**而非硬行号定位——上游同步时行号会漂，符号名稳定。每行用 `grep -n "<符号>" <文件>` 即可定位。
+> 标记类型：`单行` = `// U-API: ...`；`块` = `/* U-API START ... */ ... /* U-API END */`。
+
+| # | 改造类别 | 文件 | 定位（用 `grep` 找）| 标记 | 关联规格 |
+|---|---|---|---|---|---|
+| 1 | baseUrl 锁定 + 多连接重写 | `packages/shared/src/config/storage.ts` | 函数 `enforceUApiBaseUrl` 整体 | 块 | 02 §4.3 + §6.2.1 |
+| 2 | model 列表保护 loop | `packages/shared/src/config/storage.ts` | 注释 `user-managed model lists must not be overwritten` | 单行 | 02 §6.2.2 |
+| 3 | startup lock | `packages/shared/src/config/storage.ts` | 注释 `continuous startup lock, not a one-shot migration` | 单行 | 02 §4.3 |
+| 4 | 凭证 keyless 特判 | `packages/shared/src/auth/state.ts` | 函数 `hasCredentials` 内 `if (!apiKey && connection.baseUrl)` 块 | 单行 | 02 §4.1 |
+| 5 | BUILT_IN_CONNECTION_TEMPLATES `'u-api'` 模板 | `packages/server-core/src/domain/connection-setup-logic.ts` | 注释 `multi-connection soft lockdown — base 'u-api' template` | 块 | 03 §1.10.1 |
+| 6 | validateSetupTestInput 扩展 | `packages/server-core/src/domain/connection-setup-logic.ts` | 注释 `validateSetupTestInput 扩展，支持 pi_compat` | 块 | 02 §4.x |
+| 7 | u_api ApiSetupMethod 类型 | `apps/electron/src/renderer/components/onboarding/APISetupStep.tsx` | 注释 `u_api ApiSetupMethod 定义（M1 多 provider 裁剪后保留）` | 块 | 03 §1.10 |
+| 8 | API_SETUP_ICONS u_api 项 | 同上 | 常量 `API_SETUP_ICONS` 内（在 #7 块内）| 块内 | 03 §1.10 |
+| 9 | BASE_SLUG_FOR_METHOD u_api 项 | `apps/electron/src/renderer/hooks/useOnboarding.ts` | 注释 `multi-connection soft lockdown — base 'u-api'` | 单行 | 02 §6.2.2 |
+| 10 | apiSetupMethodToConnectionSetup case 'u_api' | 同上 | 函数 `apiSetupMethodToConnectionSetup` 内注释 `let resolveSlugForMethod` | 块 | 02 §6.2.2 |
+| 11 | useOnboarding U_API_SLUG 已迁移 | 同上 | 注释 `U_API_SLUG no longer needed here` | 单行 | 02 §6.2.2 |
+| 12 | ApiKeyInput U_API_TOPUP_URL 移除 | `apps/electron/src/renderer/components/apisetup/ApiKeyInput.tsx` | 注释 `U_API_TOPUP_URL no longer imported` | 单行 | 02 §6.2 |
+| 13 | ApiKeyInput lockNotice + 三链接移除 | 同上 | 注释 `removed lockNotice banner + 三链接` | 单行（多） | 02 §6.2 |
+| 14 | CredentialsStep isUApi 路由 | `apps/electron/src/renderer/components/onboarding/CredentialsStep.tsx` | 注释 `路由 U-API 凭证流程，绕过通用 OAuth 路径` + 2 处 `U-API 模式分支` | 单行（3 处）| 03 §1.10 |
+| 15 | paths.ts CONFIG_DIR 双 env 兼容 | `packages/shared/src/config/paths.ts` | 注释 `allow the new env var while preserving the legacy override` | 单行 | 01 §2.15 + §2.20 |
+| 16 | interceptor-common.ts 路径迁移 | `packages/shared/src/interceptor-common.ts` | 注释 `path migration from CRAFT_CONFIG_DIR to U_AGENTS_CONFIG_DIR` | 单行 | 01 §2.15 |
+| 17 | isUApiSlug helper（多连接判定）| `packages/shared/src/config/u-api-defaults.ts` | 函数 `isUApiSlug` 上方 | 单行 | 02 §6.2.2 |
+| 18 | provider-metadata pi_compat 分支 | `packages/shared/src/config/provider-metadata.ts` | 注释 `multi-connection soft lockdown — match all U-API slugs` + import 注释 | 单行（2 处）| 02 §6.2.2 |
+| 19 | AiSettings isUApiSlug import | `apps/electron/src/renderer/pages/settings/AiSettingsPage.tsx` | 注释 `isUApiSlug recognizes 'u-api-default'` | 单行 | 02 §6.2.2 |
+| 20 | ConnectionRow isUApiConnection 判定 | 同上 | 注释 `ConnectionRow isUApiConnection 判定` + 4 行解释 | 单行（5 处连排）| 02 §6.2 |
+| 21 | getApiKeyMethodForConnection | 同上 | 注释 `every U-API slug routes to the U-API setup wizard` | 单行 | 02 §6.2.2 |
+| 22 | uApiConnections filter | 同上 | 注释 `show every U-API slug, not just primary` | 单行 | 02 §6.2.2 |
+| 23 | Default Connection selector 恢复 | 同上 | 注释 `always show Default Connection selector when ≥1 U-API connection` | 块 | 02 §6.2 |
+| 24 | last-connection 删除保护 | 同上 | 注释 `last U-API connection cannot be deleted` | 单行 | 02 §6.2 Q2 |
+| 25 | Add Connection button 恢复 | 同上 | 注释 `restore Add Connection button removed by 540509b` | 块 | 02 §6.2 |
+| 26 | onboarding 防护性禁用标记 | `apps/electron/src/renderer/components/onboarding/LocalModelStep.tsx` + `ProviderSelectStep.tsx` | 注释 `intentionally not reached by the M1 onboarding state machine` | 单行（每文件 1 处）| 03 §1.10（裁剪后防护）|
 
 **同步上游验证基线**（**REVIEW-2 2026-05-04 建立**）：
 
