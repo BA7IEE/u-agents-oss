@@ -2,6 +2,8 @@
 
 This guide explains how to configure automations in U Agents to automate workflows based on events.
 
+> **关于 `$CRAFT_*` 变量名**：本文档中的 `$CRAFT_EVENT` / `$CRAFT_LABEL` / `$CRAFT_SESSION_ID` / `$CRAFT_WORKSPACE_ID` / `$CRAFT_WH_*` 等变量名沿用上游协议命名，是 webhook automation 系统注入到用户 shell command 的运行时协议变量，**不是品牌词**。U Agents 保留这些名字以确保用户已配置的 webhook automation 在升级后继续工作。如需了解品牌策略详情，参考 `.planning/01-branding-spec.md §2.17 C2 决策`。
+
 ## What Are Automations?
 
 Automations allow you to trigger actions automatically when specific events occur in U Agents. You can:
