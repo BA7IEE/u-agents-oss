@@ -31,7 +31,8 @@ import {
 } from "./submit-helpers"
 
 import type { CustomEndpointApi, CustomEndpointConfig } from '@config/llm-connections'
-import { U_API_BASE_URL, U_API_CONSOLE_URL, U_API_PRICING_URL, U_API_TOPUP_URL } from '@config/u-api-defaults'
+// U-API: U_API_TOPUP_URL no longer imported — Topup link removed from UI 2026-05-04 (02 §6.2)
+import { U_API_BASE_URL, U_API_CONSOLE_URL, U_API_PRICING_URL } from '@config/u-api-defaults'
 
 export type ApiKeyStatus = 'idle' | 'validating' | 'success' | 'error'
 
@@ -440,26 +441,8 @@ export function ApiKeyInput({
     <form id={formId} onSubmit={handleSubmit} className="space-y-6">
       {isUApiMode ? (
         <>
-          <div className="rounded-lg bg-foreground-2 p-3">
-            <p className="text-xs text-foreground/60">{t("uapi.lockNotice")}</p>
-            <div className="flex flex-wrap gap-2 pt-2">
-              {[
-                [t("uapi.linkConsole"), U_API_CONSOLE_URL],
-                [t("uapi.linkTopup"), U_API_TOPUP_URL],
-                [t("uapi.linkPricing"), U_API_PRICING_URL],
-              ].map(([label, url]) => (
-                <button
-                  key={url}
-                  type="button"
-                  onClick={() => openUApiLink(url)}
-                  className="inline-flex items-center gap-1 text-xs text-foreground/60 hover:text-foreground"
-                >
-                  {label}
-                  <ExternalLink className="size-3" />
-                </button>
-              ))}
-            </div>
-          </div>
+          {/* U-API: removed lockNotice banner + 三链接 (Manage Token / 充值 / 查看可用模型与定价)
+              per UI cleanup 2026-05-04 — see 02-llm-gateway-spec.md §6.2 */}
 
           <div className="space-y-2">
             <Label htmlFor="api-key">{t("uapi.tokenLabel")}</Label>
@@ -490,9 +473,9 @@ export function ApiKeyInput({
               </button>
             </div>
             <div className="flex flex-wrap gap-2 pt-1">
+              {/* U-API: removed Topup link per UI cleanup 2026-05-04 — see 02-llm-gateway-spec.md §6.2 */}
               {[
                 [t("uapi.linkGetToken"), U_API_CONSOLE_URL],
-                [t("uapi.linkTopup"), U_API_TOPUP_URL],
                 [t("uapi.linkPricing"), U_API_PRICING_URL],
               ].map(([label, url]) => (
                 <button
