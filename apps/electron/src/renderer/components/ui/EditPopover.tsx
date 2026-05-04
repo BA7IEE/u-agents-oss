@@ -312,7 +312,8 @@ const EDIT_CONFIGS: Record<EditContextKey, (location: string) => EditConfig> = {
         'Follow the patterns in ~/.u-agents/docs/sources.md. ' +
         'After creating the source, call source_test with the source slug to verify the configuration.',
     },
-    example: 'Connect to my Craft space',
+    // U-API: brand cleanup — mirrors editPopover.example.addSource i18n value (01 §2.29)
+    example: 'Connect to my Notion workspace',
     overridePlaceholder: 'What would you like to connect?',
     displayLabelKey: 'editPopover.label.addSource',
     exampleKey: 'editPopover.example.addSource',
