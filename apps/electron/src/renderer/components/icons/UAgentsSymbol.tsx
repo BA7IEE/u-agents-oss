@@ -3,22 +3,27 @@ interface UAgentsSymbolProps {
 }
 
 /**
- * U Agents "E" symbol - the small pixel art icon
- * Uses accent color from theme (currentColor from className)
+ * U Agents glyph — vertical "U" formed from three horizontal bars (rotated 90° from the
+ * source horizontal "E" form). Path data matches apps/electron/resources/icon.svg
+ * exactly so the in-app icon and the bundled icon.{svg,icns,ico,png} stay in sync.
+ * Color is supplied by the parent via className (currentColor).
  */
 export function UAgentsSymbol({ className }: UAgentsSymbolProps) {
   return (
     <svg
-      viewBox="452 368 115 129"
+      viewBox="0 0 24 24"
       className={className}
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <path
-        d="M474.78218,393.8 L474.78218,368 L566.666667,368 L566.666667,393.8 L474.78218,393.8 Z M521.101,419.6 L521.102306,445.4 L452,445.4 L452,393.8 L566.666667,393.8 L566.666667,419.6 L521.101,419.6 Z M474.78218,497 L474.775667,471.2 L452,471.2 L452,445.4 L566.666667,445.4 L566.666667,497 L474.78218,497 Z"
-        fill="currentColor"
-        fillRule="nonzero"
-      />
+      <g transform="rotate(-90 12 12)">
+        <g transform="translate(3.4502, 3)" fill="currentColor">
+          <path
+            d="M3.17890888,3.6 L3.17890888,0 L16,0 L16,3.6 L3.17890888,3.6 Z M9.642,7.2 L9.64218223,10.8 L0,10.8 L0,3.6 L16,3.6 L16,7.2 L9.642,7.2 Z M3.17890888,18 L3.178,14.4 L0,14.4 L0,10.8 L16,10.8 L16,18 L3.17890888,18 Z"
+            fillRule="nonzero"
+          />
+        </g>
+      </g>
     </svg>
   )
 }

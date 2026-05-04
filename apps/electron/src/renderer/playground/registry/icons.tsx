@@ -29,7 +29,7 @@ export const iconComponents: ComponentEntry[] = [
     id: 'craft-agents-symbol',
     name: 'UAgentsSymbol',
     category: 'Icons',
-    description: 'U Agents "E" pixel art symbol icon (brand color: #9570BE)',
+    description: 'U Agents glyph — vertical "U" form (brand color: #7C3AED)',
     component: UAgentsSymbol,
     props: [
       {

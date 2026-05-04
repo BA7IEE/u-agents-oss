@@ -49,7 +49,9 @@ export interface SessionViewerProps {
 }
 
 /**
- * UAgentsLogo - The U Agents "C" logo for branding
+ * UAgentsLogo - U Agents glyph (vertical "U" formed from three horizontal bars,
+ * rotated 90° from the source horizontal form). Path data matches
+ * apps/electron/resources/icon.svg exactly. Color via className (currentColor).
  */
 function UAgentsLogo({ className }: { className?: string }) {
   return (
@@ -59,11 +61,13 @@ function UAgentsLogo({ className }: { className?: string }) {
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <g transform="translate(3.4502, 3)" fill="currentColor">
-        <path
-          d="M3.17890888,3.6 L3.17890888,0 L16,0 L16,3.6 L3.17890888,3.6 Z M9.642,7.2 L9.64218223,10.8 L0,10.8 L0,3.6 L16,3.6 L16,7.2 L9.642,7.2 Z M3.17890888,18 L3.178,14.4 L0,14.4 L0,10.8 L16,10.8 L16,18 L3.17890888,18 Z"
-          fillRule="nonzero"
-        />
+      <g transform="rotate(-90 12 12)">
+        <g transform="translate(3.4502, 3)" fill="currentColor">
+          <path
+            d="M3.17890888,3.6 L3.17890888,0 L16,0 L16,3.6 L3.17890888,3.6 Z M9.642,7.2 L9.64218223,10.8 L0,10.8 L0,3.6 L16,3.6 L16,7.2 L9.642,7.2 Z M3.17890888,18 L3.178,14.4 L0,14.4 L0,10.8 L16,10.8 L16,18 L3.17890888,18 Z"
+            fillRule="nonzero"
+          />
+        </g>
       </g>
     </svg>
   )
@@ -225,7 +229,7 @@ export function SessionViewer({
 
             {/* Bottom branding */}
             <div className={CHAT_CLASSES.brandingContainer}>
-              <UAgentsLogo className="w-8 h-8 text-[#9570BE]/40" />
+              <UAgentsLogo className="w-8 h-8 text-[#7C3AED]/40" />
             </div>
             </div>
           </div>
