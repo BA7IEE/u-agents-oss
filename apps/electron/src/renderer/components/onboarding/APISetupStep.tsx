@@ -25,6 +25,7 @@ const BetaBadge = ({ label }: { label: string }) => (
  * - 'pi_api_key' → pi + api_key
  * - 'u_api' → pi_compat + api_key_with_endpoint
  */
+/* U-API START: u_api ApiSetupMethod 定义（M1 多 provider 裁剪后保留） */
 export type ApiSetupMethod =
   | 'anthropic_api_key'
   | 'claude_oauth'
@@ -32,6 +33,7 @@ export type ApiSetupMethod =
   | 'pi_copilot_oauth'
   | 'pi_api_key'
   | 'u_api'
+/* U-API END */
 
 /**
  * Map ApiSetupMethod to the underlying LLM connection types.

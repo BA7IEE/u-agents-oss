@@ -68,12 +68,14 @@ export function validateSetupTestInput(params: {
   customEndpoint?: CustomEndpointConfig
 }): { valid: true } | { valid: false; error: string } {
   const hasCustomEndpoint = !!params.baseUrl?.trim()
+  /* U-API START: validateSetupTestInput 扩展，支持 pi_compat (U-API) */
   if (params.provider === 'pi' && hasCustomEndpoint && !params.piAuthProvider && !params.customEndpoint) {
     return {
       valid: false,
       error: 'Custom endpoint in U-API mode requires selecting a provider preset. For arbitrary Anthropic-compatible endpoints, use Anthropic API Key mode.',
     }
   }
+  /* U-API END */
 
   return { valid: true }
 }

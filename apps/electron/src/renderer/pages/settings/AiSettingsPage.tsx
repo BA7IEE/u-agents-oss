@@ -189,10 +189,11 @@ function ConnectionRow({ connection, isLastConnection, onRenameClick, onDelete, 
   const { t } = useTranslation()
   const [menuOpen, setMenuOpen] = useState(false)
   const [piBaseUrl, setPiBaseUrl] = useState<string | undefined>(undefined)
-  /* U-API: multi-connection soft lockdown — Rename / Set Default / Delete are all allowed for
-     every U-API connection now. Delete still respects isLastConnection (caller passes
-     uApiConnections.length === 1) so the lockdown invariant "at least one connection" holds.
-     The previous single-connection lockdown hid these via !isUApiConnection guards; removed. (02 §6.2) */
+  // U-API: ConnectionRow isUApiConnection 判定，决定是否显示 U-API 专用 UI
+  // U-API: multi-connection soft lockdown — Rename / Set Default / Delete are all allowed for
+  // U-API: every U-API connection now. Delete still respects isLastConnection (caller passes
+  // U-API: uApiConnections.length === 1) so the lockdown invariant "at least one connection" holds.
+  // U-API: The previous single-connection lockdown hid these via !isUApiConnection guards; removed. (02 §6.2)
 
   // Opening dialog/overlay flows directly from a dropdown item can race with
   // menu teardown and leave a transient interaction lock behind on some systems.

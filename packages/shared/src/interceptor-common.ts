@@ -9,6 +9,7 @@
  * - Config reading (richToolDescriptions, extendedPromptCache settings)
  */
 
+// U-API: path migration from CRAFT_CONFIG_DIR to U_AGENTS_CONFIG_DIR (line 14, 30, 39)
 import { existsSync, readFileSync, writeFileSync, renameSync, unlinkSync, appendFileSync, mkdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { CONFIG_DIR as U_AGENTS_CONFIG_DIR } from './config/paths.ts';

@@ -64,6 +64,7 @@ export function CredentialsStep({
   const isCopilotOAuth = apiSetupMethod === 'pi_copilot_oauth'
   const isAnthropicApiKey = apiSetupMethod === 'anthropic_api_key'
   const isPiApiKey = apiSetupMethod === 'pi_api_key'
+  // U-API: 路由 U-API 凭证流程，绕过通用 OAuth 路径
   const isUApi = apiSetupMethod === 'u_api'
   const isApiKey = isAnthropicApiKey || isPiApiKey
 
@@ -262,6 +263,7 @@ export function CredentialsStep({
   // --- API Key flow ---
   // Determine provider type and description based on selected method
   const providerType = isPiApiKey ? 'pi_api_key' : 'anthropic'
+  // U-API: U-API 模式分支
   const apiKeyDescription = isUApi
     ? t("uapi.connectionDescription")
     : isPiApiKey
@@ -301,6 +303,7 @@ export function CredentialsStep({
         onSubmit={onSubmit}
         providerType={providerType}
         initialValues={editInitialValues}
+        // U-API: U-API 模式分支
         mode={isUApi ? 'u_api' : 'upstream'}
       />
     </StepFormLayout>
