@@ -172,18 +172,31 @@ if (!apiKey && connection.baseUrl) {
 | 多连接 — 恢复 default-connection selector | `AiSettingsPage.tsx` Default Settings card | START/END 块 |
 | 多连接 — 恢复 add-connection 按钮 | `AiSettingsPage.tsx` SettingsSection 末尾 | START/END 块 |
 | 多连接 — ConnectionRow 删除按钮 last-connection 保护 | `AiSettingsPage.tsx:isLastConnection` | `// U-API:` 单行 |
+| **防护性禁用标记**（onboarding step intentionally not reached）| `LocalModelStep.tsx:15` + `ProviderSelectStep.tsx:11` | `// U-API:` 单行（每文件 1 处）|
 
-**同步上游验证**：每次同步必须跑下面 grep 命令，对照"上次同步时的标记数"确认无标记被吞掉：
+**同步上游验证基线**（**REVIEW-2 2026-05-04 建立**）：
+
+| 指标 | 基线（2026-05-04 M2 完结时）| 下次同步允许浮动 |
+|---|---|---|
+| U-API 标记总数 | **44** | ±2 |
+| `/* U-API START */` 块数 | **7** | 必须等于 END |
+| `/* U-API END */` 块数 | **7** | 必须等于 START |
+
+> 浮动 ±2 是为了容纳"上游改了某改造点附近代码，我们顺手补/合并标记"的合理变化。**超出 ±2 必须停下逐项核对**——多半是 git 自动合并吞掉了改造，或者引入了未文档化的新改造（应补进 §3.7 表）。
+
+**每次同步必跑 grep**：
 
 ```bash
-# 应找到所有 U-API 标记
+# 应找到所有 U-API 标记（基线 44，允许 42-46）
 grep -rEn "// U-API:|/\* U-API (START|END)" packages apps --include="*.ts" --include="*.tsx" \
   | grep -v node_modules | wc -l
 
-# 应找到所有改造块的 START/END 配对（数量必须相等）
+# 应找到所有改造块的 START/END 配对（数量必须相等，且都=7）
 grep -rE "/\* U-API START" packages apps --include="*.ts" --include="*.tsx" | grep -v node_modules | wc -l
 grep -rE "/\* U-API END" packages apps --include="*.ts" --include="*.tsx" | grep -v node_modules | wc -l
 ```
+
+**基线刷新规则**：每次同步成功后，在本表填新数字 + 当次同步日期。
 
 > 此规则同时满足 `LEGAL.md` §2 Apache §4(b) "modification notices" 合规要求——标记本身就是修改声明的一种形式。
 
