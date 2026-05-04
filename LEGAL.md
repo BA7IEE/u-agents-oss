@@ -265,7 +265,27 @@ Sentry.init({
 
 **M3 自建 Sentry 时**：注册自己的 Sentry self-hosted 或 GlitchTip，把 DSN 设到环境变量。**保留**上游的 `beforeSend(event)` 钩子（已做 PII scrubbing），按 `02-llm-gateway-spec.md` §9.2 的要求扩展，确保 Token 不上报。
 
-### 5.4 ASAR 关闭——锁定不防技术高超用户
+### 5.4 Remote workspace TLS 校验关闭（**REVIEW-5 2026-05-04 首发现**）
+
+**代码事实**：3 个文件硬编码 `tlsRejectUnauthorized: false`：
+- `apps/electron/src/main/handlers/workspace.ts:27`
+- `apps/electron/src/preload/bootstrap.ts:124, 148`
+
+**含义**：用户配置 remote workspace 连接到 `wss://example.com` 类远端 server 时，**不验证 TLS 证书**。
+
+**风险**：攻击者在用户 LAN（咖啡馆 WiFi 等）做 ARP/DNS 投毒 + self-signed 证书 → 全流量明文（session prompt + 文件 + Token + LLM 请求）可被 mitmproxy 截取。
+
+**M1 阶段判断**：
+- ✅ **不阻塞首发**——M1 种子用户都是单机使用，不连 remote workspace
+- ⚠️ 上游 craft-agents-oss 既有设计（不是 M1 改造引入）
+- ⚠️ M2 需要修：在启用 remote workspace 功能前必须解决
+
+**M2 对策**：
+- 阅读 wsrpc 协议 + remote workspace 全流程，理解为何上游选择关闭 TLS 校验
+- 评估方案：(a) 直接 `tlsRejectUnauthorized: true`；(b) 添加 cert pinning；(c) 在 UI 让用户首次连接时手动信任证书
+- 决定后改 3 处代码 + 更新本节为"已修复"
+
+### 5.5 ASAR 关闭——锁定不防技术高超用户
 
 **代码事实**：`apps/electron/electron-builder.yml:86` `asar: false`（注释说 "Disable ASAR to avoid decompression overhead and click delays"——上游性能优化决策）。
 
