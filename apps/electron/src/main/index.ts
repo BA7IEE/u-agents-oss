@@ -362,6 +362,17 @@ app.whenReady().then(async () => {
   // Export packaged state as env var so logger.ts (and headless Bun) don't need 'electron'
   process.env.U_AGENTS_IS_PACKAGED = app.isPackaged ? 'true' : 'false'
 
+  /* U-API START: Apache §4(c) attribution + LEGAL.md §2 — branded About panel
+     credits the upstream Craft Docs Ltd. work alongside U Studio's derivative.
+     macOS shows this in the system About menu; Windows/Linux ignore non-name fields. */
+  app.setAboutPanelOptions({
+    applicationName: 'U Agents',
+    applicationVersion: app.getVersion(),
+    copyright: 'Copyright © 2026 U Studio. Based on Craft Agents (Apache 2.0).',
+    credits: 'Original work © Craft Docs Ltd.',
+  })
+  /* U-API END */
+
   // Register bundled assets root so all seeding functions can find their files
   // (docs, permissions, themes, tool-icons resolve via getBundledAssetsDir)
   setBundledAssetsRoot(__dirname)
