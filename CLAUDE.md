@@ -162,7 +162,6 @@ if (!apiKey && connection.baseUrl) {
 | CredentialsStep isUApi 路由 | `CredentialsStep.tsx` | START/END 块 |
 | paths.ts CONFIG_DIR 改名 | `paths.ts:19` | `// U-API:` 单行 |
 | interceptor-common 路径迁移 | `interceptor-common.ts:30, 39, 174` | `// U-API:` 单行 |
-| logger.ts messagingGatewayLogPath | `logger.ts:84` | `// U-API:` 单行 |
 | **isUApiSlug helper（多连接判定）** | `u-api-defaults.ts` 新增 export | `// U-API:` 单行（fn 上方） |
 | 多连接 — model 列表保护 loop | `storage.ts:1635` | `// U-API:` 单行 |
 | 多连接 — enforceUApiBaseUrl 重写 | `storage.ts:2115-2152` | START/END 块（整个函数）|

@@ -91,7 +91,7 @@ u-agents-update/                          (bucket 根)
 │   ├── U-Agents-arm64.zip.blockmap
 │   ├── U-Agents-x64.zip
 │   └── U-Agents-x64.zip.blockmap
-├── v1.0.0/                               (按版本号归档，下载页用；同时供 manifest.ts 读取)
+├── v0.9.0/                               (按版本号归档，下载页用；同时供 manifest.ts 读取)
 │   ├── manifest.json                     (version manifest，字段以 manifest.ts 代码为准)
 │   ├── U-Agents-arm64.dmg
 │   ├── U-Agents-x64.dmg
@@ -99,7 +99,7 @@ u-agents-update/                          (bucket 根)
 │   ├── U-Agents-x64.zip
 │   ├── ... .blockmap
 │   └── latest-mac.yml
-├── v1.0.1/
+├── v0.9.0+u-agents.1/                    (示例 hotfix 版本，SemVer build metadata)
 │   ├── manifest.json
 │   └── ...
 └── ...
@@ -127,7 +127,7 @@ u-agents-update/                          (bucket 根)
 在 #29 未新增正式生成脚本前，先人工生成两个 JSON 文件：
 
 ```bash
-VERSION=v1.0.0
+VERSION=v0.9.0  # 示例占位符，按实际发版号替换
 BASE=https://update.u-agents.u-studio.cn/$VERSION
 BUILD_TS=$(date +%s)
 BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -169,7 +169,7 @@ M2 增加 Windows/Linux 后，按 `manifest.ts` 的 `binaries` 约定追加对�
 
 ```bash
 # 1. 上传到版本归档
-VERSION=v1.0.0
+VERSION=v0.9.0  # 示例占位符，按实际发版号替换
 rclone copy apps/electron/release/U-Agents-arm64.dmg r2:u-agents-update/$VERSION/
 rclone copy apps/electron/release/U-Agents-x64.dmg r2:u-agents-update/$VERSION/
 rclone copy apps/electron/release/U-Agents-arm64.zip r2:u-agents-update/$VERSION/
@@ -222,7 +222,7 @@ R2 默认按文件扩展名给 Content-Type：
 `electron-builder` 会在打包时自动生成。**结构供参考**：
 
 ```yaml
-version: 1.0.0
+version: 0.9.0
 files:
   - url: U-Agents-arm64.zip
     sha512: <sha512 hash>

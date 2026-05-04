@@ -253,7 +253,7 @@
 - ❌ 自建文档站、官网（M3）
 - ❌ 自建 Sentry / 错误上报（M3 或更晚）
 - ❌ 自建会话分享 viewer（M3）。**M1 阶段隐藏所有分享 UI 入口**（按钮、菜单项、命令面板命令），**禁止**使用 craft 的 share URL。详见 `04-feature-cuts.md` §7。
-- ❌ 中文化深度优化（M2，目前 zh-Hans.json 已 1346 keys 全覆盖，但有品牌词污染）
+- ❌ 中文化深度优化（M2，zh-Hans.json 1376 keys 全覆盖；M2 commit 75bcda8 已补齐 17 处遗漏翻译，品牌词污染清零，详见 `M2-I18N-SCAN.md`）
 - ❌ CLI 改造（M2 或不做）
 - ❌ Web UI / Viewer 改造（M2）
 
