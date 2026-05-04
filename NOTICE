@@ -13,3 +13,20 @@ Commercial Terms of Service: https://www.anthropic.com/legal/commercial-terms
 
 Third-party dependencies are listed in package.json files and are subject
 to their respective licenses.
+
+---
+
+This product is "U Agents" (优智体), a derivative work based on
+Craft Agents (https://github.com/lukilabs/craft-agents-oss),
+licensed under the Apache License, Version 2.0.
+
+Modifications and additional code in this distribution are
+Copyright © 2026 U Studio Ltd. (tungwerl@gmail.com).
+
+This distribution contains modifications to the original Craft Agents
+source files. A summary of modifications is documented in:
+https://u-agents.u-studio.cn/docs/modifications
+
+Per Apache License 2.0 §4(b), a list of modified files and the nature
+of changes can be found in the project's CHANGELOG.md and the
+.planning/ directory in the source repository.

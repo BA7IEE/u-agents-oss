@@ -362,14 +362,15 @@ app.whenReady().then(async () => {
   // Export packaged state as env var so logger.ts (and headless Bun) don't need 'electron'
   process.env.U_AGENTS_IS_PACKAGED = app.isPackaged ? 'true' : 'false'
 
-  /* U-API START: Apache §4(c) attribution + LEGAL.md §2 — branded About panel
-     credits the upstream Craft Docs Ltd. work alongside U Studio's derivative.
-     macOS shows this in the system About menu; Windows/Linux ignore non-name fields. */
+  /* U-API START: Apache §4(c) attribution — About panel shows U Studio copyright only.
+     Upstream Craft attribution lives in NOTICE (LEGAL.md §2 derivative clause) which
+     is shipped inside the .app via electron-builder.yml extraResources, satisfying
+     §4(c)'s "readable copy of the attribution notices" requirement without surfacing
+     upstream brand on the About dialog. (LEGAL.md §2 — 2026-05-04 spec revision) */
   app.setAboutPanelOptions({
     applicationName: 'U Agents',
     applicationVersion: app.getVersion(),
-    copyright: 'Copyright © 2026 U Studio. Based on Craft Agents (Apache 2.0).',
-    credits: 'Original work © Craft Docs Ltd.',
+    copyright: 'Copyright © 2026 U Studio Ltd.',
   })
   /* U-API END */
 

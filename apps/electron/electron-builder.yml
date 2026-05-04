@@ -112,6 +112,13 @@ mac:
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
   extraResources:
+    # Apache 2.0 §4(c) attribution — ship LICENSE + NOTICE inside the .app.
+    # Users find them at "U Agents.app/Contents/Resources/{LICENSE,NOTICE}".
+    # See LEGAL.md §2 for derivative-work clause appended in NOTICE.
+    - from: ../../LICENSE
+      to: LICENSE
+    - from: ../../NOTICE
+      to: NOTICE
     # Thin core SDK (sdk.mjs + types). ~4 MB — present on every platform.
     - from: node_modules/@anthropic-ai/claude-agent-sdk
       to: app/node_modules/@anthropic-ai/claude-agent-sdk
@@ -189,6 +196,12 @@ win:
     - "!**/resources/bin/win32-x64/**"
   # Copy executables as extraResources to avoid EBUSY file locking (see comment above)
   extraResources:
+    # Apache 2.0 §4(c) attribution — ship LICENSE + NOTICE inside the installed app.
+    # See LEGAL.md §2.
+    - from: ../../LICENSE
+      to: LICENSE
+    - from: ../../NOTICE
+      to: NOTICE
     - from: node_modules/@anthropic-ai/claude-agent-sdk
       to: app/node_modules/@anthropic-ai/claude-agent-sdk
     - from: node_modules/@anthropic-ai/claude-agent-sdk-binary
@@ -224,6 +237,12 @@ linux:
         - x64
   artifactName: "U-Agents-${arch}.${ext}"
   extraResources:
+    # Apache 2.0 §4(c) attribution — ship LICENSE + NOTICE inside the AppImage.
+    # See LEGAL.md §2.
+    - from: ../../LICENSE
+      to: LICENSE
+    - from: ../../NOTICE
+      to: NOTICE
     - from: node_modules/@anthropic-ai/claude-agent-sdk
       to: app/node_modules/@anthropic-ai/claude-agent-sdk
     - from: node_modules/@anthropic-ai/claude-agent-sdk-binary
