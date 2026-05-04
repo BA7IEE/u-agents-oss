@@ -166,7 +166,7 @@ if (!apiKey && connection.baseUrl) {
 | 10 | apiSetupMethodToConnectionSetup case 'u_api' | 同上 | 函数 `apiSetupMethodToConnectionSetup` 内注释 `let resolveSlugForMethod` | 块 | 02 §6.2.2 |
 | 11 | useOnboarding U_API_SLUG 已迁移 | 同上 | 注释 `U_API_SLUG no longer needed here` | 单行 | 02 §6.2.2 |
 | 12 | ApiKeyInput U_API_TOPUP_URL 移除 | `apps/electron/src/renderer/components/apisetup/ApiKeyInput.tsx` | 注释 `U_API_TOPUP_URL no longer imported` | 单行 | 02 §6.2 |
-| 13 | ApiKeyInput lockNotice + 三链接移除 | 同上 | 注释 `removed lockNotice banner + 三链接` | 单行（多） | 02 §6.2 |
+| 13 | ApiKeyInput lockNotice + 三链接移除 | 同上 | 注释 `removed lockNotice banner` + `removed Topup link per UI cleanup` | JSX 行内 `{/* U-API: */}` （2 处）| 02 §6.2 |
 | 14 | CredentialsStep isUApi 路由 | `apps/electron/src/renderer/components/onboarding/CredentialsStep.tsx` | 注释 `路由 U-API 凭证流程，绕过通用 OAuth 路径` + 2 处 `U-API 模式分支` | 单行（3 处）| 03 §1.10 |
 | 15 | paths.ts CONFIG_DIR 双 env 兼容 | `packages/shared/src/config/paths.ts` | 注释 `allow the new env var while preserving the legacy override` | 单行 | 01 §2.15 + §2.20 |
 | 16 | interceptor-common.ts 路径迁移 | `packages/shared/src/interceptor-common.ts` | 注释 `path migration from CRAFT_CONFIG_DIR to U_AGENTS_CONFIG_DIR` | 单行 | 01 §2.15 |
@@ -176,31 +176,39 @@ if (!apiKey && connection.baseUrl) {
 | 20 | ConnectionRow isUApiConnection 判定 | 同上 | 注释 `ConnectionRow isUApiConnection 判定` + 4 行解释 | 单行（5 处连排）| 02 §6.2 |
 | 21 | getApiKeyMethodForConnection | 同上 | 注释 `every U-API slug routes to the U-API setup wizard` | 单行 | 02 §6.2.2 |
 | 22 | uApiConnections filter | 同上 | 注释 `show every U-API slug, not just primary` | 单行 | 02 §6.2.2 |
-| 23 | Default Connection selector 恢复 | 同上 | 注释 `always show Default Connection selector when ≥1 U-API connection` | 块 | 02 §6.2 |
+| 23 | Default Connection selector 恢复 | 同上 | 注释 `always show Default Connection`（多行注释起始行）| 块 | 02 §6.2 |
 | 24 | last-connection 删除保护 | 同上 | 注释 `last U-API connection cannot be deleted` | 单行 | 02 §6.2 Q2 |
 | 25 | Add Connection button 恢复 | 同上 | 注释 `restore Add Connection button removed by 540509b` | 块 | 02 §6.2 |
 | 26 | onboarding 防护性禁用标记 | `apps/electron/src/renderer/components/onboarding/LocalModelStep.tsx` + `ProviderSelectStep.tsx` | 注释 `intentionally not reached by the M1 onboarding state machine` | 单行（每文件 1 处）| 03 §1.10（裁剪后防护）|
+| 27 | first-install onboarding 路由到 placeholder slug | `apps/electron/src/renderer/App.tsx` | 注释 `first-install onboarding edits the placeholder` + `first-install onboarding always targets the placeholder` | 单行（2 处）| 02 §6.2.3 |
+| 28 | About panel Apache §4(c) attribution | `apps/electron/src/main/index.ts` | 注释 `Apache §4(c) attribution — About panel shows U Studio copyright only` | 块 | LEGAL.md §2 + commit 323293b |
+| 29 | EditPopover example brand cleanup | `apps/electron/src/renderer/components/ui/EditPopover.tsx` | 注释 `brand cleanup — mirrors editPopover.example.addSource i18n value` | 单行 | 01 §2.29 |
+| 30 | OAuth callback HTML 品牌化 | `packages/shared/src/auth/callback-page.ts` | HTML 注释 `<!-- U-API: brand title for OAuth callback page` | HTML 注释 | 01 §2.16 |
 
-**同步上游验证基线**（**REVIEW-2 2026-05-04 建立**）：
+**同步上游验证基线**（**REVIEW-3 2026-05-04 修正**）：
 
 | 指标 | 基线（2026-05-04 M2 完结时）| 下次同步允许浮动 |
 |---|---|---|
-| U-API 标记总数 | **44** | ±2 |
-| `/* U-API START */` 块数 | **7** | 必须等于 END |
-| `/* U-API END */` 块数 | **7** | 必须等于 START |
+| U-API 标记总数（含全部注释格式）| **47** | ±2 |
+| `/* U-API START */` 块数 | **8** | 必须等于 END |
+| `/* U-API END */` 块数 | **8** | 必须等于 START |
 
 > 浮动 ±2 是为了容纳"上游改了某改造点附近代码，我们顺手补/合并标记"的合理变化。**超出 ±2 必须停下逐项核对**——多半是 git 自动合并吞掉了改造，或者引入了未文档化的新改造（应补进 §3.7 表）。
+>
+> **REVIEW-3 修正**：上一版基线 44 只用 `// U-API:|/\* U-API (START|END)` grep，遗漏了 HTML 注释 `<!-- U-API:` 和 JSX 行内 `{/* U-API: ... */}` 格式（共 3 处）。新基线 47 涵盖全部注释格式。
 
-**每次同步必跑 grep**：
+**每次同步必跑 grep（覆盖全部注释格式）**：
 
 ```bash
-# 应找到所有 U-API 标记（基线 44，允许 42-46）
-grep -rEn "// U-API:|/\* U-API (START|END)" packages apps --include="*.ts" --include="*.tsx" \
-  | grep -v node_modules | wc -l
+# 全部 U-API 标记（含 // 单行 / /* 块 / <!-- HTML / {/* JSX 行内）
+grep -rEn "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
+  | grep -v node_modules | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
+# 期望：47（基线，允许 45-49）
 
-# 应找到所有改造块的 START/END 配对（数量必须相等，且都=7）
+# 块标记 START/END 配对（数量必须相等）
 grep -rE "/\* U-API START" packages apps --include="*.ts" --include="*.tsx" | grep -v node_modules | wc -l
 grep -rE "/\* U-API END" packages apps --include="*.ts" --include="*.tsx" | grep -v node_modules | wc -l
+# 期望：均 = 8
 ```
 
 **基线刷新规则**：每次同步成功后，在本表填新数字 + 当次同步日期。
