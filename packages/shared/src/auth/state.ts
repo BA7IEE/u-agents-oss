@@ -26,7 +26,7 @@ import {
   type AuthType,
   type Workspace,
 } from '../config/storage.ts';
-import { U_API_SLUG, isUApiSlug } from '../config/u-api-defaults.ts';
+import { isUApiSlug } from '../config/u-api-defaults.ts';
 import { refreshClaudeToken, isTokenExpired } from './claude-token.ts';
 import { debug } from '../utils/debug.ts';
 
