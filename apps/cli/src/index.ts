@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * craft-cli — Terminal client for U Agents server.
+ * u-agents-cli — Terminal client for U Agents server.
  *
  * Connects over WebSocket (ws:// or wss://) to a running U Agents server
  * and provides commands for listing resources, managing sessions, sending
@@ -1051,7 +1051,8 @@ export function getValidateSteps(): ValidateStep[] {
         // Auto-bootstrap a temp workspace for CI environments
         const { mkdtemp } = await import('fs/promises')
         const { tmpdir } = await import('os')
-        const tmpDir = await mkdtemp(`${tmpdir()}/craft-validate-`)
+        // U-API: tmpDir prefix renamed (M2 cli rename, 2026-05-05)
+        const tmpDir = await mkdtemp(`${tmpdir()}/u-agents-validate-`)
         const ws = (await client.invoke('workspaces:create', tmpDir, 'validate-workspace')) as { id: string }
         ctx.workspaceId = ws.id
         ctx.workspaceRootPath = tmpDir
@@ -1371,12 +1372,13 @@ export function getValidateSteps(): ValidateStep[] {
         const sourceSlug = ctx.createdSourceSlug ?? 'cat-facts'
         const skillDir = `${ctx.workspaceRootPath}/skills/${ctx.createdSkillSlug}`
         // Use bash to create the skill file deterministically
+        // U-API: skill description rebrand (M2 cli rename, 2026-05-05)
         return await waitForSendEvents(client, ctx.createdSessionId,
           `Use the Bash tool to run this exact command:
 mkdir -p "${skillDir}" && cat > "${skillDir}/SKILL.md" << 'SKILLEOF'
 ---
 name: "CLI Validate Skill"
-description: "Validation skill created by craft-cli"
+description: "Validation skill created by u-agents-cli"
 requiredSources:
   - "${sourceSlug}"
 ---
