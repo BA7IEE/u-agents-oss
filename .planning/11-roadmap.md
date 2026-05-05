@@ -58,7 +58,8 @@
 - ✅ `bun run lint:electron` / `lint:shared` / `lint:ui`（单独跑某个 lint 子任务可以，但**不**通过组合的 `bun run lint`）
 - ✅ `bun run electron:clean`
 - ✅ `bun run electron:build`
-- ✅ `bun run electron:dist:adhoc:mac`（M1 任务 #27 新加的脚本）
+- ✅ `bun run electron:dist:adhoc:mac`（M1 任务 #27 新加的脚本，**SDK 缺失，对 U-API 路径透明**——见 `05-build-release.md` §3.2.0）
+- ✅ `cd apps/electron && bun run dist:mac` / `dist:mac:x64` / `dist:win`（**M2 推荐——含 SDK 复制**）
 
 **为什么不修复缺失脚本**：M1 阶段不接管这些工具链；保持上游 package.json 不动，减少同步冲突。M2/M3 阶段如真需要 lint:ipc-sends 等检查，再自建对应脚本。
 

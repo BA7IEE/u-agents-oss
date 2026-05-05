@@ -202,15 +202,33 @@ bun run electron:build
 
 ### 3.2 M1 路径：adhoc 打包（无 Apple ID）
 
+#### 3.2.0 ⚠️ 命令深度对照表（**M2-REBUILD 2026-05-05 补遗**）
+
+整个 root 的 `electron:dist:*` 命令族**都跳过 `apps/electron/scripts/build-dmg.sh`**——只跑 electron-builder 直打包。**`build-dmg.sh` 才负责 SDK 复制 + claude-agent-sdk-binary alias 创建**。
+
+| 命令 | 含 SDK 复制 | DEV_RUNTIME flag | 实际适用 |
+|---|---|---|---|
+| `bun run electron:dist:dev:mac` | ❌ | ✅ | 仅你的 dev 机器（walk-up 找 SDK） |
+| `bun run electron:dist:adhoc:mac` | ❌ | ❌ | M1 锁 U-API 时勉强可用，**SDK 缺失对 pi_compat 路径透明** |
+| `bun run electron:dist:mac` | ❌ | ❌ | 同上但启用自动 codesign |
+| **`cd apps/electron && bun run dist:mac`** | ✅ 调 build-dmg.sh | ❌ | **真正完整产物**——M2 应切换到这条 |
+| **`cd apps/electron && bun run dist:mac:x64`** | ✅ | ❌ | 同上 x64 |
+
+**M1 历史选择**：v0.9.0 首发 + 2026-05-05 hotfix 重打都用 `electron:dist:adhoc:mac`，SDK 不在 DMG 但 U-API 用户走 pi-agent.ts 路径（不调 Claude SDK），透明。
+
+**M2 应切换到** `cd apps/electron && bun run dist:mac` —— 让 SDK 真正进 DMG，**防御性 bundle**：万一未来上游同步引入 Claude 直连 fallback，也不会因 SDK 缺失 crash。
+
+详见 [`sync-reports/M2-REBUILD-HOTFIX-2026-05-05.md`](sync-reports/M2-REBUILD-HOTFIX-2026-05-05.md) §4。
+
 #### 3.2.1 一次性配置：在 package.json 加 adhoc 脚本
 
 上游有 `electron:dist:dev:mac` 但带了 `CRAFT_DEV_RUNTIME=1`，**不适合 production 分发**。
 
 `CRAFT_DEV_RUNTIME` 的实际作用是控制 `packages/shared/src/agent/backend/internal/runtime-resolver.ts:12` 的 SDK binary 路径解析：
-- `CRAFT_DEV_RUNTIME=1`：从本地 monorepo（`node_modules/`）解析 SDK binary
-- 不设：从 packaged extraResources（`Resources/app/node_modules/`）解析
+- `CRAFT_DEV_RUNTIME=1`：从 .app bundle 往上 walk-up 找 monorepo `node_modules/` 解析 SDK binary（**仅 dev 机器有效**）
+- 不设：从 packaged 路径（`Resources/app/node_modules/@anthropic-ai/claude-agent-sdk-binary/`）解析；如该路径不存在则 strict 模式 throw
 
-如果用 `dev:mac` 出 production 包，包里 SDK binary 路径解析失败 → 应用启动后无法 fork SDK 子进程 → 启动即崩。
+⚠️ **重要**：M1 的 `electron:dist:adhoc:mac` 不调 build-dmg.sh，packaged 路径里**没有 SDK**——但 U-API 用户走 pi-agent.ts 路径（0 SDK 依赖），所以 SDK 缺失对单连接 U-API 用户**透明**。M2 应改用 `cd apps/electron && bun run dist:mac`（含 SDK）防御性 bundle。
 
 需要在 `package.json` `scripts` 块里**新增**一行（用户/外部 AI 执行）：
 
@@ -397,13 +415,37 @@ spctl -a -t exec -vv apps/electron/release/mac-arm64/U\ Agents.app
 
 ## 4. Windows 打包（M2）
 
-```bash
-source .env.release
-bun run electron:dist:win
+### 4.0 ⚠️ Windows 命令深度对照（**M2-REBUILD 2026-05-05 补遗**）
+
+跟 macOS 同样规律——root 的 `electron:dist:*win` 命令都不调 `build-win.ps1`：
+
+| 命令 | 含 SDK 复制 | DEV_RUNTIME | 适用 |
+|---|---|---|---|
+| `bun run electron:dist:dev:win` | ❌ | ✅ | 仅你的 Windows dev 机器（walk-up）|
+| `bun run electron:dist:win` | ❌ | ❌ | M1 锁 U-API 时勉强可用 |
+| **`cd apps/electron && bun run dist:win`** | ✅ 调 build-win.ps1 | ❌ | **真正发版命令** |
+
+**user 之前 Windows 打包用 `electron:dist:dev:win`** —— 在你 dev 机器自测能用是因为：
+1. CRAFT_DEV_RUNTIME=1 让 walk-up 找到 SDK（仅你机器）
+2. 即使 walk-up 失败，U-API 用户也不调 SDK
+
+**装到种子用户机器后**：walk-up 必失败，但 U-API 路径透明 → 用户能用。
+
+**M2 标准命令**：`cd apps/electron && bun run dist:win`（含 SDK 复制）
+
+### 4.1 标准 Windows 打包流程
+
+```cmd
+:: 在 Windows 机器上
+git pull
+bun install
+cd apps/electron
+bun run dist:win
 ```
 
-**预期输出**：
+**预期输出**（`apps/electron/release/`）：
 - `U-Agents-x64.exe`（NSIS 安装器）
+- `U-Agents-x64.exe.blockmap`
 - `latest.yml`（Win 自动更新清单）
 
 **测试**：在干净 Windows 11 上双击 .exe 安装。
