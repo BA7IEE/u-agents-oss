@@ -300,7 +300,7 @@
 - [~] **R2 重打 + 重传**（让 R2 生产产物含 M2 安全主线 4/4 fix）：
   - [x] **macOS arm64 DMG 重打**（2026-05-05，含 SDK + 4 项 M2 fix；本地 verify：atomicWriteFileSync ×12 / `tlsRejectUnauthorized ?? true` 默认严格 / MIN_LLM_API_KEY_LENGTH ×4 / mode:448 ×4）
   - [ ] macOS x64 DMG 重打（待跑 `CSC_IDENTITY_AUTO_DISCOVERY=false bun run dist:mac:x64`）
-  - [ ] Windows EXE 重打（待 Windows 机器：`bun run dist:win`）
+  - [x] Windows EXE 重打（2026-05-06 完成；事故 #3 fix `8cc943e6` 实测 verify，详见 [`12-subprocess-build-pipeline.md`](12-subprocess-build-pipeline.md) §0.3）
   - [ ] R2 上传 + CDN 刷新（三平台齐了一次性传，避免 `latest-mac.yml` / `latest.yml` 版本号漂移）
 
 ---

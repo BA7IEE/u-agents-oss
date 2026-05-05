@@ -61,6 +61,8 @@ piServerPath not configured. Cannot spawn Pi subprocess.
 
 **修复**：[`apps/electron/scripts/build-win.ps1`](../apps/electron/scripts/build-win.ps1) 在 "Build preload" 块前加一段调 `bun run electron:build:subprocess`，与 `build-dmg.sh:208` 行为对齐。加 `// U-API:` marker（详见 §2.3）。
 
+**修复验证**：commit `8cc943e6`（2026-05-05）。用户在 Windows 机器跑新 zip + `bun run dist:win` 出 EXE，首次发 LLM 消息**不再报 piServerPath**（2026-05-06 实测 ✅）。
+
 ### 0.4 共性教训
 
 **为什么 typecheck / lint / validate:dev 没发现**：所有发版前自动化检查都是**纯静态**——TypeScript 编译、字符串 grep、shared 包单元测试。没有任何一项会启动一个 packaged 应用、点开会话、发出第一条消息。这是 [`05-build-release.md`](05-build-release.md) §1 检查清单的盲点（详见 §3 修订建议）。
@@ -154,7 +156,7 @@ package.json electron:build
 |---|---|---|
 | `scripts/copy-subprocess-servers.ts` 整文件头 | `/* U-API START */ ... /* U-API END */` | `8ebe8c0`（创建）+ `8359988`（扩展） |
 | `package.json` `electron:build:subprocess` 与 `electron:build` 末尾 | JSON 不能加注释——标记在本文档 §2.1 + commit message + 同步上游守则 §5 第 1 条 | `8ebe8c0` |
-| `apps/electron/scripts/build-win.ps1` "Build subprocess servers" 块 | `# U-API:` 单行（事故 #3 修复） | 2026-05-05 待 commit |
+| `apps/electron/scripts/build-win.ps1` "Build subprocess servers" 块 | `# U-API:` 单行（事故 #3 修复） | `8cc943e6`（Windows 实测 verify 2026-05-06） |
 
 ---
 
