@@ -131,18 +131,27 @@
 
 ---
 
-## 5. 修复落地后文档收尾
+## 5. 修复落地后文档收尾（**2026-05-05 完成**）
 
-1. CLAUDE.md §3.7 基线 59 → 61
-2. REVIEW-5-DEEP §🔵 第 11 项 ✅
-3. 11-roadmap.md M2 范围加"apps/cli rename ✅"
-4. 本 spec §6 加 commit hash
+1. ✅ CLAUDE.md §3.7 基线 59 → **61**
+2. ✅ REVIEW-5-DEEP §🔵 第 11 项 ✅
+3. ✅ 11-roadmap.md M2 范围加"CLI 改造"行
+4. ✅ 本 spec §6 commit hash 已填
 
 ---
 
-## 6. 修复执行回报（待填）
+## 6. 修复执行回报（**commit `1a49d128`，2026-05-05**）
 
-待执行 AI 完成。
+| 校验项 | 结果 |
+|---|---|
+| typecheck:all | EXIT=0 ✓ |
+| bin name | "u-agents-cli": "src/index.ts" ✓ |
+| craft-validate-/created by craft-cli 残留 | 0 命中 ✓ |
+| craft-public e2e fixture 保留 | 6 处 ✓（≥4 期望）|
+| U-API 标记数 | 59 → **61** ✓ (+2 markers) |
+| packages/shared test | 13 stable + 2 OAuth flaky ✓（基线不变）|
+
+**执行 AI 聪明细节**：marker 4 放在外层 TS 代码注释（不在 template literal 内），避免污染 SKILL.md frontmatter 输出。这是 spec 没明确写的，执行 AI 自己想到了。
 
 ---
 

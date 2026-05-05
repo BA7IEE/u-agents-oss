@@ -219,7 +219,7 @@ describe('hasCredentials keyless special case (multi-connection)', () => {
 8. ✅ **TLS rejectUnauthorized 修复 + remote workspace 安全审计**（commit `c516e4d2`，2026-05-05）
 9. ✅ **atomicWriteFileSync 用户数据持久化（11 处）**（commit `25d38ab9`，2026-05-05；spec [`M2-ATOMIC-WRITES-SPEC.md`](../M2-ATOMIC-WRITES-SPEC.md)）
 10. ✅ **~/.u-agents/ 目录权限 0o700 + LLM API key 长度限制 (1-4096)**（commit `2972d8f4`，2026-05-05；spec [`M2-SECURITY-CLEANUP-SPEC.md`](../M2-SECURITY-CLEANUP-SPEC.md)）
-11. ⏸ apps/cli 重命名为 u-agents-cli
+11. ✅ **apps/cli rename craft-cli → u-agents-cli**（commit `1a49d128`，2026-05-05；spec [`M2-CLI-RENAME-SPEC.md`](../M2-CLI-RENAME-SPEC.md)；4 处真改 + 6 处 e2e fixture 保留）
 12. ⏸ apps/electron 35 fail 测试修复评估
 
 **M2 安全主线 4/4 = 100% 完成**（M3 范围除外：secure-storage 解密失败 backup-then-rebuild）

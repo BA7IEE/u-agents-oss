@@ -284,6 +284,7 @@
 | Web 端 | `apps/webui` 与 `apps/viewer` 品牌替换、构建产物部署；Viewer 禁用或自托管 Plausible/Google Fonts | `01-branding-spec.md` §2.36 + §3 + 新增 `12-web-deploy.md`（M2 时再写） |
 | 法务 | 用户协议、隐私政策、ICP 备案、生成式 AI 算法备案（如需）| `LEGAL.md` §6 |
 | **安全** | ✅ **M2 安全主线 4/4 完成**（2026-05-05）：TLS 严格 (`c516e4d2`) + atomicWriteFileSync 11 处 (`25d38ab9`) + dir 0o700 + Token 长度 (`2972d8f4`） | `LEGAL.md` §5.4 + `M2-TLS-FIX-SPEC.md` + `M2-ATOMIC-WRITES-SPEC.md` + `M2-SECURITY-CLEANUP-SPEC.md` |
+| **CLI 改造** | ✅ **apps/cli rename craft-cli → u-agents-cli**（commit `1a49d128`，2026-05-05；4 处改 + 6 处 e2e fixture 保留）| `M2-CLI-RENAME-SPEC.md` |
 
 **出口条件**：
 - [ ] **macOS 切到正式签名 + 公证**（按 `09-test-checklist.md` §1.3 验收）
