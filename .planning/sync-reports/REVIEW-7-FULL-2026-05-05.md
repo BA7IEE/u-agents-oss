@@ -83,17 +83,22 @@
 ### 项目当前真实状态
 
 - ✅ 代码 vs spec 一致性：100%（4/4 spec）
-- ✅ 运行时验证：100%（4/4 fix 真生效，1 个极次要 follow-up）
+- ✅ 运行时验证：**100%**（4/4 fix 真生效；follow-up 已关闭）
 - ✅ 跨文档完整性：~95%（4 处局部数字漂移，已全修；0 错事实）
 - ✅ §3.7 反向覆盖率：100%（27/27 文件）
 - ✅ commit hash 引用一致：100%（50+ 处 0 错指）
 
-### 唯一待办
+### Follow-up 已关闭 ✅
 
-`parseTestConnectionError` 函数检查（1 行 grep + 5 分钟阅读）— 验证 caller (b) test connection 路径是否会转译"Did you accidentally paste a file?"消息。
+`parseTestConnectionError` 检查完成（[connection-setup-logic.ts:58](../../packages/server-core/src/domain/connection-setup-logic.ts:58)）：
 
-如果转译了 → P3 加一个 spec 修 parseTestConnectionError 让它原样透传 length-error 类消息。
-如果没转译 → 完美，关闭 follow-up。
+- 函数 7 个 if 匹配 econnrefused/401/404/429/403 等具体错误 pattern
+- 未命中 → fallback `return msg.slice(0, 300)`
+- 我们的消息 `"API key too long (5000 chars, max 4096). Did you accidentally paste a file?"` ≈ 80 字符 < 300，且不含上述 pattern → 走 fallback → **完整保留**
+
+**结论**：caller (b) test-connection 路径**不会转译消息**，用户能看到完整友好 hint。零修改需要。
+
+**M2 安全主线 4/4 = 100% 运行时全验证 + UI 验证完成**。
 
 ---
 
