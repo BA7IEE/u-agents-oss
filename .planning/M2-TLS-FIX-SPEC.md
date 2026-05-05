@@ -111,7 +111,9 @@ const needsTlsOptions = url.startsWith('wss://') && !this.tlsRejectUnauthorized
     })
 ```
 
-3 处 + client.ts 注释行共 **+4 个 U-API 标记**（基线 48 → 52，仍在 ±2 浮动外，需 §3.7 基线刷新到 52）。
+3 处 `// U-API:` marker（不含 client.ts JSDoc 那行）共 **+3 个 U-API 标记**（基线 48 → 51，超出 ±2 浮动需 §3.7 基线刷新到 51）。
+
+> **执行 AI 反馈（c516e4d2 实测）**：基线刷新已落实到 51。client.ts:99 JSDoc 修复了但**未加额外 marker**（按用户提示词执行的 +3 不是 spec §3 写的 +4）。下次同步时 §3.7 表查 client.ts 改动需走非 marker grep（直接搜 "Default: true (strict)"）。
 
 ---
 
@@ -136,7 +138,7 @@ grep -rn "tlsRejectUnauthorized:\s*false" apps packages --include="*.ts" --inclu
 ```bash
 grep -rEn --exclude-dir=node_modules "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
   | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
-# 期望：52（基线 48 + 4 个 TLS 修复标记）
+# 期望：51（基线 48 + 4 个 TLS 修复标记）
 ```
 
 ### 集成测试（remote workspace 行为）

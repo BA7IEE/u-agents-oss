@@ -283,7 +283,7 @@
 | 中文化 | 深度中文化、术语润色、key 命名/复用评估；M1 已做基础品牌词清洗与 U-API 相关 keys | `10-i18n-zh.md` |
 | Web 端 | `apps/webui` 与 `apps/viewer` 品牌替换、构建产物部署；Viewer 禁用或自托管 Plausible/Google Fonts | `01-branding-spec.md` §2.36 + §3 + 新增 `12-web-deploy.md`（M2 时再写） |
 | 法务 | 用户协议、隐私政策、ICP 备案、生成式 AI 算法备案（如需）| `LEGAL.md` §6 |
-| **安全** | **Remote workspace TLS 校验修复**（3 处 `tlsRejectUnauthorized: false`：`workspace.ts:27` + `bootstrap.ts:124, 148`）；config.json 切 `atomicWriteFileSync` 防断电丢数据；`~/.u-agents/` 改 0o700 多用户机器隐私 | `LEGAL.md` §5.4 + REVIEW-5 |
+| **安全** | ✅ **Remote workspace TLS 校验修复**（commit `c516e4d2`，2026-05-05）；⏸ config.json 切 `atomicWriteFileSync` 防断电丢数据；⏸ `~/.u-agents/` 改 0o700 多用户机器隐私 | `LEGAL.md` §5.4 + `M2-TLS-FIX-SPEC.md` |
 
 **出口条件**：
 - [ ] **macOS 切到正式签名 + 公证**（按 `09-test-checklist.md` §1.3 验收）

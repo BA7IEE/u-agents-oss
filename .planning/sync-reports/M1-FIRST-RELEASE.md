@@ -95,7 +95,7 @@ DMG 验收：`U Agents.app/Contents/Resources/{LICENSE,NOTICE}` 都在；NOTICE 
 | `lint:ui` `craft-styles/no-nonstandard-shadows` | `packages/ui/src/components/annotations/block-markers.ts` (×2) + `packages/ui/src/components/chat/TurnCard.tsx` (×1) | 上游 ESLint 自定义规则；上游自己违反；不阻塞 build。M1 改造未触及这些文件 |
 | `lint:shared` `craft-shared/no-inline-source-auth-check` | `packages/shared/src/sources/types.ts:141` | 同上，上游既有；M1 未碰 |
 | i18n `about.*` keys 排序 | 7 个 locale `*.json` 末尾段（commit `3544456` 早于 M1 引入）| `locale-parity.test.ts` 7 个 alphabetical 测试 fail；M2 中文化扫描时一并修 |
-| 7 处上游测试 fail | `packages/shared/tests/`（Bedrock auth env / classifyExternalUrl / safe-mode / channel routing / 测试 fixture syntax 错误）| 涵盖 M1 #21 / #11e 已禁用但代码仍存在的分支；上游既有，预期 fail |
+| 7 处上游测试 fail | `packages/shared/tests/`（Bedrock auth env / classifyExternalUrl / safe-mode / channel routing / 测试 fixture syntax 错误）| 涵盖 M1 #21 / #11e 已禁用但代码仍存在的分支；上游既有，预期 fail。**M2 校正 2026-05-05**：实际 baseline = **13** fail（不是 14），M2 TLS 修复执行 AI 实测确认；M1-FIRST-RELEASE 初版"14 fail"是过时数字，git stash 撤销修改后跑也是 13 fail |
 | **apps/electron 35 fail（去重 ~10）** | RPC transport 通道一致性（`RoutedClient workspace switch` / `RPC_CHANNELS wire-format` / `getTransportBannerCopy`）| **REVIEW-5 2026-05-04 补遗**：M1-FIRST-RELEASE 初版只跑 packages/shared，未覆盖 apps/electron。这部分 fail 全是上游 RPC 既有问题，与 M1 改造无关 |
 | **Claude SDK native binary 不在 packaged DMG** | `Contents/Resources/app/node_modules/@anthropic-ai/claude-agent-sdk-binary/claude` 缺失 | **M2-REBUILD 2026-05-05 补遗**：`electron:dist:adhoc:mac` 跳过了 `build-dmg.sh` 的 SDK 复制步骤。M1 锁定 U-API（pi_compat）路径不调 Claude SDK，对用户透明（首发版亦如此）。但若上游同步引入 Claude 直连 fallback → 会 crash。M2 应改用 `cd apps/electron && bun run dist:mac` 调 build-dmg.sh，让 SDK 进 DMG。详见 `M2-REBUILD-HOTFIX-2026-05-05.md` §4 |
 

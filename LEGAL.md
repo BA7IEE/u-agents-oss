@@ -265,25 +265,26 @@ Sentry.init({
 
 **M3 自建 Sentry 时**：注册自己的 Sentry self-hosted 或 GlitchTip，把 DSN 设到环境变量。**保留**上游的 `beforeSend(event)` 钩子（已做 PII scrubbing），按 `02-llm-gateway-spec.md` §9.2 的要求扩展，确保 Token 不上报。
 
-### 5.4 Remote workspace TLS 校验关闭（**REVIEW-5 2026-05-04 首发现**）
+### 5.4 Remote workspace TLS 校验关闭（**REVIEW-5 2026-05-04 首发现 → 2026-05-05 已修复**）
 
-**代码事实**：3 个文件硬编码 `tlsRejectUnauthorized: false`：
-- `apps/electron/src/main/handlers/workspace.ts:27`
-- `apps/electron/src/preload/bootstrap.ts:124, 148`
+**修复**：commit `c516e4d2`（"fix(security): enforce strict TLS verification"）删除 3 处显式 `tlsRejectUnauthorized: false` override，让 `WsRpcClient` 默认严格 TLS（client.ts:160 `?? true`）接管。
 
-**含义**：用户配置 remote workspace 连接到 `wss://example.com` 类远端 server 时，**不验证 TLS 证书**。
+**修复位置**：
+- ✅ `apps/electron/src/main/handlers/workspace.ts:27` — 删 + 加 `// U-API:` marker
+- ✅ `apps/electron/src/preload/bootstrap.ts:124, 148` — 删 + 加 marker
+- ✅ `packages/server-core/src/transport/client.ts:99` — JSDoc 校正（"Default: false" → "Default: true (strict)"）
 
-**风险**：攻击者在用户 LAN（咖啡馆 WiFi 等）做 ARP/DNS 投毒 + self-signed 证书 → 全流量明文（session prompt + 文件 + Token + LLM 请求）可被 mitmproxy 截取。
+**详细 spec**：[`M2-TLS-FIX-SPEC.md`](.planning/M2-TLS-FIX-SPEC.md)
 
-**M1 阶段判断**：
-- ✅ **不阻塞首发**——M1 种子用户都是单机使用，不连 remote workspace
-- ⚠️ 上游 craft-agents-oss 既有设计（不是 M1 改造引入）
-- ⚠️ M2 需要修：在启用 remote workspace 功能前必须解决
+**M1 用户影响**：0（M1 单机使用，不连 remote workspace）
 
-**M2 对策**：
-- 阅读 wsrpc 协议 + remote workspace 全流程，理解为何上游选择关闭 TLS 校验
-- 评估方案：(a) 直接 `tlsRejectUnauthorized: true`；(b) 添加 cert pinning；(c) 在 UI 让用户首次连接时手动信任证书
-- 决定后改 3 处代码 + 更新本节为"已修复"
+**M3+ 影响**：未来用户用自签名证书的 remote server 会被 TLS 校验拒绝。M3 自建 OAuth relay 时应同时设计 cert pinning UI 或 opt-in 关闭，详见 spec §7。
+
+---
+
+### 5.4-historical 修复前的安全风险（保留作为历史记录）
+
+修复前：用户配置 remote workspace 连接 `wss://example.com` 类远端 server 时**不验证 TLS 证书**。LAN 攻击者（咖啡馆 WiFi + ARP 投毒 + self-signed 证书）可截全流量（session prompt + 文件 + Token + LLM 请求），mitmproxy 即可拦。M1 单机使用未触发。M2 修复后此风险消除。
 
 ### 5.5 ASAR 关闭——锁定不防技术高超用户
 

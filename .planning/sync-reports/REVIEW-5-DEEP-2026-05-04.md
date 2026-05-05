@@ -6,7 +6,13 @@
 
 ---
 
-## 🔴 P0 — TLS 校验完全关闭（上游既有，**但本次首发现**）
+## ✅ P0 — TLS 校验完全关闭（**2026-05-05 已修复 commit `c516e4d2`**）
+
+**修复**：删 3 处显式 `tlsRejectUnauthorized: false`，让默认严格 TLS 接管。详见 [`M2-TLS-FIX-SPEC.md`](../M2-TLS-FIX-SPEC.md) + [LEGAL.md §5.4](../../LEGAL.md)。
+
+---
+
+### 历史记录（修复前的发现）
 
 ### 现状
 
