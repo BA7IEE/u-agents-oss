@@ -179,11 +179,29 @@ if (!apiKey && connection.baseUrl) {
 | 23 | Default Connection selector 恢复 | 同上 | 注释 `always show Default Connection`（多行注释起始行）| 块 | 02 §6.2 |
 | 24 | last-connection 删除保护 | 同上 | 注释 `last U-API connection cannot be deleted` | 单行 | 02 §6.2 Q2 |
 | 25 | Add Connection button 恢复 | 同上 | 注释 `restore Add Connection button removed by 540509b` | 块 | 02 §6.2 |
-| 26 | onboarding 防护性禁用标记 | `apps/electron/src/renderer/components/onboarding/LocalModelStep.tsx` + `ProviderSelectStep.tsx` | 注释 `intentionally not reached by the M1 onboarding state machine` | 单行（每文件 1 处）| 03 §1.10（裁剪后防护）|
+| 26a | onboarding 防护性禁用 — LocalModelStep | `apps/electron/src/renderer/components/onboarding/LocalModelStep.tsx` | 注释 `intentionally not reached by the M1 onboarding state machine` | 单行 | 03 §1.10（裁剪后防护）|
+| 26b | onboarding 防护性禁用 — ProviderSelectStep | `apps/electron/src/renderer/components/onboarding/ProviderSelectStep.tsx` | 同上注释 | 单行 | 同上 |
 | 27 | first-install onboarding 路由到 placeholder slug | `apps/electron/src/renderer/App.tsx` | 注释 `first-install onboarding edits the placeholder` + `first-install onboarding always targets the placeholder` | 单行（2 处）| 02 §6.2.3 |
 | 28 | About panel Apache §4(c) attribution | `apps/electron/src/main/index.ts` | 注释 `Apache §4(c) attribution — About panel shows U Studio copyright only` | 块 | LEGAL.md §2 + commit 323293b |
 | 29 | EditPopover example brand cleanup | `apps/electron/src/renderer/components/ui/EditPopover.tsx` | 注释 `brand cleanup — mirrors editPopover.example.addSource i18n value` | 单行 | 01 §2.29 |
 | 30 | OAuth callback HTML 品牌化 | `packages/shared/src/auth/callback-page.ts` | HTML 注释 `<!-- U-API: brand title for OAuth callback page` | HTML 注释 | 01 §2.16 |
+
+**M2 期间新增改造点（2026-05-05 收尾后补入）**：
+
+| # | 改造类别 | 文件 | 定位（用 `grep` 找）| 标记 | 关联规格 |
+|---|---|---|---|---|---|
+| 31a | TLS 严格化 — handlers/workspace | `apps/electron/src/main/handlers/workspace.ts` | 注释 `TLS strict mode (REVIEW-5 P0 fix` | 单行 | `M2-TLS-FIX-SPEC.md` + LEGAL §5.4 |
+| 31b | TLS 严格化 — preload/bootstrap | `apps/electron/src/preload/bootstrap.ts` | 同上注释（2 处）| 单行 | 同上 |
+| 32a | atomicWriteFileSync — storage | `packages/shared/src/config/storage.ts` | 注释 `atomic writes for user-data persistence` | 单行 | `M2-ATOMIC-WRITES-SPEC.md` |
+| 32b | atomicWriteFileSync — preferences | `packages/shared/src/config/preferences.ts` | 同上注释 | 单行 | 同上 |
+| 32c | atomicWriteFileSync — topic-registry | `packages/messaging-gateway/src/topic-registry.ts` | 同上注释 | 单行 | 同上 |
+| 32d | atomicWriteFileSync — window-state | `apps/electron/src/main/window-state.ts` | 同上注释 | 单行 | 同上 |
+| 33a | dir 0o700 — watcher | `packages/shared/src/config/watcher.ts` | 注释 `dir mode 0o700 for multi-user machine privacy` | 单行 | `M2-SECURITY-CLEANUP-SPEC.md` |
+| 33b | dir 0o700 — storage（与 32a 同文件）| `packages/shared/src/config/storage.ts` | 同上注释 | 单行 | 同上 |
+| 33c | dir 0o700 — window-state（与 32d 同文件）| `apps/electron/src/main/window-state.ts` | 同上注释 | 单行 | 同上 |
+| 34 | LLM API key 长度限制 | `packages/shared/src/credentials/manager.ts` | 注释 `LLM API key length bounds` + 常量 `MIN_LLM_API_KEY_LENGTH` / `MAX_LLM_API_KEY_LENGTH` | 单行 | `M2-SECURITY-CLEANUP-SPEC.md` |
+| 35 | apps/cli rename | `apps/cli/src/index.ts` | 注释 `tmpDir prefix renamed (M2 cli rename)` + `skill description rebrand` | 单行（2 处）| `M2-CLI-RENAME-SPEC.md` |
+| 36 | REVIEW-4 P0 多连接 keyless 回归测试 | `packages/shared/src/auth/__tests__/state.test.ts` | describe block `hasCredentials keyless special case (multi-connection)` | 单行 | REVIEW-4 + REVIEW-5 §1 P1 |
 
 **同步上游验证基线**（**M2 apps/cli rename 后 2026-05-05 刷新**）：
 
