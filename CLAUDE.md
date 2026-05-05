@@ -218,6 +218,20 @@ grep -rE "/\* U-API END" packages apps --include="*.ts" --include="*.tsx" | grep
 
 > 此规则同时满足 `LEGAL.md` §2 Apache §4(b) "modification notices" 合规要求——标记本身就是修改声明的一种形式。
 
+**⚠️ 改造点常见踩坑模式**（每月同步必跑核对，详见 [`07-upstream-sync.md` §2.7c](.planning/07-upstream-sync.md)）：
+
+| # | 模式 | 一句话 |
+|---|---|---|
+| C1 | 硬编码 slug 而非 helper | 凭证判定别用 `=== U_API_SLUG`，用 `isUApiSlug()` |
+| C2 | batch sed 漏 object key 引号 | `{ u-agents: }` 是 syntax error，必须 `{ 'u-agents': }` |
+| C3 | sed 改 input 漏 assertion | 测试改输入也要改断言（同文件 'craft' + 'u-agents' 混用是嫌疑）|
+| C4 | dead import | 修 callsite 后 grep `<symbol>` 计数 = 1 = dead import 待删 |
+| C5 | 新改造点忘记加单测 | 新增 §3.7 表项必须同时加 `__tests__/*.test.ts` |
+| C6 | system prompt craft 字面量未门控 | 用户可见路径 0 craft；FEATURE_FLAGS 门控的可保留 |
+| C7 | §3.7 反向覆盖空白 | grep 实际标记的文件清单要全在表里 |
+| C8 | 基线 grep 命令漏注释格式 | 用本节"全格式"grep，不用旧 `// U-API:` 简写 |
+| C9 | 测试 syntax 让 baseline fail 数字假 | bun test 不带 --bail 跑，看真实 fail 数对照 M1-FIRST-RELEASE 已知技术债 |
+
 ---
 
 ## 4. 上游同步流程（每月 1 次，由用户/外部 AI 执行，本仓库 AI 不执行）

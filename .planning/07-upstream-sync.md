@@ -322,6 +322,121 @@ grep -nE "u-studi[^o]|agnets|agnest|uagentss|u-aagents" .planning/*.md
 
 > ⚠️ **A 类的 hallucination 检查最关键**：LLM 文档驱动开发最容易在"任务清单写文件路径"环节产生 hallucination（外部 Round 43 写错 4 个路径案例）。**任务清单的文件路径必须 ls/find 验证存在**，否则执行 AI 拿到任务跑命令会立即报错。
 
+### 2.7c C 类：代码改造踩坑模式核对（**REVIEW-6 2026-05-04 加入**）
+
+> **背景**：6 轮 review + hotfix 暴露 9 类"代码改造模式陷阱"。每月同步必跑下面 grep，命中即停下逐项核对。这是从血泪教训中提炼的 anti-pattern detector。
+
+#### C1 — 硬编码 slug 而非用 `isUApiSlug` helper
+
+**历史触发**：`state.ts:306`（REVIEW-4 P0）— `defaultConnectionSlug !== U_API_SLUG` 在多连接场景失效
+
+```bash
+# 任何 hasCredentials / 凭证判定逻辑用了 === U_API_SLUG 或 !== U_API_SLUG 都是嫌疑
+grep -rnE "=== U_API_SLUG|!== U_API_SLUG|=== 'u-api-default'|!== 'u-api-default'" \
+  packages/shared/src --include="*.ts" 2>/dev/null | grep -v test | grep -v __tests__
+# 期望：除 u-api-defaults.ts 自身常量定义外，0 命中。命中即用 isUApiSlug() 替代
+```
+
+#### C2 — batch sed branding 漏 object key 引号
+
+**历史触发**：commit `35444566` 把 `craft-agent` → `u-agents` 时，**测试文件中作为 object literal key** 的位置漏了引号 → syntax error → mcp-pool.test 死了 N 周（REVIEW-5）
+
+```bash
+# JS/TS 中 object key 含连字符必须加引号
+grep -rnE "\{\s*u-agents\s*:|,\s*u-agents\s*:" packages apps tests --include="*.ts" --include="*.tsx" 2>/dev/null | grep -v node_modules
+# 期望：0 命中
+```
+
+#### C3 — batch sed 改 input 但漏 assertion
+
+**历史触发**：mcp-pool.test.ts — `pool.sync({'u-agents': ...})` 改了，但 `expect(pool.isConnected('craft'))` 没改 → assertion 失败但被 syntax 提前 bail 掩盖
+
+```bash
+# 测试文件中 'craft' 字面量与 'u-agents' 字面量混用是嫌疑
+for f in $(grep -rl "'u-agents'" packages apps --include="*.test.ts" 2>/dev/null | grep -v node_modules); do
+  if grep -q "'craft'" "$f"; then
+    echo "MIXED: $f — 同文件含 'u-agents' 和 'craft' 字面量，可能是 sed 漏改 assertion"
+  fi
+done
+```
+
+#### C4 — 修 callsite 但留 dead import
+
+**历史触发**：state.ts 把 `U_API_SLUG` 用法改为 `isUApiSlug()` 但 import 没删（REVIEW-4 卫生 commit `8392dc9d`）
+
+```bash
+# tsc 不开 noUnusedLocals 时 dead import 不报错。手动核：
+# 改了任何 import 时，最终 grep 该 symbol 在文件中是否仍被使用
+# 例：修 state.ts 后
+grep -c "U_API_SLUG" packages/shared/src/auth/state.ts  # 期望 1（仅 import）= dead，应删
+# 期望：grep 数 ≥ 2（import + 至少 1 处使用）
+```
+
+**SOP**：每次改完任何 `state.ts` / `provider-metadata.ts` / `AiSettingsPage.tsx` 这类 multi-import 文件，都跑 `grep -c <symbol>` 自查。
+
+#### C5 — 新增改造点忘记加单元测试
+
+**历史触发**：REVIEW-4 P0 修复（state.ts:306）当时未补回归测试，REVIEW-5 才发现；isUApiSlug 这个 5 处依赖的核心 helper 也长期无单测
+
+```bash
+# 检查关键 U-API helper 是否都有单元测试
+test -f packages/shared/src/config/__tests__/u-api-defaults.test.ts || echo "MISSING: u-api-defaults.test.ts"
+
+# state.test.ts 必须含多连接 keyless 回归测试（描述块关键字搜索）
+grep -qE "keyless special case|multi-connection|u-api-2.*no apiKey" \
+  packages/shared/src/auth/__tests__/state.test.ts || echo "MISSING: state.ts hasCredentials multi-conn regression test"
+```
+
+**SOP**：CLAUDE.md §3.7 表新增任何改造点时，**必须同时**加对应单测。Review 时该项是必检项。
+
+#### C6 — system prompt 字面量未受 feature flag 门控
+
+**历史触发**：`system.ts:470` "integrate Linear, GitHub, Craft, custom APIs" + `system.ts:626` "Craft source (slug: `craft`)" 都无门控，每次对话注入 LLM；REVIEW-5 找到
+
+```bash
+# 精准匹配"用户可见路径"模式（这是 REVIEW-5 真实修过的两个 case 的模式）
+grep -nE "(integrate.*[Cc]raft|[Cc]raft source|Example: [Cc]raft|[Cc]raft space|[Cc]raft Documents|slug.*\`craft\`)" \
+  packages/shared/src/prompts/system.ts
+# 期望：0 命中
+```
+
+**说明**：system.ts 内仍有合规保留的 craft 字面量（`getCraftAssistantPrompt` 内部函数名、`<craft_agent_environment>` XML marker、`FEATURE_FLAGS.craftAgentsCli` 门控的 CLI 块内文本、JSDoc 注释）—— 这些**不进用户可见路径**，无需修。C6 grep 只捕"用户能在 chat 里看到的"模式。
+
+#### C7 — §3.7 表反向覆盖（实际标记 → 表项）
+
+**历史触发**：REVIEW-3 反向核对发现 5 个文件（App.tsx / main/index.ts / EditPopover.tsx 等）有真实标记但 §3.7 表未列
+
+```bash
+# 全仓 U-API 标记按文件分布
+grep -rEn "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
+  | grep -v node_modules | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" \
+  | awk -F: '{print $1}' | sort -u
+
+# 与 CLAUDE.md §3.7 表中"文件"列对照：每个文件至少有 1 项
+# 出现在 grep 输出但表里没有 = 未文档化标记，必须补
+```
+
+#### C8 — 基线 grep 命令漏注释格式
+
+**历史触发**：REVIEW-3 修正——旧基线 grep `// U-API:|/\* U-API (START|END)` 漏 HTML 注释 + JSX 行内注释，真实数 47 而非 44
+
+**SOP**：CLAUDE.md §3.7 的全格式基线 grep 命令是权威；下次同步用旧命令产出旧数字时，**先核对命令是不是 §3.7 写的那个**。
+
+#### C9 — 测试 syntax error 让 baseline fail 数字假
+
+**历史触发**：mcp-pool.test.ts 因 object key 缺引号 syntax error → bun test --bail 提前 bail → mcp-pool 的 7 个 test 一直被 14-fail-baseline 数字掩盖
+
+```bash
+# bun test 不带 --bail 跑，看真实 fail 数
+cd packages/shared && bun test 2>&1 | tail -5
+# 期望：fail 数与 M1-FIRST-RELEASE.md "已知技术债"中记录的一致
+# 不一致 = 要么新 fail（应记入），要么 syntax 之前掩盖了真实 fail（应修 syntax）
+```
+
+**审计输出**：§2.9 同步报告 "C 类核对结果" 必填——9 类陷阱本月新触发情况。
+
+---
+
 ### 2.8 合回主分支
 
 ```bash
@@ -354,11 +469,18 @@ git push origin sync-$DATE
 ## 验收
 - [ ] 01-branding-spec §8 全部通过
 - [ ] **§2.7b 反向核对全部通过**：A 类（自相矛盾）+ B 类（反向 grep）当月无新发现矛盾，或已记录到下月待办
+- [ ] **§2.7c 代码改造踩坑模式核对**：C1-C9 跑一遍，命中 = 0 或已修
 
-## 反向核对结果（§2.7b 必填）
+## 反向核对结果（§2.7b + §2.7c 必填）
 - A 类（自相矛盾）本月新发现：N 个（详细列表 → `01-branding-spec.md §2.43` 审计表追加行）
 - B 类（反向 grep）本月新发现：N 个
+- C 类（代码踩坑模式）本月新触发：N 个（按 C1-C9 列出哪几个）
 - P0 已修正：N 个；P1 已记录待下月：N 个
+
+## §3.7 标记基线对照
+- 旧基线（上次同步）：N 处 / START N / END N
+- 本次同步后实际：N 处 / START N / END N
+- 浮动：±X（在 ±2 内 ✅ / 超出需逐项核对 ⚠️）
 - 任务路径 hallucination 检查：✅ 全部存在 / ❌ 列出 missing 路径
 - [ ] 02-llm-gateway-spec §10 全部通过（§9 是 Token 安全规则；M1 完成判定在 §10）
 - [ ] 03-ui-lockdown-spec §5 全部通过
