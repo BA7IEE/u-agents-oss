@@ -23,6 +23,8 @@ import { initializeDocs } from '../docs/index.ts';
 import { expandPath, toPortablePath, getBundledAssetsDir } from '../utils/paths.ts';
 import { debug } from '../utils/debug.ts';
 import { readJsonFileSync } from '../utils/files.ts';
+// U-API: atomic writes for user-data persistence (REVIEW-5 P1, 2026-05-05) — 防断电/crash partial write
+import { atomicWriteFileSync } from '../utils/files.ts';
 import { CONFIG_DIR } from './paths.ts';
 import { buildDefaultConnection, isUApiSlug, U_API_BASE_URL, U_API_NAME, U_API_SLUG } from './u-api-defaults.ts';
 import type { StoredAttachment, StoredMessage } from '@u-agents/core/types';
@@ -289,7 +291,7 @@ export function saveConfig(config: StoredConfig): void {
     })),
   };
 
-  writeFileSync(CONFIG_FILE, JSON.stringify(storageConfig, null, 2), 'utf-8');
+  atomicWriteFileSync(CONFIG_FILE, JSON.stringify(storageConfig, null, 2));
 }
 
 // Legacy updateApiKey() removed - use setupLlmConnection IPC handler instead.
@@ -876,7 +878,7 @@ export function saveWorkspaceConversation(
   };
 
   try {
-    writeFileSync(filePath, JSON.stringify(conversation, null, 2), 'utf-8');
+    atomicWriteFileSync(filePath, JSON.stringify(conversation, null, 2));
   } catch (e) {
     // Handle cyclic structures or other serialization errors
     console.error(`[storage] [CYCLIC STRUCTURE] Failed to save workspace conversation:`, e);
@@ -900,7 +902,7 @@ export function saveWorkspaceConversation(
         tokenUsage,
         savedAt: Date.now(),
       };
-      writeFileSync(filePath, JSON.stringify(sanitizedConversation, null, 2), 'utf-8');
+      atomicWriteFileSync(filePath, JSON.stringify(sanitizedConversation, null, 2));
       console.error(`[storage] Saved sanitized workspace conversation successfully`);
     } catch (e2) {
       console.error(`[storage] Failed to save even sanitized workspace conversation:`, e2);
@@ -931,7 +933,7 @@ export function getWorkspaceDataPath(workspaceId: string): string {
 export function clearWorkspaceConversation(workspaceId: string): void {
   const filePath = join(WORKSPACES_DIR, workspaceId, 'conversation.json');
   if (existsSync(filePath)) {
-    writeFileSync(filePath, '{}', 'utf-8');
+    atomicWriteFileSync(filePath, '{}');
   }
 
   // Also clear any active plan (plans are session-scoped)
@@ -951,7 +953,7 @@ export function clearWorkspaceConversation(workspaceId: string): void {
 export function saveWorkspacePlan(workspaceId: string, plan: Plan): void {
   const dir = ensureWorkspaceDir(workspaceId);
   const filePath = join(dir, 'plan.json');
-  writeFileSync(filePath, JSON.stringify(plan, null, 2), 'utf-8');
+  atomicWriteFileSync(filePath, JSON.stringify(plan, null, 2));
 }
 
 /**
@@ -1094,7 +1096,7 @@ function loadDraftsData(): DraftsData {
 function saveDraftsData(data: DraftsData): void {
   ensureConfigDir();
   data.updatedAt = Date.now();
-  writeFileSync(DRAFTS_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  atomicWriteFileSync(DRAFTS_FILE, JSON.stringify(data, null, 2));
 }
 
 /**
@@ -1201,7 +1203,7 @@ export function loadAppTheme(): ThemeOverrides | null {
  */
 export function saveAppTheme(theme: ThemeOverrides): void {
   ensureConfigDir();
-  writeFileSync(APP_THEME_FILE, JSON.stringify(theme, null, 2), 'utf-8');
+  atomicWriteFileSync(APP_THEME_FILE, JSON.stringify(theme, null, 2));
 }
 
 

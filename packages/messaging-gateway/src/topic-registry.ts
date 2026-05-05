@@ -19,8 +19,10 @@
  * the registry making a policy decision).
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
+import { readFileSync, mkdirSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
+// U-API: atomic writes for user-data persistence (REVIEW-5 P1, 2026-05-05) — 防断电/crash partial write
+import { atomicWriteFileSync } from '@u-agents/shared/utils/files'
 import type { MessagingLogger } from './types'
 
 export interface AutomationTopicEntry {
@@ -194,7 +196,7 @@ export class TopicRegistry {
         version: 1,
         entries: Array.from(this.byName.values()),
       }
-      writeFileSync(this.filePath, JSON.stringify(payload, null, 2), 'utf8')
+      atomicWriteFileSync(this.filePath, JSON.stringify(payload, null, 2))
     } catch (err) {
       this.log.error('failed to save topic registry', {
         event: 'topic_registry_save_failed',

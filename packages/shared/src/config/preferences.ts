@@ -1,8 +1,10 @@
-import { existsSync, writeFileSync } from 'fs';
+import { existsSync } from 'fs';
 import { join } from 'path';
 import { ensureConfigDir } from './storage.ts';
 import { CONFIG_DIR } from './paths.ts';
 import { readJsonFileSync } from '../utils/files.ts';
+// U-API: atomic writes for user-data persistence (REVIEW-5 P1, 2026-05-05) — 防断电/crash partial write
+import { atomicWriteFileSync } from '../utils/files.ts';
 import { i18n } from '../i18n/index.ts';
 import { LOCALE_REGISTRY, type LanguageCode } from '../i18n/registry.ts';
 
@@ -54,7 +56,7 @@ export function loadPreferences(): UserPreferences {
 export function savePreferences(prefs: UserPreferences): void {
   ensureConfigDir();
   prefs.updatedAt = Date.now();
-  writeFileSync(PREFERENCES_FILE, JSON.stringify(prefs, null, 2), 'utf-8');
+  atomicWriteFileSync(PREFERENCES_FILE, JSON.stringify(prefs, null, 2));
 }
 
 export function updatePreferences(updates: Partial<UserPreferences>): UserPreferences {
