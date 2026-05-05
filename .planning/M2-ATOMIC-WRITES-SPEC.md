@@ -156,7 +156,7 @@ import { atomicWriteFileSync } from '...';
     | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
   # 期望：55
 
-  # (e) packages/shared 测试基线 = 13 fail 不变
+  # (e) packages/shared 测试基线 = 13 fail 不变（commit 当时实测；REVIEW v8 修 url-safety:48 后基线变 12 stable + 1-2 OAuth flaky，详见 07 §C9）
   cd packages/shared && bun test 2>&1 | tail -3
 
 提交：单 commit
@@ -182,7 +182,7 @@ import { atomicWriteFileSync } from '...';
 | 11 处目标行 grep 残留 | 0 命中 ✓ |
 | atomicWriteFileSync 调用数 | 12 ✓ (1 既存 + 11 新增) |
 | U-API 标记数 | 51 → **55** ✓ (+4 markers) |
-| packages/shared test | 13 fail（baseline 不变） ✓ |
+| packages/shared test | 13 fail（baseline 不变） ✓（commit 当时实测；REVIEW v8 修后基线变 12，详见 07 §C9）|
 
 > ⚠️ **spec 笔误校正**：本文 §4 提示词原写"storage.ts （8 处）"，实际 §2 表列 7 项（P0 3 + P1 4），合计 11 处（7+1+1+2）。执行 AI 按 §2 表执行 = 正确。spec §4 已修。
 
@@ -193,7 +193,7 @@ import { atomicWriteFileSync } from '...';
 | 维度 | 评估 |
 |---|---|
 | typecheck | 0 风险（接口签名相同：`(path, string) => void`）|
-| 测试 fail | 0 风险（baseline 13 fail 不变）|
+| 测试 fail | 0 风险（baseline 13 fail 不变；commit 当时实测，REVIEW v8 修后基线变 12）|
 | 性能 | 极小开销（每次写多 1 个 rename syscall，远小于 fs flush 时间）|
 | 行为变化 | 0（成功路径相同；失败路径从"半写文件"变为"无变化"——更好）|
 | 上游同步 | 低风险（上游若改这些行需手动 review，4 marker 帮助识别）|

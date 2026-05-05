@@ -152,7 +152,7 @@ L291 setLlmApiKey 函数体改：
     | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
   # 期望：59
 
-  # (e) test 13 fail 不变
+  # (e) test 13 fail 不变（commit 当时实测；REVIEW v8 修 url-safety:48 后基线变 12 stable + 1-2 OAuth flaky，详见 07 §C9）
   cd packages/shared && bun test 2>&1 | tail -3
 
 提交：单 commit
@@ -163,12 +163,12 @@ L291 setLlmApiKey 函数体改：
 
 ---
 
-## 4. 修复落地后文档收尾
+## 4. 修复落地后文档收尾（**2026-05-05 完成**）
 
-1. CLAUDE.md §3.7 基线 55 → 59
-2. REVIEW-5-DEEP §🔵 M2 范围第 10 项 ✅
-3. 11-roadmap.md M2 安全行所有子项 ✅
-4. 本 spec §5 加 commit hash
+1. ✅ CLAUDE.md §3.7 基线 55 → **59**（commit `2972d8f4`，后续 cli rename 又升至 61）
+2. ✅ REVIEW-5-DEEP §🔵 M2 范围第 10 项 ✅
+3. ✅ 11-roadmap.md M2 安全行所有子项 ✅
+4. ✅ 本 spec §5 已填 commit hash `2972d8f4`
 
 ---
 
@@ -180,18 +180,18 @@ L291 setLlmApiKey 函数体改：
 | 0o700 命中数 | 3 ✓ (watcher.ts:368 / storage.ts:222 / window-state.ts:43) |
 | MAX/MIN_LLM_API_KEY_LENGTH 引用 | 5 处 ✓ (2 const + 3 reference) |
 | U-API 标记数 | 55 → **59** ✓ (+4 markers) |
-| packages/shared test | 13 stable + 2 OAuth network-flaky（见下文） |
+| packages/shared test | 13 stable + 2 OAuth network-flaky（见下文；commit 当时实测，REVIEW v8 修后基线变 12 stable + 1-2 OAuth flaky，详见 07 §C9）|
 
 ### 重要发现：baseline fail 数字漂移真相
 
-执行 AI 用 set diff 精准识别——**baseline 13 fail 实际是 13 stable + 2 个 OAuth Metadata Discovery 网络 flaky 测试**：
+执行 AI 用 set diff 精准识别——**baseline 13 fail 实际是 13 stable + 2 个 OAuth Metadata Discovery 网络 flaky 测试**（本 spec 历史快照；REVIEW v8 修 url-safety:48 后基线变 12 stable + 1-2 OAuth flaky，详见 [07 §C9](07-upstream-sync.md)）：
 
 - `E2E: OAuth Metadata Discovery > GitHub MCP (api.githubcopilot.com)` — 5002ms timeout
 - `E2E: OAuth Metadata Discovery > Linear MCP (mcp.linear.app)` — 同上
 
 跑出来从 13 → 14 → 15 fail 漂移就是这两个网络测试偶尔过/失败。**不是新引入回归**。
 
-**未来文档应统一描述为**："13 stable + 2 network-flaky"，避免下次任务被这种漂移迷惑。已在 M1-FIRST-RELEASE.md 已知技术债 + 07-upstream-sync.md §2.7c C9 同步落实。
+**未来文档应统一描述为**："12 stable + 1-2 network-flaky"（REVIEW v8 修 url-safety:48 后基线从 13→12；本 spec 上文 "13 stable + 2" 是 commit `2972d8f4` 当时快照），避免下次任务被这种漂移迷惑。已在 M1-FIRST-RELEASE.md 已知技术债 + 07-upstream-sync.md §2.7c C9 同步落实。
 
 ---
 
@@ -212,7 +212,7 @@ L291 setLlmApiKey 函数体改：
 | 维度 | 评估 |
 |---|---|
 | typecheck | 0 风险 |
-| test | 0 风险（baseline 13 fail 不变） |
+| test | 0 风险（baseline 13 fail 不变；commit 当时实测，REVIEW v8 修后基线变 12）|
 | 既存用户行为 | 0 影响（dir 已存在不改 mode；short token 用户重新输入即修） |
 | 新装机用户 | dir 直接 0o700 + 误粘贴会被 catch 友好报错 |
 | 上游同步 | 低风险（4 marker 帮助识别，setLlmApiKey 中文 throw msg 不会被上游覆盖） |

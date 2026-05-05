@@ -144,7 +144,7 @@ defaults delete cn.u-studio.u-agents 2>/dev/null
   - [ ] **不显示** providerType 切换
   - [ ] 显示 API Key 输入框（已填）
   - [ ] 显示协议二选一（已选）
-  - [ ] 顶部 Banner 显示 3 个跳转按钮
+  - [ ] **不显示** 顶部 Banner 三链接（M1 改造时移除，详见 [`CLAUDE.md` §3.7 #13](../CLAUDE.md)）
   - [ ] **找不到** "删除连接" 按钮
 
 ### 3.2 配置篡改防护
