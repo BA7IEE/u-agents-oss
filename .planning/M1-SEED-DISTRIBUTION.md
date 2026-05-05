@@ -10,16 +10,18 @@
 
 ## 1. 分发产物
 
-### 1.1 下载链接（已上线）
+### 1.1 下载链接（已上线 — hotfix v0.9.0+u-agents.1，2026-05-05 12:28 重打）
 
-| 平台/架构 | 下载直链 | 大小 | 用途 |
-|---|---|---|---|
-| macOS Apple Silicon (M1/M2/M3/M4) | `https://update.u-agents.u-studio.cn/latest/U-Agents-arm64.dmg` | 162 MB | **macOS 推荐** |
-| macOS Intel | `https://update.u-agents.u-studio.cn/latest/U-Agents-x64.dmg` | 168 MB | 已知限制：bun 二进制仍是 arm64，Intel 上跑会触发 Rosetta，性能折损 |
-| Windows x64 | `https://update.u-agents.u-studio.cn/latest/U-Agents-x64.exe` | 169 MB | **Windows 推荐**（M2 新增，2026-05-04 上线）|
+| 平台/架构 | 下载直链 | 大小 | sha512（base64）| 备注 |
+|---|---|---|---|---|
+| macOS Apple Silicon | `https://update.u-agents.u-studio.cn/latest/U-Agents-arm64.dmg` | 162 MB | `97Ke3E...H2ErA==` | **macOS 推荐**（M1/M2/M3/M4 芯片）|
+| macOS Intel | `https://update.u-agents.u-studio.cn/latest/U-Agents-x64.dmg` | 168 MB | `t9Btea...nXwPT7Q==` | 已知限制：bun 仍是 arm64，Intel 走 Rosetta |
+| Windows x64 | `https://update.u-agents.u-studio.cn/latest/U-Agents-x64.exe` | **221 MB** | `07JN//...AAxTqQ==` | **Windows 推荐**（含 Claude SDK，dist:win 完整版）|
 
 > ⚠️ Intel Mac 用户请在分发前**主动告知**性能限制；如反馈不可接受，后续补 x64 原生 bun。
-> 自动更新清单：macOS 走 `latest-mac.yml`，Windows 走 `latest.yml`。
+> 自动更新清单：macOS 走 `latest-mac.yml`（releaseDate `2026-05-05T04:28:58.607Z`），Windows 走 `latest.yml`（`2026-05-05T04:56:12.512Z`）。
+>
+> **R2 全部对齐验证完成（2026-05-05）**：所有产物 size + sha512 与 yml 期望一致，自动更新链路 sha512 校验不会失败。
 
 ### 1.2 校验
 
