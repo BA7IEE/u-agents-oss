@@ -203,6 +203,22 @@ if (!apiKey && connection.baseUrl) {
 | 35 | apps/cli rename | `apps/cli/src/index.ts` | 注释 `tmpDir prefix renamed (M2 cli rename)` + `skill description rebrand` | 单行（2 处）| `M2-CLI-RENAME-SPEC.md` |
 | 36 | REVIEW-4 P0 多连接 keyless 回归测试 | `packages/shared/src/auth/__tests__/state.test.ts` | describe block `hasCredentials keyless special case (multi-connection)` | 单行 | REVIEW-4 + REVIEW-5 §1 P1 |
 
+**Build 脚本 marker（M2 后期补充，不计入主基线）**：
+
+主基线 grep 命令仅扫 `packages` + `apps` 下的 `.ts/.tsx`，build 脚本（`.sh` / `.ps1`）不在覆盖范围内——但仍需登记，方便上游同步时辨识改造点。
+
+| # | 改造类别 | 文件 | 定位 | 标记 | 引入 commit |
+|---|---|---|---|---|---|
+| B1 | adhoc 签名 escape hatch | `apps/electron/scripts/build-dmg.sh` | 注释 `allow caller to override (e.g. CSC_IDENTITY_AUTO_DISCOVERY=false bun run dist:mac)` | `# U-API:` 单行 | `6ba75da4` (M2) |
+| B2 | Windows EXE 缺 pi-agent-server 修复（事故 #3）| `apps/electron/scripts/build-win.ps1` | 注释 `build-win.ps1 missed subprocess server build that build-dmg.sh L208 triggers` | `# U-API:` 单行 | M2 收尾（详见 [`12-subprocess-build-pipeline.md`](.planning/12-subprocess-build-pipeline.md) §0.3） |
+
+**Build 脚本 marker 单独 grep 命令**：
+
+```bash
+grep -rEn "U-API" apps/electron/scripts/ 2>/dev/null | wc -l
+# 期望：≥2（B1 + B2）
+```
+
 **同步上游验证基线**（**M2 apps/cli rename 后 2026-05-05 刷新**）：
 
 | 指标 | 基线（2026-05-05 commit `1a49d128` 后）| 下次同步允许浮动 |
