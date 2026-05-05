@@ -43,6 +43,7 @@
     "./utils/url-safety": "./src/utils/url-safety.ts",
     "./utils/workspace": "./src/utils/workspace.ts",
     "./utils/workspace-slug": "./src/utils/workspace-slug.ts",
+    "./utils/files": "./src/utils/files.ts",
     "./labels": "./src/labels/index.ts",
     "./labels/auto": "./src/labels/auto/index.ts",
     "./labels/storage": "./src/labels/storage.ts",
