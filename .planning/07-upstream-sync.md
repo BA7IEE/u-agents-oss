@@ -443,12 +443,12 @@ grep -rEn "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
 - mcp-pool.test.ts 因 object key 缺引号 syntax error → bun test --bail 提前 bail → mcp-pool 7 个 test 一直被掩盖
 - **OAuth Metadata Discovery 测试网络 flaky**（GitHub MCP api.githubcopilot.com + Linear MCP mcp.linear.app 跑外网 5002ms timeout）— 偶尔过/失败让 fail 数在 13/14/15 漂移，每次同步都被这种漂移迷惑
 
-**真实 baseline**：**13 stable + 2 OAuth network-flaky**（M1-FIRST-RELEASE.md 已知技术债已记录此口径）
+**真实 baseline**：**12 stable + 1-2 OAuth network-flaky**（REVIEW v8 修 url-safety.test.ts:48 后从 13→12 stable；M1-FIRST-RELEASE.md 已知技术债已记录此口径）
 
 ```bash
 # bun test 不带 --bail 跑，看真实 fail 数
 cd packages/shared && bun test 2>&1 | tail -5
-# 期望：fail 数 ∈ [13, 15]，超出范围才停下逐项对照
+# 期望：fail 数 ∈ [12, 14]，超出范围才停下逐项对照
 
 # 精准对照：用 set diff 排除 OAuth flaky
 cd packages/shared && bun test 2>&1 | grep -E "^✗|FAIL" | grep -v "OAuth Metadata Discovery" | wc -l
