@@ -3,7 +3,11 @@
 **生效日期**：2026-05-04（首发）/ 2026-05-05（重打 hotfix）
 **版本**：v0.9.0+u-agents.1（commit `161e0938` 基线，含 6 轮 review + hotfix）
 
-> ✅ R2 已上传 hotfix v0.9.0+u-agents.1（macOS 5/5 12:28，Windows 5/5 12:56），sha512 全部对齐（详见 [M2-REBUILD-HOTFIX-2026-05-05.md](sync-reports/M2-REBUILD-HOTFIX-2026-05-05.md) + L24 R2 全部对齐验证）。**注意**：本 hotfix 不含 M2 安全主线 4/4 fix（TLS / atomicWriteFileSync / dir 0o700 / Token 长度），分发缺口详见 [REVIEW-8-FULL-2026-05-05.md](sync-reports/REVIEW-8-FULL-2026-05-05.md) §3。
+> ✅ **下载页已上线**：[https://agents.u-studio.cn](https://agents.u-studio.cn)（Next.js 站点，2026-05-05 HTTP 200 验证）— **M1 14/14 全部完成**。
+>
+> ✅ R2 已上传 hotfix v0.9.0+u-agents.1（macOS 5/5 12:28，Windows 5/5 12:56），sha512 全部对齐（详见 [M2-REBUILD-HOTFIX-2026-05-05.md](sync-reports/M2-REBUILD-HOTFIX-2026-05-05.md) + L26 R2 全部对齐验证）。**注意**：R2 上的本 hotfix 不含 M2 安全主线 4/4 fix（TLS / atomicWriteFileSync / dir 0o700 / Token 长度），分发缺口详见 [REVIEW-8-FULL-2026-05-05.md](sync-reports/REVIEW-8-FULL-2026-05-05.md) §3。
+>
+> 🔧 **arm64 含 4 fix 的 DMG 已本地重打**（2026-05-05，含 SDK 224 MB；本地 verify：atomicWriteFileSync ×12 / `tlsRejectUnauthorized ?? true` 默认严格 / MIN_LLM_API_KEY_LENGTH ×4 / mode:448 ×4）。x64 + Windows + R2 上传待执行（详见 [`11-roadmap.md`](11-roadmap.md) M2 出口"R2 重打 + 重传"勾选项）。
 **目标**：把首批 DMG 投放给受信任的种子用户，验证白标改造在真实环境无回归，收集首批反馈。
 
 ---
