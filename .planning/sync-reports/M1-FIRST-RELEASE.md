@@ -97,6 +97,7 @@ DMG 验收：`U Agents.app/Contents/Resources/{LICENSE,NOTICE}` 都在；NOTICE 
 | i18n `about.*` keys 排序 | 7 个 locale `*.json` 末尾段（commit `3544456` 早于 M1 引入）| `locale-parity.test.ts` 7 个 alphabetical 测试 fail；M2 中文化扫描时一并修 |
 | 7 处上游测试 fail | `packages/shared/tests/`（Bedrock auth env / classifyExternalUrl / safe-mode / channel routing / 测试 fixture syntax 错误）| 涵盖 M1 #21 / #11e 已禁用但代码仍存在的分支；上游既有，预期 fail |
 | **apps/electron 35 fail（去重 ~10）** | RPC transport 通道一致性（`RoutedClient workspace switch` / `RPC_CHANNELS wire-format` / `getTransportBannerCopy`）| **REVIEW-5 2026-05-04 补遗**：M1-FIRST-RELEASE 初版只跑 packages/shared，未覆盖 apps/electron。这部分 fail 全是上游 RPC 既有问题，与 M1 改造无关 |
+| **Claude SDK native binary 不在 packaged DMG** | `Contents/Resources/app/node_modules/@anthropic-ai/claude-agent-sdk-binary/claude` 缺失 | **M2-REBUILD 2026-05-05 补遗**：`electron:dist:adhoc:mac` 跳过了 `build-dmg.sh` 的 SDK 复制步骤。M1 锁定 U-API（pi_compat）路径不调 Claude SDK，对用户透明（首发版亦如此）。但若上游同步引入 Claude 直连 fallback → 会 crash。M2 应改用 `cd apps/electron && bun run dist:mac` 调 build-dmg.sh，让 SDK 进 DMG。详见 `M2-REBUILD-HOTFIX-2026-05-05.md` §4 |
 
 **结论**：上述均不属于 M1 白标改造引入的 regression；上游同步时若上游修了某项，自动跟随；M1 不主动修。验证锚点：将这些测试在 `99fd995` baseline 上重跑，结果与现在一致。
 
