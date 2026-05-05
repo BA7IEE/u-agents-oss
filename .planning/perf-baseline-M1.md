@@ -133,7 +133,7 @@ du -sh "/Applications/U Agents.app" ~/.u-agents
 | M1 进程 spawn | **0.11–0.20 s**（3 次冷启动测，min 0.11） | ≤ 5s | ✅ 远超期望（窗口可交互估 1-3s）|
 | M2 内存（cold start 立即 / idle 30s / long-run）| **298 / 287 / 60 MB** main | ≤ 300 | ✅ cold-start 触线但合格 |
 | M2 内存（cold start 立即 / idle 30s / long-run）| **632 / 593 / 104 MB** 全进程组 | ≤ 800 | ✅ |
-| M3 首条消息延迟 | _待 user 自测_ | ≤ 8s | ⏸ |
+| M3 首条消息延迟 | **3 s**（user 实测） | ≤ 8s | ✅ 远超期望 |
 | M4 DMG 大小 | arm64 162 / x64 168 MB（**装版无 SDK**）；本地含 SDK 是 223/230 | - | ✅ |
 | M5 CPU idle（30s 后 5 采样中位）| **0.0%** | < 2% | ✅ 远超期望 |
 | M6 .app / ~/.u-agents 磁盘 | **499 / 61 MB**（无 SDK 装版）| ≤ 800 / ≤ 5 | ✅ .app / ⚠️ ~/.u-agents 已积累 session |
@@ -188,10 +188,12 @@ du -sh "/Applications/U Agents.app" ~/.u-agents
 
 ## 5. 完成判定
 
-- [ ] 装本地 DMG（路径见 §1）
-- [ ] 跑 onboarding + 发首条消息 OK
-- [ ] 6 个指标全部测出
-- [ ] §2 表填完
-- [ ] 写完后此处勾选 + commit
+- [x] 装本地 DMG（user 装的是 R2 hotfix 无 SDK 版，2026-05-05）
+- [x] 跑 onboarding + 发首条消息 OK
+- [x] 6 个指标全部测出
+- [x] §2 表填完
+- [x] 此处勾选 + commit `6be9a63b` (5/6) → 本 commit (M3 完成)
 
-完成后 [M1-FIRST-RELEASE.md](sync-reports/M1-FIRST-RELEASE.md) 14 项里第 11 项可标 ✅，M1 实质完成度从 12/14 → 13/14（剩"网站下载页"）。
+✅ **M1 出口判定 §4 第 11 项性能基准 → 完成**
+
+M1 实质完成度：**12/14 → 13/14**（仅剩 #13 网站下载页）。
