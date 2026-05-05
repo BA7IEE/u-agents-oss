@@ -202,10 +202,12 @@ import { atomicWriteFileSync } from '...';
 
 ---
 
-## 7. M2 安全主线进度（**已更新到 commit `25d38ab9`**）
+## 7. M2 安全主线进度
+
+> ⚠️ 本表是 commit `25d38ab9` 时刻快照；后续 dir/Token 已由 `2972d8f4` 完成（详见 [`M2-SECURITY-CLEANUP-SPEC.md`](M2-SECURITY-CLEANUP-SPEC.md)）。M2 安全主线 4/4 = 100%。
 
 - ✅ TLS 校验严格化（commit `c516e4d2`）
 - ✅ **atomicWriteFileSync 用户数据持久化（commit `25d38ab9`）**
-- ⏸ `~/.u-agents/` 目录权限 0o700
-- ⏸ Token 输入长度限制
+- ✅ ~/.u-agents/ 目录权限 0o700（**commit `2972d8f4`**）
+- ✅ Token 输入长度限制（**commit `2972d8f4`**）
 - ⏸ secure-storage.ts 解密失败改 backup-then-rebuild（M3 范围）

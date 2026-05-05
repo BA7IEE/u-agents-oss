@@ -129,8 +129,9 @@ bun run typecheck:all
 ### 反向 grep 确认 0 残留
 
 ```bash
-grep -rn "tlsRejectUnauthorized:\s*false" apps packages --include="*.ts" --include="*.tsx" 2>/dev/null | grep -v node_modules
-# 期望：0 命中
+# REVIEW-7 修正：排除 // U-API: marker 注释行（含 "was tlsRejectUnauthorized: false" 解释文本会自匹配）
+grep -rn "tlsRejectUnauthorized:\s*false" apps packages --include="*.ts" --include="*.tsx" 2>/dev/null | grep -v node_modules | grep -v "U-API:"
+# 期望：0 命中（业务代码 0 残留）
 ```
 
 ### U-API 标记数
