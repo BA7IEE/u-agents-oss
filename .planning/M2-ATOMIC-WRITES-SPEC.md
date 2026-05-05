@@ -112,7 +112,7 @@ import { atomicWriteFileSync } from '...';
 
 任务范围：4 个文件 11 处 writeFileSync → atomicWriteFileSync 替换。
 
-【文件 1】packages/shared/src/config/storage.ts （8 处）
+【文件 1】packages/shared/src/config/storage.ts （7 处）
 - L9 import：保留 writeFileSync（其他位置仍用，比如 :148/157/164/1259/1423 是 config-defaults / cp）
 - L?? 加新 import: import { atomicWriteFileSync } from '../utils/files.ts';
 - 上方加 // U-API: marker
@@ -167,12 +167,24 @@ import { atomicWriteFileSync } from '...';
 
 ---
 
-## 5. 修复落地后文档收尾（待执行 AI 完成后）
+## 5. 修复落地后文档收尾（**2026-05-05 完成**）
 
-1. CLAUDE.md §3.7 基线刷新 51 → 55
-2. REVIEW-5-DEEP §1 P1 第 3 项标 ✅
-3. 11-roadmap.md M2 安全行 atomicWriteFileSync 子项标 ✅
-4. 本 spec §6 更新 commit hash
+1. ✅ CLAUDE.md §3.7 基线刷新 51 → **55**
+2. ✅ REVIEW-5-DEEP §🔵 M2 范围第 9 项标 ✅
+3. ✅ 11-roadmap.md M2 安全行 atomicWriteFileSync 子项标 ✅
+4. ✅ 本 spec 落地 commit：**`25d38ab9`**
+
+## 修复执行回报（commit `25d38ab9`）
+
+| 校验项 | 结果 |
+|---|---|
+| typecheck:all | EXIT=0 ✓ |
+| 11 处目标行 grep 残留 | 0 命中 ✓ |
+| atomicWriteFileSync 调用数 | 12 ✓ (1 既存 + 11 新增) |
+| U-API 标记数 | 51 → **55** ✓ (+4 markers) |
+| packages/shared test | 13 fail（baseline 不变） ✓ |
+
+> ⚠️ **spec 笔误校正**：本文 §4 提示词原写"storage.ts （8 处）"，实际 §2 表列 7 项（P0 3 + P1 4），合计 11 处（7+1+1+2）。执行 AI 按 §2 表执行 = 正确。spec §4 已修。
 
 ---
 
@@ -190,10 +202,10 @@ import { atomicWriteFileSync } from '...';
 
 ---
 
-## 7. M2 安全主线进度（修完后）
+## 7. M2 安全主线进度（**已更新到 commit `25d38ab9`**）
 
 - ✅ TLS 校验严格化（commit `c516e4d2`）
-- ✅ atomicWriteFileSync 用户数据持久化（本任务完成后）
+- ✅ **atomicWriteFileSync 用户数据持久化（commit `25d38ab9`）**
 - ⏸ `~/.u-agents/` 目录权限 0o700
 - ⏸ Token 输入长度限制
 - ⏸ secure-storage.ts 解密失败改 backup-then-rebuild（M3 范围）

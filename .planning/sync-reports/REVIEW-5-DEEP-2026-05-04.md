@@ -216,11 +216,11 @@ describe('hasCredentials keyless special case (multi-connection)', () => {
 
 ### 🔵 M2 范围（已规划）
 
-8. TLS rejectUnauthorized 修复 + remote workspace 安全审计
-9. atomicWriteFileSync 替换所有 writeFileSync（config.json 防断电丢数据）
-10. ~/.u-agents/ 目录权限 0o700
-11. apps/cli 重命名为 u-agents-cli
-12. apps/electron 35 fail 测试修复评估
+8. ✅ **TLS rejectUnauthorized 修复 + remote workspace 安全审计**（commit `c516e4d2`，2026-05-05）
+9. ✅ **atomicWriteFileSync 用户数据持久化（11 处）**（commit `25d38ab9`，2026-05-05；spec [`M2-ATOMIC-WRITES-SPEC.md`](../M2-ATOMIC-WRITES-SPEC.md)）
+10. ⏸ ~/.u-agents/ 目录权限 0o700
+11. ⏸ apps/cli 重命名为 u-agents-cli
+12. ⏸ apps/electron 35 fail 测试修复评估
 
 ### 🔵 M3 范围（已规划）
 

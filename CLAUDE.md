@@ -185,11 +185,11 @@ if (!apiKey && connection.baseUrl) {
 | 29 | EditPopover example brand cleanup | `apps/electron/src/renderer/components/ui/EditPopover.tsx` | 注释 `brand cleanup — mirrors editPopover.example.addSource i18n value` | 单行 | 01 §2.29 |
 | 30 | OAuth callback HTML 品牌化 | `packages/shared/src/auth/callback-page.ts` | HTML 注释 `<!-- U-API: brand title for OAuth callback page` | HTML 注释 | 01 §2.16 |
 
-**同步上游验证基线**（**M2 TLS 修复后 2026-05-05 刷新**）：
+**同步上游验证基线**（**M2 atomic writes 后 2026-05-05 刷新**）：
 
-| 指标 | 基线（2026-05-05 commit `c516e4d2` 后）| 下次同步允许浮动 |
+| 指标 | 基线（2026-05-05 commit `25d38ab9` 后）| 下次同步允许浮动 |
 |---|---|---|
-| U-API 标记总数（含全部注释格式）| **51** | ±2 |
+| U-API 标记总数（含全部注释格式）| **55** | ±2 |
 | `/* U-API START */` 块数 | **8** | 必须等于 END |
 | `/* U-API END */` 块数 | **8** | 必须等于 START |
 
@@ -199,7 +199,8 @@ if (!apiKey && connection.baseUrl) {
 > - REVIEW-2（2026-05-04 上午）：44 处（旧 grep 命令漏 3 处 HTML/JSX 注释）
 > - REVIEW-3（同日修正）：47 处（grep 命令改全格式，覆盖率 100%）
 > - REVIEW-6（hotfix v0.9.0+u-agents.1 后）：48 处（state.test.ts 新增 1 处回归测试 `// U-API:` 引用）
-> - **M2 TLS 修复（2026-05-05 commit `c516e4d2`）：51 处**（workspace.ts:27 + bootstrap.ts:124, 148 各加 1 处 TLS strict mode 注释 marker）
+> - M2 TLS 修复（2026-05-05 commit `c516e4d2`）：51 处（workspace.ts:27 + bootstrap.ts:124, 148 各加 1 处 TLS strict mode 注释 marker）
+> - **M2 atomicWriteFileSync 用户数据持久化（2026-05-05 commit `25d38ab9`）：55 处**（4 文件各加 1 处 atomic writes 注释 marker：storage.ts / preferences.ts / topic-registry.ts / window-state.ts）
 
 **每次同步必跑 grep（覆盖全部注释格式）**：
 
