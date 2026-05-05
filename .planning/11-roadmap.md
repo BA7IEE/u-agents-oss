@@ -287,6 +287,8 @@
 | **CLI 改造** | ✅ **apps/cli rename craft-cli → u-agents-cli**（commit `1a49d128`，2026-05-05；4 处改 + 6 处 e2e fixture 保留）| `M2-CLI-RENAME-SPEC.md` |
 
 **出口条件**：
+- [x] **M2 安全主线 4/4 完成**（git 仓库已落地：TLS 严格 `c516e4d2` + atomicWriteFileSync 11 处 `25d38ab9` + dir 0o700 + Token 长度 `2972d8f4`；⚠️ R2 生产分发缺口未解决，详见 [`REVIEW-8-FULL-2026-05-05.md`](sync-reports/REVIEW-8-FULL-2026-05-05.md) §3）
+- [x] **apps/cli rename craft-cli → u-agents-cli**（commit `1a49d128`，详见 [`M2-CLI-RENAME-SPEC.md`](M2-CLI-RENAME-SPEC.md)）
 - [ ] **macOS 切到正式签名 + 公证**（按 `09-test-checklist.md` §1.3 验收）
 - [ ] **macOS 用户从 M1 adhoc 版本自动更新到 M2 公证版本之后，启动不再被 Gatekeeper 拦截**
 - [ ] 三平台安装包均通过 `09-test-checklist.md`
@@ -295,6 +297,7 @@
 - [ ] zh-Hans.json 中无 "Craft" 字面量
 - [ ] 用户协议 + 隐私政策上线
 - [ ] 至少 1 次成功的上游同步（按 `07-upstream-sync.md`）
+- [ ] **R2 重打 + 重传**（让 R2 生产产物含 M2 安全主线 4/4 fix，推荐 [`REVIEW-8`](sync-reports/REVIEW-8-FULL-2026-05-05.md) Path A，~20 分钟）
 
 ---
 

@@ -452,7 +452,7 @@ cd packages/shared && bun test 2>&1 | tail -5
 
 # 精准对照：用 set diff 排除 OAuth flaky
 cd packages/shared && bun test 2>&1 | grep -E "^✗|FAIL" | grep -v "OAuth Metadata Discovery" | wc -l
-# 期望：13（stable baseline）
+# 期望：12（stable baseline，REVIEW v8 修 url-safety.test.ts:48 后从 13→12）
 
 # 完整 set diff（git stash 后跑 baseline，再 unstash 跑当前，对比 set 而非 count）
 git stash

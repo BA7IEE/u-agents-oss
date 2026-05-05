@@ -3,7 +3,7 @@
 **生效日期**：2026-05-04（首发）/ 2026-05-05（重打 hotfix）
 **版本**：v0.9.0+u-agents.1（commit `161e0938` 基线，含 6 轮 review + hotfix）
 
-> ⚠️ R2 上的 DMG/EXE 已本地重打为 hotfix 版（5/5 12:28），新 sha512 见 [M2-REBUILD-HOTFIX-2026-05-05.md](sync-reports/M2-REBUILD-HOTFIX-2026-05-05.md)。R2 上传 + Windows 重打**待 user 执行**，完成后此处更新 sha512 并标 ✅。
+> ✅ R2 已上传 hotfix v0.9.0+u-agents.1（macOS 5/5 12:28，Windows 5/5 12:56），sha512 全部对齐（详见 [M2-REBUILD-HOTFIX-2026-05-05.md](sync-reports/M2-REBUILD-HOTFIX-2026-05-05.md) + L24 R2 全部对齐验证）。**注意**：本 hotfix 不含 M2 安全主线 4/4 fix（TLS / atomicWriteFileSync / dir 0o700 / Token 长度），分发缺口详见 [REVIEW-8-FULL-2026-05-05.md](sync-reports/REVIEW-8-FULL-2026-05-05.md) §3。
 **目标**：把首批 DMG 投放给受信任的种子用户，验证白标改造在真实环境无回归，收集首批反馈。
 
 ---

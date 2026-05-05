@@ -139,7 +139,7 @@ grep -rn "tlsRejectUnauthorized:\s*false" apps packages --include="*.ts" --inclu
 ```bash
 grep -rEn --exclude-dir=node_modules "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
   | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
-# 期望：51（基线 48 + 4 个 TLS 修复标记）
+# 期望：51（基线 48 + 3 个 TLS 修复标记 marker；client.ts:99 JSDoc 修复未额外加 marker，下次同步查 client.ts 改动需走非 marker grep "Default: true (strict)"）
 ```
 
 ### 集成测试（remote workspace 行为）

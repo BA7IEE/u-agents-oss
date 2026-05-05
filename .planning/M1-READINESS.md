@@ -80,20 +80,22 @@
 
 详见 `11-roadmap.md §M1 出口条件`，浓缩为 14 项：
 
-- [ ] 全新装机能完成 onboarding，能发第一条对话
-- [ ] adhoc 包通过 `09 §1.2` Gatekeeper 流程
-- [ ] About 对话框含 "Based on Craft Agents" 署名
-- [ ] `01 §8` 4 个 grep 命令全过
-- [ ] `02 §10` 验收全过
-- [ ] `bun run lint:i18n:parity` 通过
-- [ ] `bun run typecheck:all` 通过
-- [ ] `bun run test:shared:all` 通过（#24d 覆盖至少 10 个测试文件 + 所有因 M1 改造失败的测试 fixture）
-- [ ] `bun run validate:dev` 通过
-- [ ] `09 §3.5` 后端 setup 端到端验证
-- [ ] M1 性能基准记录到 `.planning/perf-baseline-M1.md`
-- [ ] 自动更新指向 `update.u-agents.u-studio.cn`，能拉到 `latest.yml`
-- [ ] 网站下载页显著位置展示"首次启动指引"
-- [ ] Sentry DSN 未被注入（`SENTRY_ELECTRON_INGEST_URL` 不设置）
+> **M1 实质完成度：13/14**（详见 [`perf-baseline-M1.md`](perf-baseline-M1.md) §5；仅剩 #13 网站下载页未做，hotfix v0.9.0+u-agents.1 已发布，详见 [`M1-SEED-DISTRIBUTION.md`](M1-SEED-DISTRIBUTION.md)）
+
+- [x] 全新装机能完成 onboarding，能发第一条对话
+- [x] adhoc 包通过 `09 §1.2` Gatekeeper 流程
+- [x] About 对话框含 "Based on Craft Agents" 署名（决策已改为通过 NOTICE/LICENSE 文件落实 §4(c) 合规，详见 [`LEGAL.md`](../LEGAL.md) §2）
+- [x] `01 §8` 4 个 grep 命令全过
+- [x] `02 §10` 验收全过
+- [x] `bun run lint:i18n:parity` 通过
+- [x] `bun run typecheck:all` 通过
+- [x] `bun run test:shared:all` 通过（baseline 12 stable + 1-2 OAuth flaky，REVIEW v8 修 url-safety:48 后从 13→12）
+- [x] `bun run validate:dev` 通过
+- [x] `09 §3.5` 后端 setup 端到端验证
+- [x] M1 性能基准记录到 `.planning/perf-baseline-M1.md`
+- [x] 自动更新指向 `update.u-agents.u-studio.cn`，能拉到 `latest.yml`
+- [ ] 网站下载页显著位置展示"首次启动指引"（**唯一剩余项**，M3 自建文档站时一并交付）
+- [x] Sentry DSN 未被注入（`SENTRY_ELECTRON_INGEST_URL` 不设置）
 
 ---
 
