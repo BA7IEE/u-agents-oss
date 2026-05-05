@@ -11,6 +11,10 @@ import type { LlmAuthType, LlmProviderType } from '../config/llm-connections.ts'
 import { SecureStorageBackend } from './backends/secure-storage.ts';
 import { debug } from '../utils/debug.ts';
 
+// U-API: LLM API key length bounds (M2 cleanup, 2026-05-05) — defend against accidental large-text paste
+const MIN_LLM_API_KEY_LENGTH = 1;
+const MAX_LLM_API_KEY_LENGTH = 4096;
+
 export class CredentialManager {
   private backends: CredentialBackend[] = [];
   private writeBackend: CredentialBackend | null = null;
@@ -289,6 +293,12 @@ export class CredentialManager {
    * @param apiKey - The API key to store
    */
   async setLlmApiKey(connectionSlug: string, apiKey: string): Promise<void> {
+    if (apiKey.length < MIN_LLM_API_KEY_LENGTH) {
+      throw new Error('API key cannot be empty');
+    }
+    if (apiKey.length > MAX_LLM_API_KEY_LENGTH) {
+      throw new Error(`API key too long (${apiKey.length} chars, max ${MAX_LLM_API_KEY_LENGTH}). Did you accidentally paste a file?`);
+    }
     await this.set({ type: 'llm_api_key', connectionSlug }, { value: apiKey });
   }
 

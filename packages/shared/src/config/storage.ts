@@ -218,7 +218,8 @@ export function ensureConfigDir(): void {
   if (configDirInitialized) return;
 
   if (!existsSync(CONFIG_DIR)) {
-    mkdirSync(CONFIG_DIR, { recursive: true });
+    // U-API: dir mode 0o700 for multi-user machine privacy (M2 cleanup, 2026-05-05)
+    mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 });
   }
   // Initialize bundled docs (creates ~/.u-agents/docs/ with sources.md, agents.md, permissions.md)
   initializeDocs();

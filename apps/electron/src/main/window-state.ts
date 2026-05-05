@@ -39,7 +39,8 @@ export function saveWindowState(state: WindowState): void {
   try {
     // Ensure config directory exists
     if (!existsSync(CONFIG_DIR)) {
-      mkdirSync(CONFIG_DIR, { recursive: true })
+      // U-API: dir mode 0o700 for multi-user machine privacy (M2 cleanup, 2026-05-05)
+      mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 })
     }
 
     atomicWriteFileSync(WINDOW_STATE_FILE, JSON.stringify(state, null, 2))
