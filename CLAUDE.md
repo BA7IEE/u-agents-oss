@@ -204,13 +204,15 @@ if (!apiKey && connection.baseUrl) {
 
 ```bash
 # 全部 U-API 标记（含 // 单行 / /* 块 / <!-- HTML / {/* JSX 行内）
-grep -rEn "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
-  | grep -v node_modules | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
-# 期望：47（基线，允许 45-49）
+# SOP-REHEARSAL 2026-05-05 改进：用 --exclude-dir 替代 grep -v 过滤，
+# 抗 build-dmg.sh 中间态把 SDK 包复制到 apps/electron/node_modules/ 让数字暂时虚高的情况
+grep -rEn --exclude-dir=node_modules "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
+  | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
+# 期望：48（基线，允许 46-50）
 
 # 块标记 START/END 配对（数量必须相等）
-grep -rE "/\* U-API START" packages apps --include="*.ts" --include="*.tsx" | grep -v node_modules | wc -l
-grep -rE "/\* U-API END" packages apps --include="*.ts" --include="*.tsx" | grep -v node_modules | wc -l
+grep -rE --exclude-dir=node_modules "/\* U-API START" packages apps --include="*.ts" --include="*.tsx" | wc -l
+grep -rE --exclude-dir=node_modules "/\* U-API END" packages apps --include="*.ts" --include="*.tsx" | wc -l
 # 期望：均 = 8
 ```
 

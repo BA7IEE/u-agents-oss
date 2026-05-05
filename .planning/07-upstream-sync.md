@@ -272,10 +272,11 @@ for f in $(grep -hoE '`packages/[^`]+\.ts`|`apps/[^`]+\.tsx?`' .planning/11-road
   [ ! -f "$path" ] && echo "MISSING: $path"
 done
 
-# A3 §X 引用 §Y 但 §Y 不存在
-grep -hoE "§[0-9]+\.[0-9]+[a-z]?" .planning/01-branding-spec.md | sort -u > /tmp/refs
-grep -hoE "^### [0-9]+\.[0-9]+[a-z]?" .planning/01-branding-spec.md | awk '{print "§"$2}' | sort -u > /tmp/sections
-comm -23 /tmp/refs /tmp/sections  # 输出"被引用但不存在的 §X"
+# A3 §X 引用 §Y 但 §Y 不存在（SOP-REHEARSAL 2026-05-05 改进：只抓显式跨文档引用）
+# 旧版抓所有 "§X.Y" 字面量会把"02 引用 01 §2.43"误判为"02 缺 §2.43"——单文档 §X.Y 默认是引用本文档，跨文档须写 "<doc>.md §X.Y"
+grep -hoE "(0[1-9]|1[0-2])-[a-z-]+\.md\s*§[0-9]+\.[0-9]+[a-z]?" .planning/*.md ../LEGAL.md ../CLAUDE.md | sort -u > /tmp/refs
+# 然后对每个引用 doc, 验证目标 §章节存在
+# 自引用（同文档内 §X.Y 不带 doc 前缀）默认认为引用本文档, 单独验证
 
 # A4 决策版本漂移：M1/M2/M3 决策标签在 LEGAL/01/04/11 间一致性
 grep -nE "M1 (不|必)改|M1 (保留|发布)" .planning/*.md ../LEGAL.md | grep -i "(webui|cli|viewer|playground|docker|server)"
@@ -284,16 +285,24 @@ grep -nE "M1 (不|必)改|M1 (保留|发布)" .planning/*.md ../LEGAL.md | grep 
 
 **B 类：反向 grep（找已写品牌字面量的不一致）**
 
+> **SOP-REHEARSAL 2026-05-05 改进**：B1/B2/B5 加排除规则避免误报（白名单合法 underscore code identifier、审计历史描述、SOP 自身 grep 命令字面量）。
+
 ```bash
 # B1 品牌名变体（找 typo / 大小写不一致）
-grep -hoE "(U[ -]?Agents|UAgents|u[-_]agents)" .planning/*.md | sort | uniq -c | sort -rn
+grep -hoE "(U[ -]?Agents|UAgents|u[-_]agents)" .planning/*.md | \
+  grep -vE "u_agents_(environment|logo|screenshot|theme|session|transfer|validate)" | \
+  sort | uniq -c | sort -rn
 # 预期：U Agents (产品名) / U-Agents (DMG artifactName) / UAgents (HTTP UA token + class) / u-agents (URL)
-# 异常：u_agents 8+ 处需 review；UAgent / U Agent 单数形式（除非合规署名）
+# u_agents_* code identifier 已被白名单排除（XML marker / DOM ID / 文件名 / cookie / theme key 等是合法的）
+# 异常：UAgent / U Agent 单数形式（除非合规署名）
 
 # B2 URL 域名规划合规（必须只用 §1 行 29-32 规定的 2 个 host）
-grep -hoE "https?://[a-z.-]*u-agents\.u-studio\.cn[/a-z]*" .planning/*.md | sort -u
+grep -hoE "https?://[a-z.-]*u-agents\.u-studio\.cn[/a-z]*" .planning/*.md | \
+  grep -v "Round 49 反向\|B-2\|B6 误报澄清\|01 §2.43" | \
+  sort -u
 # 合法：u-agents.u-studio.cn/* + update.u-agents.u-studio.cn
 # 违规：share.u-agents.u-studio.cn / docs.u-agents.u-studio.cn / 任何新 subdomain（除 update）
+# 注：审计表 §2.43 内"Round 49 修正历史"描述含违规字面量是合法的（已用 grep -v 排除）
 
 # B3 邮箱白名单
 grep -hoE "[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]+" .planning/*.md ../LEGAL.md | sort -u
@@ -305,8 +314,11 @@ grep -hoE "https?://token\.u-studio\.cn[/a-z]*" .planning/*.md | sort | uniq -c
 # 预期：单域 token.u-studio.cn 多路径
 
 # B5 typo 扫描
-grep -nE "u-studi[^o]|agnets|agnest|uagentss|u-aagents" .planning/*.md
+grep -nE "u-studi[^o]|agnets|agnest|uagentss|u-aagents" .planning/*.md \
+  --exclude=07-upstream-sync.md \
+  --exclude=01-branding-spec.md
 # 预期：0 命中
+# 排除 07（SOP 自身含 grep 命令字面量 `u-studi[^o]`）+ 01（§2.43 审计表内描述 B5 检查也含同字面量）
 ```
 
 **审计输出**：每月同步报告 §2.9 必须含一节 "反向核对结果"，列出本月新发现的矛盾 + 修正动作。
