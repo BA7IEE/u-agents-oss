@@ -54,7 +54,10 @@ grep -c "integrate Linear, GitHub, Craft"  "$APP/dist/main.cjs"  # 0 ✅
 
 ---
 
-## 4. ⚠️ 已知缺失：Claude SDK native binary（**by design**）
+## 4. ⚠️ 已知缺失：Claude SDK native binary（~~**by design**~~ ✅ **已在含 SDK 重打中解决**）
+
+> 本节为 5/5 早期 hotfix 快照。后续含 SDK 重打详见 [`M2-REBUILD-WITH-SDK-2026-05-05.md`](M2-REBUILD-WITH-SDK-2026-05-05.md)。
+
 
 ### 现状
 

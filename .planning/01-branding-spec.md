@@ -87,7 +87,7 @@
 | `Assets.car` | 替换为 U Agents Liquid Glass 编译产物 | ✅ 已替换（148 KB，2026-05-04，user 提供）|
 | `icon.icon/` 源目录 | Apple Icon Composer 源；既然 user 给了编译后 `Assets.car`，源目录用不到了 | ✅ 已删除（2026-05-04）|
 | `craft-logos/` 整个目录（含 4 个 PNG: `craft_logo_white.png` / `craft_logo_black.png` / `craft_app_icon.png` / `craft_app_icon_dark.png`）| 0 处运行时引用，上游 leftover | ✅ 已删除（2026-05-04，方案 ③）|
-| `afterPack.cjs` | 行 29 `'Craft Agents.app'` → `'U Agents.app'`（roadmap #2.14a silent bug）| ✅ 已修复（在 99fd995 之前的某个 commit）|
+| `afterPack.cjs` | 行 29 `'Craft Agents.app'` → `'U Agents.app'`（roadmap #2.14a silent bug）| ✅ 已修复（commit `35444566` chore: branding replacements and i18n cleanup）|
 | `generate-icons.sh` | 改写为基于新 SVG 生成各平台图标 |
 | `bin/craft-agent` + `craft-agent.cmd` | **M1 保留不改**（craftAgentsCli feature flag 默认 false，脚本不被激活；改名增加同步成本，无收益）|
 | `tool-icons/craft-agent.svg` | **M1 保留不改**（craft-agent CLI 工具 icon，仅在 craftAgentsCli flag 开启时显示）|

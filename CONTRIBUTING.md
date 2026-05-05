@@ -1,5 +1,15 @@
 # Contributing to U Agents
 
+> **⚠️ 闭源 fork 声明 / Closed-source fork notice**
+>
+> **U Agents（优智体）是基于 Apache 2.0 开源项目 [`craft-agents-oss`](https://github.com/lukilabs/craft-agents-oss) 的闭源商业 fork**，由独立开发者 tungwerl@gmail.com 运营，**不接受外部 Pull Request 或 Issue**。
+>
+> 本文件保留为**与上游同步合并的兼容副本**——下文流程仅适用于上游 `craft-agents-oss` 项目。如希望向上游贡献，请前往 [`lukilabs/craft-agents-oss`](https://github.com/lukilabs/craft-agents-oss)。
+>
+> U Agents 用户支持 / 反馈：tungwerl@gmail.com（详见 [`SECURITY.md`](SECURITY.md) / [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md)）
+
+---
+
 Thank you for your interest in contributing to U Agents! This document provides guidelines and instructions for contributing.
 
 ## Getting Started
