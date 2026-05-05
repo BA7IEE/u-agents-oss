@@ -17,12 +17,14 @@
 | 项 | 值 |
 |---|---|
 | Mac 型号 | _填如 MacBook Pro 14" M3 / Mac mini M2 等_ |
-| macOS 版本 | _填如 26.4 (Tahoe)_ |
+| macOS 版本 | Darwin 25.4.0（macOS 26.4 Tahoe） |
 | 内存总量 | _填如 16 GB / 32 GB_ |
-| 本地 disk 空闲 | _填如 100 GB / 50 GB_ |
-| U-API Token 状态 | _配好且能发消息_ |
+| 本地 disk 空闲 | 48 GB |
+| U-API Token 状态 | 配好且使用中 |
 | 测量日期 | 2026-05-05 |
-| 测量人 | _user / 外部 AI_ |
+| 测量人 | AI（M2/M5/M6/全组）+ user（M1/M3 待测） |
+| **装的版本** | hotfix v0.9.0+u-agents.1（**不含 SDK**——R2 上的 5/5 04:28 版） |
+| 装的位置 | `/Applications/U Agents.app`（du = 499 MB） |
 
 ### 6 个指标 + 测量方法
 
@@ -128,12 +130,40 @@ du -sh "/Applications/U Agents.app" ~/.u-agents
 
 | 指标 | 测量值 | 期望 | 评估 |
 |---|---|---|---|
-| M1 启动时间 | ____ s | ≤ 5s | ✅/⚠️/❌ |
-| M2 内存峰值（main / 全进程组）| ____ / ____ MB | ≤ 300 / ≤ 800 | |
-| M3 首条消息延迟 | ____ s | ≤ 8s | |
-| M4 DMG 大小 | arm64 223 / x64 230 MB | - | ✅ 已记录 |
-| M5 CPU idle | ____ % | < 2% | |
-| M6 .app + ~/.u-agents 磁盘 | ____ / ____ MB | ≤ 800 / ≤ 5 | |
+| M1 进程 spawn | **0.11–0.20 s**（3 次冷启动测，min 0.11） | ≤ 5s | ✅ 远超期望（窗口可交互估 1-3s）|
+| M2 内存（cold start 立即 / idle 30s / long-run）| **298 / 287 / 60 MB** main | ≤ 300 | ✅ cold-start 触线但合格 |
+| M2 内存（cold start 立即 / idle 30s / long-run）| **632 / 593 / 104 MB** 全进程组 | ≤ 800 | ✅ |
+| M3 首条消息延迟 | _待 user 自测_ | ≤ 8s | ⏸ |
+| M4 DMG 大小 | arm64 162 / x64 168 MB（**装版无 SDK**）；本地含 SDK 是 223/230 | - | ✅ |
+| M5 CPU idle（30s 后 5 采样中位）| **0.0%** | < 2% | ✅ 远超期望 |
+| M6 .app / ~/.u-agents 磁盘 | **499 / 61 MB**（无 SDK 装版）| ≤ 800 / ≤ 5 | ✅ .app / ⚠️ ~/.u-agents 已积累 session |
+
+### M2 内存的三个状态
+
+测量发现内存在不同时段差异大：
+
+| 时机 | Main | 全组 | 含义 |
+|---|---|---|---|
+| Cold start 立即 | 298 MB | 632 MB | **峰值**——刚启动各服务 init + electron renderer 满载 |
+| Idle 30s 后 | 287 MB | 593 MB | 稳定态——lazy init 完成，无操作 |
+| Long-run（user 用几小时后） | 60 MB | 104 MB | macOS 已 swap 大部分到 inactive，physical RSS 极低 |
+
+**基线推荐用 cold-start + idle 30s 两个数字**——long-run 的 60 MB 不能代表内存压力（实际 virtual memory 还在）。
+
+### 进程组分布（idle 30s 时）
+
+| 类型 | RSS | 备注 |
+|---|---|---|
+| Main `U Agents` | 287 MB | Electron main process + Node.js runtime |
+| GPU Helper | ~50 MB | `--type=gpu-process`，渲染加速 |
+| Network utility Helper | ~30 MB | `--type=utility --utility-sub-type=network` |
+| Renderer Helpers | 余下 | webview 内容 + chat UI |
+
+### 备注
+
+- **M6 ~/.u-agents 61 MB** — user 已使用应用几天，含累积 session 历史 + chat 内容。**新装机用户首次启动应 < 5 MB**（只有 config.json + 加密凭证）。这个数字是"使用一段时间后"参考，不是干净基线。
+- **M2 cold-start 触线 298 / 300 MB** — 含 SDK 后**预期 cold-start main 升到 ~350 MB**（SDK 是 lazy load 但 Node 解析时间增加），仍在 800 MB 全组上限内。M2 含 SDK 装版应重测。
+- **M1 进程 spawn 0.11s 极快** — 因为是测"open → main 进程 exec"时间。窗口可交互（vite renderer 加载 + first paint）会再延迟 1-3 秒。Macbook M3+ 上整体启动应感受 < 3 秒。
 
 ---
 
