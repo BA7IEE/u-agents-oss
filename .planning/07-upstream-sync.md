@@ -434,15 +434,30 @@ grep -rEn "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
 
 **SOP**：CLAUDE.md §3.7 的全格式基线 grep 命令是权威；下次同步用旧命令产出旧数字时，**先核对命令是不是 §3.7 写的那个**。
 
-#### C9 — 测试 syntax error 让 baseline fail 数字假
+#### C9 — 测试 syntax error / 网络 flaky 让 baseline fail 数字漂移
 
-**历史触发**：mcp-pool.test.ts 因 object key 缺引号 syntax error → bun test --bail 提前 bail → mcp-pool 的 7 个 test 一直被 14-fail-baseline 数字掩盖
+**历史触发**：
+- mcp-pool.test.ts 因 object key 缺引号 syntax error → bun test --bail 提前 bail → mcp-pool 7 个 test 一直被掩盖
+- **OAuth Metadata Discovery 测试网络 flaky**（GitHub MCP api.githubcopilot.com + Linear MCP mcp.linear.app 跑外网 5002ms timeout）— 偶尔过/失败让 fail 数在 13/14/15 漂移，每次同步都被这种漂移迷惑
+
+**真实 baseline**：**13 stable + 2 OAuth network-flaky**（M1-FIRST-RELEASE.md 已知技术债已记录此口径）
 
 ```bash
 # bun test 不带 --bail 跑，看真实 fail 数
 cd packages/shared && bun test 2>&1 | tail -5
-# 期望：fail 数与 M1-FIRST-RELEASE.md "已知技术债"中记录的一致
-# 不一致 = 要么新 fail（应记入），要么 syntax 之前掩盖了真实 fail（应修 syntax）
+# 期望：fail 数 ∈ [13, 15]，超出范围才停下逐项对照
+
+# 精准对照：用 set diff 排除 OAuth flaky
+cd packages/shared && bun test 2>&1 | grep -E "^✗|FAIL" | grep -v "OAuth Metadata Discovery" | wc -l
+# 期望：13（stable baseline）
+
+# 完整 set diff（git stash 后跑 baseline，再 unstash 跑当前，对比 set 而非 count）
+git stash
+cd packages/shared && bun test 2>&1 | grep "^✗" | sort -u > /tmp/baseline-fails
+git stash pop
+cd packages/shared && bun test 2>&1 | grep "^✗" | sort -u > /tmp/current-fails
+diff /tmp/baseline-fails /tmp/current-fails
+# 期望：仅 OAuth Metadata Discovery 行有差异（network flaky）；其他 diff = 真新引入回归
 ```
 
 **审计输出**：§2.9 同步报告 "C 类核对结果" 必填——9 类陷阱本月新触发情况。

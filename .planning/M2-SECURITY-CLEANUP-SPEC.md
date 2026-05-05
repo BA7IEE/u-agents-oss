@@ -172,9 +172,26 @@ L291 setLlmApiKey 函数体改：
 
 ---
 
-## 5. 修复执行回报（待填）
+## 5. 修复执行回报（**commit `2972d8f4`，2026-05-05**）
 
-待执行 AI 完成。
+| 校验项 | 结果 |
+|---|---|
+| typecheck:all | EXIT=0 ✓ |
+| 0o700 命中数 | 3 ✓ (watcher.ts:368 / storage.ts:222 / window-state.ts:43) |
+| MAX/MIN_LLM_API_KEY_LENGTH 引用 | 5 处 ✓ (2 const + 3 reference) |
+| U-API 标记数 | 55 → **59** ✓ (+4 markers) |
+| packages/shared test | 13 stable + 2 OAuth network-flaky（见下文） |
+
+### 重要发现：baseline fail 数字漂移真相
+
+执行 AI 用 set diff 精准识别——**baseline 13 fail 实际是 13 stable + 2 个 OAuth Metadata Discovery 网络 flaky 测试**：
+
+- `E2E: OAuth Metadata Discovery > GitHub MCP (api.githubcopilot.com)` — 5002ms timeout
+- `E2E: OAuth Metadata Discovery > Linear MCP (mcp.linear.app)` — 同上
+
+跑出来从 13 → 14 → 15 fail 漂移就是这两个网络测试偶尔过/失败。**不是新引入回归**。
+
+**未来文档应统一描述为**："13 stable + 2 network-flaky"，避免下次任务被这种漂移迷惑。已在 M1-FIRST-RELEASE.md 已知技术债 + 07-upstream-sync.md §2.7c C9 同步落实。
 
 ---
 
