@@ -104,7 +104,9 @@ DMG 验收：`U Agents.app/Contents/Resources/{LICENSE,NOTICE}` 都在；NOTICE 
 
 ## M1 出口判定 §4 14 项核对
 
-| # | 条件 | 状态 |
+> ⚠️ **本表是首发当日（2026-05-04）快照**。后续状态变更不修改本表（保留历史），实时状态见 [`REVIEW-6-2026-05-04.md`](REVIEW-6-2026-05-04.md) §"M1 14 项最新状态"。
+
+| # | 条件 | 状态（首发当日）|
 |---|---|---|
 | 1 | 全新装机能完成 onboarding，能发第一条对话 | ⏸ 待用户人工 |
 | 2 | adhoc 包通过 Gatekeeper 流程 | ⏸ 待用户人工 |
@@ -121,7 +123,7 @@ DMG 验收：`U Agents.app/Contents/Resources/{LICENSE,NOTICE}` 都在；NOTICE 
 | 13 | 网站下载页"首次启动指引" | ⏸ M1 后补 |
 | 14 | Sentry DSN 未注入 | ✅ `SENTRY_ELECTRON_INGEST_URL` 不设 → enabled=false |
 
-**12/14 ✅；剩 perf-baseline + 网站下载页 — M1 后补即可**。
+**首发当日：12/14 ✅；剩 perf-baseline + 网站下载页 — M1 后补即可**。
 
 ---
 

@@ -185,17 +185,20 @@ if (!apiKey && connection.baseUrl) {
 | 29 | EditPopover example brand cleanup | `apps/electron/src/renderer/components/ui/EditPopover.tsx` | 注释 `brand cleanup — mirrors editPopover.example.addSource i18n value` | 单行 | 01 §2.29 |
 | 30 | OAuth callback HTML 品牌化 | `packages/shared/src/auth/callback-page.ts` | HTML 注释 `<!-- U-API: brand title for OAuth callback page` | HTML 注释 | 01 §2.16 |
 
-**同步上游验证基线**（**REVIEW-3 2026-05-04 修正**）：
+**同步上游验证基线**（**REVIEW-6 2026-05-04 刷新**）：
 
-| 指标 | 基线（2026-05-04 M2 完结时）| 下次同步允许浮动 |
+| 指标 | 基线（2026-05-04 v0.9.0+u-agents.1 hotfix 后）| 下次同步允许浮动 |
 |---|---|---|
-| U-API 标记总数（含全部注释格式）| **47** | ±2 |
+| U-API 标记总数（含全部注释格式）| **48** | ±2 |
 | `/* U-API START */` 块数 | **8** | 必须等于 END |
 | `/* U-API END */` 块数 | **8** | 必须等于 START |
 
 > 浮动 ±2 是为了容纳"上游改了某改造点附近代码，我们顺手补/合并标记"的合理变化。**超出 ±2 必须停下逐项核对**——多半是 git 自动合并吞掉了改造，或者引入了未文档化的新改造（应补进 §3.7 表）。
 >
-> **REVIEW-3 修正**：上一版基线 44 只用 `// U-API:|/\* U-API (START|END)` grep，遗漏了 HTML 注释 `<!-- U-API:` 和 JSX 行内 `{/* U-API: ... */}` 格式（共 3 处）。新基线 47 涵盖全部注释格式。
+> **历次基线演进**：
+> - REVIEW-2（2026-05-04 上午）：44 处（旧 grep 命令漏 3 处 HTML/JSX 注释）
+> - REVIEW-3（同日修正）：47 处（grep 命令改全格式，覆盖率 100%）
+> - REVIEW-6（hotfix v0.9.0+u-agents.1 后）：**48 处**（state.test.ts 新增 1 处回归测试 `// U-API:` 引用）
 
 **每次同步必跑 grep（覆盖全部注释格式）**：
 
