@@ -121,7 +121,7 @@ if (isClientOnly) {
       autoReconnect: true,
       mode: 'remote',
       clientCapabilities: [...LOCAL_CLIENT_CAPABILITIES],
-      tlsRejectUnauthorized: false,
+      // U-API: TLS strict mode (REVIEW-5 P0 fix, 2026-05-05) — was tlsRejectUnauthorized: false
     })
     initialWorkspaceClient.connect()
   } else {
@@ -145,7 +145,7 @@ if (isClientOnly) {
       autoReconnect: true,
       mode: 'remote',
       clientCapabilities: [...LOCAL_CLIENT_CAPABILITIES],
-      tlsRejectUnauthorized: false,
+      // U-API: TLS strict mode (REVIEW-5 P0 fix, 2026-05-05) — was tlsRejectUnauthorized: false
     })
   })
 

@@ -96,7 +96,7 @@ export interface WsRpcClientOptions {
   clientCapabilities?: string[]
   /** Runtime mode — local embedded or remote thin-client connection. */
   mode?: TransportMode
-  /** Accept self-signed TLS certificates for wss:// connections. Default: false. Only works in Node.js (main process). */
+  /** Accept self-signed TLS certificates for wss:// connections. Default: true (strict). Set to false ONLY for trusted dev/test scenarios. Only works in Node.js (main process). */
   tlsRejectUnauthorized?: boolean
 }
 

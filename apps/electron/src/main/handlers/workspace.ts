@@ -24,7 +24,7 @@ export async function connectToRemote(url: string, token: string, workspaceId?: 
     token,
     workspaceId,
     autoReconnect: false,
-    tlsRejectUnauthorized: false,
+    // U-API: TLS strict mode (REVIEW-5 P0 fix, 2026-05-05) — was tlsRejectUnauthorized: false
   })
 
   const connected = await new Promise<boolean>((resolve) => {
