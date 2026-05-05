@@ -212,7 +212,10 @@ echo "Packaging app with electron-builder..."
 cd "$ELECTRON_DIR"
 
 # Set up environment for electron-builder
-export CSC_IDENTITY_AUTO_DISCOVERY=true
+# U-API: allow caller to override (e.g. CSC_IDENTITY_AUTO_DISCOVERY=false bun run dist:mac)
+# to skip auto-discovery when keychain has invalid signing identities (M1 adhoc workflow).
+# See sync-reports/M2-REBUILD-WITH-SDK-2026-05-05.md §1 for context.
+export CSC_IDENTITY_AUTO_DISCOVERY=${CSC_IDENTITY_AUTO_DISCOVERY:-true}
 
 # Build electron-builder arguments
 BUILDER_ARGS="--mac --${ARCH}"
