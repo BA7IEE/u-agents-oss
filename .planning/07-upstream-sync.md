@@ -289,7 +289,8 @@ grep -nE "M1 (不|必)改|M1 (保留|发布)" .planning/*.md ../LEGAL.md | grep 
 
 ```bash
 # B1 品牌名变体（找 typo / 大小写不一致）
-grep -hoE "(U[ -]?Agents|UAgents|u[-_]agents)" .planning/*.md | \
+# SOP-REHEARSAL Round 2 改进：抽长串 u_agents(_xxx)? 才能让白名单正则 match
+grep -hoE "(U[ -]?Agents|UAgents|u[-_]agents(_[a-z_]+)?)" .planning/*.md | \
   grep -vE "u_agents_(environment|logo|screenshot|theme|session|transfer|validate)" | \
   sort | uniq -c | sort -rn
 # 预期：U Agents (产品名) / U-Agents (DMG artifactName) / UAgents (HTTP UA token + class) / u-agents (URL)
@@ -297,8 +298,10 @@ grep -hoE "(U[ -]?Agents|UAgents|u[-_]agents)" .planning/*.md | \
 # 异常：UAgent / U Agent 单数形式（除非合规署名）
 
 # B2 URL 域名规划合规（必须只用 §1 行 29-32 规定的 2 个 host）
-grep -hoE "https?://[a-z.-]*u-agents\.u-studio\.cn[/a-z]*" .planning/*.md | \
-  grep -v "Round 49 反向\|B-2\|B6 误报澄清\|01 §2.43" | \
+# SOP-REHEARSAL Round 2 改进：先按整行过滤再抽 URL，否则 grep -v 在 URL 短串上 match 不到行内容
+grep -E "https?://[a-z.-]*u-agents\.u-studio\.cn" .planning/*.md | \
+  grep -v "Round 49\|B-2\|B6 误报\|§2.43\|审计表" | \
+  grep -hoE "https?://[a-z.-]*u-agents\.u-studio\.cn[/a-z]*" | \
   sort -u
 # 合法：u-agents.u-studio.cn/* + update.u-agents.u-studio.cn
 # 违规：share.u-agents.u-studio.cn / docs.u-agents.u-studio.cn / 任何新 subdomain（除 update）
