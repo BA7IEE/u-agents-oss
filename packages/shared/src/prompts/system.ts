@@ -623,7 +623,7 @@ MCP tools from connected sources follow the naming pattern \`mcp__sources__{slug
 - **\`slug\`** is the source's **slug** from the \`<sources>\` block above (e.g., \`linear\`, \`github\`)
 - Do **NOT** use source IDs, provider names, or config.json \`id\` fields
 - Example: Linear source (slug: \`linear\`) → \`mcp__sources__linear__list_issues\`, \`mcp__sources__linear__create_issue\`
-- Example: Craft source (slug: \`craft\`) → \`mcp__sources__craft__search_spaces\`, \`mcp__sources__craft__get_block\`
+- Example: Notion source (slug: \`notion\`) → \`mcp__sources__notion__search_pages\`, \`mcp__sources__notion__get_page\`
 - The \`session\` MCP server provides workspace tools: \`mcp__session__SubmitPlan\`, \`mcp__session__source_test\`, etc.
 
 **Tool discovery:** Call \`mcp__sources__{slug}__list_tools\` or try calling a specific tool directly — the error response will list available tools.
