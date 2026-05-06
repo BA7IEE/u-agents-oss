@@ -203,6 +203,14 @@ if (!apiKey && connection.baseUrl) {
 | 35 | apps/cli rename | `apps/cli/src/index.ts` | 注释 `tmpDir prefix renamed (M2 cli rename)` + `skill description rebrand` | 单行（2 处）| `M2-CLI-RENAME-SPEC.md` |
 | 36 | REVIEW-4 P0 多连接 keyless 回归测试 | `packages/shared/src/auth/__tests__/state.test.ts` | describe block `hasCredentials keyless special case (multi-connection)` | 单行 | REVIEW-4 + REVIEW-5 §1 P1 |
 
+**v0.9.1 sync 期间新增改造点（2026-05-06 commit `bd2a005d` sync merge 时落地）**：
+
+| # | 改造类别 | 文件 | 定位（用 `grep` 找）| 标记 | 关联规格 |
+|---|---|---|---|---|---|
+| 37 | v0.9.1 routing.ts 漏分类 9 channel 修复 | `packages/shared/src/protocol/routing.ts` | 注释 `classify v0.9.1 access-control channels missed by upstream's routing.ts` | 单行 | SYNC-v0.9.1-20260506 §6.3（C13 上游 release 自身 test fail） |
+| 38 | 上游 v0.9.1 ESLint 违规 disable（color-mix annotation） | `packages/ui/src/components/annotations/block-markers.ts` | 注释 `dynamic color-mix annotation; cannot be expressed as a static utility class` | 单行 | SYNC-v0.9.1-20260506 §6.2（C12 上游 lint 违规） |
+| 39 | 上游 v0.9.1 ESLint 违规 disable（test 直读 isAuthenticated） | `packages/shared/src/resources/__tests__/resource-bundle.test.ts` | 注释 `test asserts the field directly to verify reset semantics, not gating logic` | 单行 | SYNC-v0.9.1-20260506 §6.2（C12 上游 lint 违规） |
+
 **Build 脚本 marker（M2 后期补充，不计入主基线）**：
 
 主基线 grep 命令仅扫 `packages` + `apps` 下的 `.ts/.tsx`，build 脚本（`.sh` / `.ps1`）不在覆盖范围内——但仍需登记，方便上游同步时辨识改造点。
@@ -222,11 +230,11 @@ grep -rEn "U-API" apps/electron/scripts/ 2>/dev/null | wc -l
 # 期望：≥2（B1 + B2）
 ```
 
-**同步上游验证基线**（**M2 apps/cli rename 后 2026-05-05 刷新**）：
+**同步上游验证基线**（**v0.9.1 sync 后 2026-05-06 刷新**）：
 
-| 指标 | 基线（2026-05-05 commit `1a49d128` 后）| 下次同步允许浮动 |
+| 指标 | 基线（2026-05-06 commit `bd2a005d` v0.9.1 sync 后）| 下次同步允许浮动 |
 |---|---|---|
-| U-API 标记总数（含全部注释格式）| **61** | ±2 |
+| U-API 标记总数（含全部注释格式）| **64** | ±2 |
 | `/* U-API START */` 块数 | **8** | 必须等于 END |
 | `/* U-API END */` 块数 | **8** | 必须等于 START |
 
@@ -239,7 +247,8 @@ grep -rEn "U-API" apps/electron/scripts/ 2>/dev/null | wc -l
 > - M2 TLS 修复（2026-05-05 commit `c516e4d2`）：51 处（workspace.ts:27 + bootstrap.ts:124, 148 各加 1 处 TLS strict mode 注释 marker）
 > - M2 atomicWriteFileSync 用户数据持久化（2026-05-05 commit `25d38ab9`）：55 处（4 文件各加 1 处 atomic writes 注释 marker：storage.ts / preferences.ts / topic-registry.ts / window-state.ts）
 > - M2 dir 0o700 + Token 长度限制（2026-05-05 commit `2972d8f4`）：59 处（3 处 dir mode 0o700 marker：watcher.ts / storage.ts / window-state.ts + 1 处 manager.ts MIN/MAX 长度常量 marker）
-> - **M2 apps/cli rename（2026-05-05 commit `1a49d128`）：61 处**（apps/cli/src/index.ts 加 2 处 marker：tmpDir 前缀 + skill description）
+> - M2 apps/cli rename（2026-05-05 commit `1a49d128`）：61 处（apps/cli/src/index.ts 加 2 处 marker：tmpDir 前缀 + skill description）
+> - **v0.9.1 sync（2026-05-06 commit `bd2a005d`）：64 处**（routing.ts 加 1 处 + block-markers.ts 加 1 处 + resource-bundle.test.ts 加 1 处；上游 v0.9.1 引入的 1 个 routing bug + 3 处 ESLint 违规我们 patch 后加 marker）
 
 **每次同步必跑 grep（覆盖全部注释格式）**：
 
@@ -249,7 +258,7 @@ grep -rEn "U-API" apps/electron/scripts/ 2>/dev/null | wc -l
 # 抗 build-dmg.sh 中间态把 SDK 包复制到 apps/electron/node_modules/ 让数字暂时虚高的情况
 grep -rEn --exclude-dir=node_modules "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
   | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
-# 期望：61（基线，允许 59-63）
+# 期望：64（基线，允许 62-66）
 
 # 块标记 START/END 配对（数量必须相等）
 grep -rE --exclude-dir=node_modules "/\* U-API START" packages apps --include="*.ts" --include="*.tsx" | wc -l
@@ -275,6 +284,9 @@ grep -rE --exclude-dir=node_modules "/\* U-API END" packages apps --include="*.t
 | C8 | 基线 grep 命令漏注释格式 | 用本节"全格式"grep，不用旧 `// U-API:` 简写 |
 | C9 | 测试 syntax 让 baseline fail 数字假 | bun test 不带 --bail 跑，看真实 fail 数对照 M1-FIRST-RELEASE 已知技术债 |
 | C10 | 上游新增 connection 字段透传漏 | `enforceUApiBaseUrl` 重写连接时浅合并保字段（v0.9.1 起：midStreamBehavior；未来字段同样处理）|
+| C11 | 上游新文件用旧 NPM scope | sync 后 grep `@craft-agent/` 必须 = 0；命中跑 batch sed rename（v0.9.1 sync 触发 12 文件 20 处） |
+| C12 | 上游 release 自身 lint 违规 | sync 后跑 lint 套件，errors case-by-case 处理：语义等价改源码 / `// eslint-disable-next-line` + `// U-API:` 注释加进 §3.7 |
+| C13 | 上游 release 自身 test fail | 区分 (a) 我们 patch 真能修（如 routing.ts 漏分类）→ commit fix；(b) 上游 bug 我们继承 → 记 sync 报告 follow-up，不阻塞 merge |
 
 ---
 

@@ -400,7 +400,7 @@ grep -nE "u-studi[^o]|agnets|agnest|uagentss|u-aagents" .planning/*.md \
 
 ### 2.7c C 类：代码改造踩坑模式核对（**REVIEW-6 2026-05-04 加入**）
 
-> **背景**：6 轮 review + hotfix 暴露 9 类"代码改造模式陷阱"。v0.9.1 上游同步追加 C10（新增 connection 字段透传），共 10 类。每月同步必跑下面 grep，命中即停下逐项核对。这是从血泪教训中提炼的 anti-pattern detector。
+> **背景**：6 轮 review + hotfix 暴露 9 类"代码改造模式陷阱"。v0.9.1 上游同步前置追加 C10（新增 connection 字段透传），sync 实际执行又触发 C11（新文件用旧 NPM scope）+ C12（上游 lint 违规）+ C13（上游 release 自身 test fail），共 13 类。每月同步必跑下面 grep，命中即停下逐项核对。这是从血泪教训中提炼的 anti-pattern detector。
 
 #### C1 — 硬编码 slug 而非用 `isUApiSlug` helper
 
@@ -549,7 +549,63 @@ sed -n '/function enforceUApiBaseUrl/,/^function\|^const/p' packages/shared/src/
 - **选项 B**：在 `enforceUApiBaseUrl` 顶部 `const { /* lockdown 字段 */ baseUrl, authType, providerType, ...rest } = existingConnection` + 重写后展开 `...rest`——但 lockdown 字段必须显式列出，避免 baseUrl 被 rest 覆盖回去
 - **不要**用 hard-coded 字段白名单（每次同步都漏字段）
 
-**审计输出**：§2.9 同步报告 "C 类核对结果" 必填——**C1-C10 共 10 类**陷阱本月新触发情况（v0.9.1 同步起从 9 类升至 10 类）。
+#### C11 — 上游新文件用旧 `@craft-agent/` NPM scope（v0.9.1 sync 触发）
+
+**历史触发**：v0.9.1 上游加的新文件（`packages/server-core/src/sessions/runtime-config.{ts,test.ts}` / `messaging-gateway/__tests__/access-control` 各测试文件 / `renderer/playground/registry/image-support.tsx` 等共 12 文件 20 处）用 `@craft-agent/*` import。我们之前的 NPM scope rename 没追到这些"还不存在"的文件。
+
+**症状**：merge 后 `bun run typecheck:all` 报 12 个 `Cannot find module '@craft-agent/...'` errors。
+
+**核对手段**：
+```bash
+# 每次 sync 后必跑：上游新文件是否含旧 NPM scope
+grep -rEn "@craft-agent/" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
+  | grep -v node_modules | head
+# 期望：0 命中。任何命中 = batch sed rename
+```
+
+**修复手段**：
+```bash
+# 全仓 sed rename（注意保留 @u-agents/ 而非 @craft-agent/）
+find packages apps -type f \( -name "*.ts" -o -name "*.tsx" \) ! -path "*/node_modules/*" \
+  -exec sed -i '' 's|@craft-agent/|@u-agents/|g' {} +
+# 然后核对 grep 0 命中、跑 typecheck:all
+```
+
+#### C12 — 上游 release 自身 lint 违规（v0.9.1 sync 触发）
+
+**历史触发**：v0.9.1 上游新代码违反我们 fork（实际是上游本身的）`packages/{ui,shared}/eslint-rules/` 自定义 ESLint 规则：
+- `block-markers.ts:8` — `block.style.boxShadow = ''` 违反 `craft-styles/no-nonstandard-shadows`（规则不识别空字符串等价于 'none'）
+- `block-markers.ts:30` — 动态 `color-mix(...)` boxShadow，违反同规则
+- `TurnCard.tsx:1479` — 同 L8 模式
+- `resource-bundle.test.ts:141` — `source.config.isAuthenticated` 直接读，违反 `craft-shared/no-inline-source-auth-check`
+
+**症状**：merge 后 `bun run lint:ui` 报 3 errors / `bun run lint:shared` 报 1 error。
+
+**修复策略（case-by-case）**：
+- 语义等价改源码（如 `= ''` 改 `= 'none'` 走规则的 `allowInlineNone` 默认）
+- 加 `// eslint-disable-next-line` + `// U-API:` 解释注释（写明为什么必须违反 — 这是改造点，加进 §3.7 主表）
+- **绝不**改我们的 ESLint 规则本身（那是上游的，会被同步覆盖）
+
+#### C13 — 上游 release 自身 test fail（v0.9.1 sync 触发）
+
+**历史触发**：v0.9.1 release 同时引入 4 个 test fail，其中：
+- `routing.test.ts × 2 fail` — 上游加 9 个 `messaging:access:*` channel 但 routing.ts 只分类了 5 个，漏 9 个未分类。**我们 patch 修**：把 9 个全加到 `REMOTE_ELIGIBLE_CHANNELS` + `// U-API:` marker（§3.7 #37）
+- `sdk-bridge.test.ts:30` — 上游 v0.9.1 行为变化导致期望失败。**我们继承**（记入 follow-up）
+- `send-developer-feedback-permissions.test.ts:34` — 上游可能改了 permission 逻辑。**我们继承**（记入 follow-up）
+
+**核对手段**：
+```bash
+cd packages/shared && bun test 2>&1 | grep -E "^(✗|FAIL)" | sort -u > /tmp/sync-fails
+diff /tmp/baseline-fails /tmp/sync-fails
+# 期望：仅 OAuth Metadata Discovery flaky 行 + 我们已知继承的上游 fail
+```
+
+**判定原则**：
+- **(a) 我们 patch 真能修**（如 routing.ts 漏分类）→ commit fix + 加 §3.7 marker
+- **(b) 上游 bug 我们继承**（行为变化、permission 改）→ 记入 sync 报告 follow-up，**不阻塞 merge**，等上游 v0.9.2+ 修
+- 区分手段：跑 `git log upstream/main -- <test 文件>` 看是否上游历次自己也 fail 过
+
+**审计输出**：§2.9 同步报告 "C 类核对结果" 必填——**C1-C13 共 13 类**陷阱本月新触发情况（v0.9.1 sync 起从 10 类升至 13 类）。
 
 ---
 
@@ -585,12 +641,12 @@ git push origin sync-$DATE
 ## 验收
 - [ ] 01-branding-spec §8 全部通过
 - [ ] **§2.7b 反向核对全部通过**：A 类（自相矛盾）+ B 类（反向 grep）当月无新发现矛盾，或已记录到下月待办
-- [ ] **§2.7c 代码改造踩坑模式核对**：C1-C10 跑一遍，命中 = 0 或已修（v0.9.1 同步起含 C10）
+- [ ] **§2.7c 代码改造踩坑模式核对**：C1-C13 跑一遍，命中 = 0 或已修（v0.9.1 sync 后含 C10/C11/C12/C13）
 
 ## 反向核对结果（§2.7b + §2.7c 必填）
 - A 类（自相矛盾）本月新发现：N 个（详细列表 → `01-branding-spec.md §2.43` 审计表追加行）
 - B 类（反向 grep）本月新发现：N 个
-- C 类（代码踩坑模式）本月新触发：N 个（按 C1-C10 列出哪几个）
+- C 类（代码踩坑模式）本月新触发：N 个（按 C1-C13 列出哪几个）
 - P0 已修正：N 个；P1 已记录待下月：N 个
 
 ## §3.7 标记基线对照
