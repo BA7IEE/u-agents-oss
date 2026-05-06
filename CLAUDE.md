@@ -247,8 +247,10 @@ if (!apiKey && connection.baseUrl) {
 **Build 脚本 marker 单独 grep 命令**：
 
 ```bash
-grep -rEn "U-API" apps/electron/scripts/ scripts/electron-build-main.ts 2>/dev/null | wc -l
-# 期望：≥9（B1-B7 + scripts/electron-build-main.ts assertSentryDsnForPackaging 块 + main() 调用注释）
+grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_modules | wc -l
+# 期望：≥13（B1-B7 + electron-build-main.ts 函数注释 + main() 注释 +
+# scripts/check-i18n-coverage.ts + scripts/check-raw-sends.sh +
+# scripts/typecheck-staged.sh + scripts/lint-i18n-staged.sh）
 ```
 
 **同步上游验证基线**（**M3 SSRF 防护落地后 2026-05-07 刷新**）：
@@ -274,6 +276,7 @@ grep -rEn "U-API" apps/electron/scripts/ scripts/electron-build-main.ts 2>/dev/n
 > - **M3 SSRF 防护（2026-05-07）：71 处**（url-safety.ts 加 `assertPublicHttpsUrl` 块 1 处 + credential-manager.ts:982 单行 1 处 + credential-manager-renew.test.ts 单行 1 处；详见 [`.planning/M3-REFRESH-API-SSRF-SPEC.md`](.planning/M3-REFRESH-API-SSRF-SPEC.md)，对应 §3.7 #43/#44a/#44b）
 > - **M3 死路径清理（2026-05-07）：71 处不变**（main/index.ts 删 6 行 CRAFT_* env + 1 行注释；utils/files.ts 5 处 craft-clipboard → u-agents-clipboard；删除 + 品牌替换不计 marker。详见 [`.planning/M3-DEAD-PATH-CLEANUP-SPEC.md`](.planning/M3-DEAD-PATH-CLEANUP-SPEC.md) 修订记录——CRAFT_DEBUG 14+ 处真消费方决策保留）
 > - **M3-Sentry DSN assertion（2026-05-07）：71 处不变**（scripts/electron-build-main.ts 加 assertSentryDsnForPackaging 函数 + main() 调用，但在 repo root 不计入主基线 grep；Build 脚本子表 4 → 9：B5/B6/B7 + electron-build-main.ts 函数注释 + main() 注释）。M2 过渡期 warn 不 fail；M3-4 GlitchTip 上线日把 console.warn 改 process.exit(1)。详见 [`.planning/M3-SENTRY-DSN-ASSERTION-SPEC.md`](.planning/M3-SENTRY-DSN-ASSERTION-SPEC.md)
+> - **M2.5 #5 CI dead refs 修（2026-05-07）：71 处不变**（scripts/check-i18n-coverage.ts + check-raw-sends.sh + typecheck-staged.sh + lint-i18n-staged.sh 4 个 stub 实现；v0.9.1 上游 package.json 引用入口但漏文件 — C13 模式继承）。**`bun run validate:ci` 现全绿**，v0.9.1 sync 后第一次。Build 脚本子表 grep 命令含范围扩到 scripts/，期望 ≥13
 
 **每次同步必跑 grep（覆盖全部注释格式）**：
 
