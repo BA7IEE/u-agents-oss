@@ -10,6 +10,18 @@ $RootDir = Split-Path -Parent (Split-Path -Parent $ElectronDir)
 # Configuration
 $BunVersion = "bun-v1.3.9"  # Pinned version for reproducible builds
 
+# U-API: M3-Sentry — 信号 packaging 模式（与 build-dmg.sh 等价；详见
+# .planning/M3-SENTRY-DSN-ASSERTION-SPEC.md §2.3）。Windows 路径直接 inline
+# esbuild，不走 electron-build-main.ts:assertSentryDsnForPackaging，所以这里
+# 同步做 DSN 缺失 warn（M2 过渡期 warn 不 fail；M3-4 GlitchTip 上线后改 throw）。
+$env:U_AGENTS_PACKAGING = "1"
+if (-not $env:SENTRY_ELECTRON_INGEST_URL) {
+    Write-Warning "[build-warn] SENTRY_ELECTRON_INGEST_URL 未设置——M3-4 GlitchTip 上线后此 warn 会变为 fail"
+    Write-Warning "  CI 打包：检查 GitHub Actions secrets 是否注入"
+} elseif (-not ($env:SENTRY_ELECTRON_INGEST_URL -match '^https?://[a-f0-9]+@')) {
+    Write-Warning "[build-warn] SENTRY_ELECTRON_INGEST_URL 格式可疑—— 应形如 https://<key>@<host>/<project>"
+}
+
 Write-Host "=== Building U Agents Windows Installer using electron-builder ===" -ForegroundColor Cyan
 
 # Debug: System information

@@ -44,6 +44,31 @@ function loadEnvFile(): void {
   }
 }
 
+// U-API: M3-Sentry build-time DSN assertion（详见 .planning/M3-SENTRY-DSN-ASSERTION-SPEC.md）
+// M2 过渡期：缺 DSN 仅 warn 不 fail（GlitchTip 未部署，强制 fail 会卡 prod build）。
+// M3-4 GlitchTip 上线日：把 console.warn 改为 process.exit(1)，并在 build-dmg.sh /
+// build-win.ps1 加 --packaging flag（或 NODE_ENV=production）触发 packaging 模式。
+function assertSentryDsnForPackaging(): void {
+  const isPackaging =
+    process.argv.includes("--packaging") ||
+    process.env.NODE_ENV === "production" ||
+    process.env.U_AGENTS_PACKAGING === "1";
+  if (!isPackaging) return;
+
+  const dsn = process.env.SENTRY_ELECTRON_INGEST_URL;
+  if (!dsn) {
+    console.warn("[build-warn] SENTRY_ELECTRON_INGEST_URL 未设置——M3-4 GlitchTip 上线后此 warn 会变为 fail");
+    console.warn("  本地打包：在 .env / 1Password 设 SENTRY_ELECTRON_INGEST_URL=<DSN>");
+    console.warn("  CI 打包：检查 GitHub Actions secrets 是否注入");
+    return;
+  }
+
+  // Format check (避免占位符 <DSN_HERE> 或空字符串漏过)
+  if (!/^https?:\/\/[a-f0-9]+@/i.test(dsn)) {
+    console.warn(`[build-warn] SENTRY_ELECTRON_INGEST_URL 格式可疑（前 30 字符: ${dsn.slice(0, 30)}...）—— 应形如 https://<key>@<host>/<project>`);
+  }
+}
+
 // Get build-time defines for esbuild (OAuth, Sentry DSN, etc.)
 // NOTE: Sentry source map upload is intentionally disabled for the main process.
 // To enable in the future, add @sentry/esbuild-plugin. See apps/electron/CLAUDE.md.
@@ -312,6 +337,9 @@ async function buildWhatsAppWorker(): Promise<void> {
 
 async function main(): Promise<void> {
   loadEnvFile();
+
+  // U-API: M3-Sentry assertion（packaging 模式下 DSN 缺失 → warn；M3-4 后改 fail）
+  assertSentryDsnForPackaging();
 
   // Ensure dist directory exists
   if (!existsSync(DIST_DIR)) {

@@ -6,6 +6,19 @@
 
 ---
 
+## 修订记录
+
+**2026-05-07（实施时修订）**：
+- spec 原写文件路径 `apps/electron/scripts/electron-build-main.ts` —— **实际在 repo root 的 `scripts/electron-build-main.ts`**
+- packaging signal 信号源由 `--packaging` flag 改为 `U_AGENTS_PACKAGING=1` 环境变量（package.json `electron:build` 串联多个命令会吞 `--`，env 变量更可靠）
+- assertSentryDsnForPackaging 三种信号都接受：argv `--packaging` / `NODE_ENV=production` / `U_AGENTS_PACKAGING=1`
+- Windows 路径直接 inline `npx esbuild`（绕过 electron-build-main.ts），所以 build-win.ps1 独立加 PowerShell 等价 DSN warn
+- M2 过渡期：缺 DSN 仅 console.warn / Write-Warning，不 process.exit(1)
+- M3-4 GlitchTip 上线日：electron-build-main.ts:assertSentryDsnForPackaging 把 `console.warn` 改 `process.exit(1)`；build-win.ps1 把 `Write-Warning` 改 `throw` —— 两处改完即刻 fail-fast
+- 防回归测试：[`packages/shared/src/__tests__/m3-dsn-assertion-regression.test.ts`](../packages/shared/src/__tests__/m3-dsn-assertion-regression.test.ts) 11 tests 覆盖 assertion 函数 + 三平台 build 脚本 packaging signal
+
+---
+
 ## 0. 现状与风险
 
 [`apps/electron/src/main/index.ts:20-58`](../apps/electron/src/main/index.ts) 现状：

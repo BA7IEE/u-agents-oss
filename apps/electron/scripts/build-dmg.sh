@@ -205,6 +205,10 @@ done
 # 6. Build Electron app
 echo "Building Electron app..."
 cd "$ROOT_DIR"
+# U-API: M3-Sentry — 信号 packaging 模式给 electron-build-main.ts:assertSentryDsnForPackaging
+# (M3-SENTRY-DSN-ASSERTION-SPEC.md §2.2)。M2 过渡期 DSN 缺失 warn 不 fail；M3-4 GlitchTip
+# 上线后改 fail。
+export U_AGENTS_PACKAGING=1
 bun run electron:build
 
 # 7. Package with electron-builder

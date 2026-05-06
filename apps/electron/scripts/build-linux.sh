@@ -180,6 +180,8 @@ done
 # 6. Build Electron app
 echo "Building Electron app..."
 cd "$ROOT_DIR"
+# U-API: M3-Sentry — 信号 packaging 模式（详见 .planning/M3-SENTRY-DSN-ASSERTION-SPEC.md §2.3）
+export U_AGENTS_PACKAGING=1
 bun run electron:build
 
 # 7. Package with electron-builder

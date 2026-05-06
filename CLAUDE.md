@@ -239,13 +239,16 @@ if (!apiKey && connection.baseUrl) {
 | B1 | adhoc 签名 escape hatch | `apps/electron/scripts/build-dmg.sh` | 注释 `allow caller to override (e.g. CSC_IDENTITY_AUTO_DISCOVERY=false bun run dist:mac)` | `# U-API:` 单行 | `6ba75da4` (M2) |
 | B2 | Windows EXE 缺 pi-agent-server 修复（事故 #3）| `apps/electron/scripts/build-win.ps1` | 注释 `build-win.ps1 missed subprocess server build that build-dmg.sh L208 triggers` | `# U-API:` 单行 | M2 收尾（详见 [`12-subprocess-build-pipeline.md`](.planning/12-subprocess-build-pipeline.md) §0.3） |
 | B3 | Windows EXE 缺 WhatsApp worker 修复（事故 #4）| `apps/electron/scripts/build-win.ps1` | 注释 `build-win.ps1 misses electron-build-main.ts:335 buildWhatsAppWorker() step` | `# U-API:` 单行 | v0.9.1 sync 后 Windows 实测 verify 触发（详见 [`12-subprocess-build-pipeline.md`](.planning/12-subprocess-build-pipeline.md) §0.4） |
+| B5 | M3-Sentry packaging signal — macOS | `apps/electron/scripts/build-dmg.sh` | 注释 `M3-Sentry — 信号 packaging 模式给 electron-build-main.ts:assertSentryDsnForPackaging` | `# U-API:` 单行 | M3-SENTRY-DSN-ASSERTION（详见 [`.planning/M3-SENTRY-DSN-ASSERTION-SPEC.md`](.planning/M3-SENTRY-DSN-ASSERTION-SPEC.md) §2.2）|
+| B6 | M3-Sentry packaging signal — Linux | `apps/electron/scripts/build-linux.sh` | 注释 `M3-Sentry — 信号 packaging 模式` | `# U-API:` 单行 | 同上 §2.3 |
+| B7 | M3-Sentry packaging signal + DSN warn — Windows | `apps/electron/scripts/build-win.ps1` | 注释 `M3-Sentry — 信号 packaging 模式（与 build-dmg.sh 等价）` | `# U-API:` 单行 | 同上 §2.3（Windows 路径绕过 electron-build-main.ts，需独立 warn）|
 | B4 | Windows EXE 缺 dist/interceptor.cjs 修复（事故 #5，事故 #3/#4 同根第 3 个）| `apps/electron/scripts/build-win.ps1` | 注释 `build-win.ps1 misses electron-build-main.ts:332 buildInterceptor() step` | `# U-API:` 单行 | v16 review B 路静态分析触发（详见 [`12-subprocess-build-pipeline.md`](.planning/12-subprocess-build-pipeline.md) §0.5） |
 
 **Build 脚本 marker 单独 grep 命令**：
 
 ```bash
-grep -rEn "U-API" apps/electron/scripts/ 2>/dev/null | wc -l
-# 期望：≥4（B1 + B2 + B3 + B4）
+grep -rEn "U-API" apps/electron/scripts/ scripts/electron-build-main.ts 2>/dev/null | wc -l
+# 期望：≥9（B1-B7 + scripts/electron-build-main.ts assertSentryDsnForPackaging 块 + main() 调用注释）
 ```
 
 **同步上游验证基线**（**M3 SSRF 防护落地后 2026-05-07 刷新**）：
@@ -270,6 +273,7 @@ grep -rEn "U-API" apps/electron/scripts/ 2>/dev/null | wc -l
 > - v17 漏盘补丁（2026-05-07）：67 处（access-control.ts + commands.ts messaging brand + cli/src/index.ts printHelp，3 处都是 v0.9.1 sync 时漏盘 / M2 cli rename 时漏盘）；同次 commit 顺手修 F1 自动更新 publish.url 缺 `/latest` 后缀（electron-builder.yml）+ F6 07-upstream-sync 基线 61→64 漂移
 > - **M3 SSRF 防护（2026-05-07）：71 处**（url-safety.ts 加 `assertPublicHttpsUrl` 块 1 处 + credential-manager.ts:982 单行 1 处 + credential-manager-renew.test.ts 单行 1 处；详见 [`.planning/M3-REFRESH-API-SSRF-SPEC.md`](.planning/M3-REFRESH-API-SSRF-SPEC.md)，对应 §3.7 #43/#44a/#44b）
 > - **M3 死路径清理（2026-05-07）：71 处不变**（main/index.ts 删 6 行 CRAFT_* env + 1 行注释；utils/files.ts 5 处 craft-clipboard → u-agents-clipboard；删除 + 品牌替换不计 marker。详见 [`.planning/M3-DEAD-PATH-CLEANUP-SPEC.md`](.planning/M3-DEAD-PATH-CLEANUP-SPEC.md) 修订记录——CRAFT_DEBUG 14+ 处真消费方决策保留）
+> - **M3-Sentry DSN assertion（2026-05-07）：71 处不变**（scripts/electron-build-main.ts 加 assertSentryDsnForPackaging 函数 + main() 调用，但在 repo root 不计入主基线 grep；Build 脚本子表 4 → 9：B5/B6/B7 + electron-build-main.ts 函数注释 + main() 注释）。M2 过渡期 warn 不 fail；M3-4 GlitchTip 上线日把 console.warn 改 process.exit(1)。详见 [`.planning/M3-SENTRY-DSN-ASSERTION-SPEC.md`](.planning/M3-SENTRY-DSN-ASSERTION-SPEC.md)
 
 **每次同步必跑 grep（覆盖全部注释格式）**：
 
