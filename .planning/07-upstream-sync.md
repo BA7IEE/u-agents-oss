@@ -440,7 +440,7 @@ grep -nE "u-studi[^o]|agnets|agnest|uagentss|u-aagents" .planning/*.md \
 
 ### 2.7c C 类：代码改造踩坑模式核对（**REVIEW-6 2026-05-04 加入**）
 
-> **背景**：6 轮 review + hotfix 暴露 9 类"代码改造模式陷阱"。v0.9.1 上游同步前置追加 C10（新增 connection 字段透传），sync 实际执行又触发 C11（新文件用旧 NPM scope）+ C12（上游 lint 违规）+ C13（上游 release 自身 test fail），共 13 类。每月同步必跑下面 grep，命中即停下逐项核对。这是从血泪教训中提炼的 anti-pattern detector。
+> **背景**：6 轮 review + hotfix 暴露 9 类"代码改造模式陷阱"。v0.9.1 上游同步前置追加 C10（新增 connection 字段透传），sync 实际执行又触发 C11/C12/C13；Windows 实测又暴露 C14（build-win.ps1 与 root chain 结构性差距），共 14 类。每月同步必跑下面 grep，命中即停下逐项核对。这是从血泪教训中提炼的 anti-pattern detector。
 
 #### C1 — 硬编码 slug 而非用 `isUApiSlug` helper
 
@@ -645,7 +645,41 @@ diff /tmp/baseline-fails /tmp/sync-fails
 - **(b) 上游 bug 我们继承**（行为变化、permission 改）→ 记入 sync 报告 follow-up，**不阻塞 merge**，等上游 v0.9.2+ 修
 - 区分手段：跑 `git log upstream/main -- <test 文件>` 看是否上游历次自己也 fail 过
 
-**审计输出**：§2.9 同步报告 "C 类核对结果" 必填——**C1-C13 共 13 类**陷阱本月新触发情况（v0.9.1 sync 起从 10 类升至 13 类）。
+#### C14 — build-win.ps1 与 root chain 之间的结构性差距（v0.9.1 sync 后 Windows 实测触发）
+
+**历史触发**：v0.9.1 sync 后 Windows EXE 实测装包成功 + 首条 LLM 消息回复正常，但 build 输出含 warning：
+```
+• file source doesn't exist  from=...\packages\messaging-whatsapp-worker\dist\worker.cjs
+```
+事故 #3（pi-agent-server 缺失）2026-05-05 已修，但事故 #4（WhatsApp worker 缺失）是同根模式的延伸：[`scripts/electron-build-main.ts:main()`](../scripts/electron-build-main.ts) 的 main bundle 流水线含 5 步：sessionServer → piAgentServer → interceptor → **whatsAppWorker** → main process。事故 #3 fix 加了 `bun run electron:build:subprocess`（covers session-mcp-server + pi-agent-server）但只是治标——**main bundle 内联的 helper 必须单独补**。
+
+**踩坑机制**：
+- macOS [`build-dmg.sh`](../apps/electron/scripts/build-dmg.sh) 跑 `bun run electron:build` → 调 `electron-build-main.ts` → 5 步全跑 ✓
+- Linux [`build-linux.sh`](../apps/electron/scripts/build-linux.sh) 同理 ✓
+- **Windows [`build-win.ps1`](../apps/electron/scripts/build-win.ps1)** 用内联 `npx esbuild` 跑 main bundle（绕过 root chain 历史决定），**不调 `electron-build-main.ts`**——5 步中 sessionServer + piAgentServer 已被事故 #3 fix 补齐，但 **interceptor + whatsAppWorker 两步可能仍被漏**
+
+**核对手段（每次 sync 后必跑）**：
+```bash
+# 1. macOS / Linux 跑 dist 后看产物缺什么
+ls apps/electron/release/mac-arm64/U\ Agents.app/Contents/Resources/app/messaging-whatsapp-worker/worker.cjs 2>&1
+ls apps/electron/release/win-unpacked/resources/messaging-whatsapp-worker/worker.cjs 2>&1
+# 两个应都存在；缺 = build 链路漏调
+
+# 2. 反向：grep build-win.ps1 是否调齐 main bundle 5 步
+grep -E "build:wa-worker|build:interceptor|electron:build:subprocess" apps/electron/scripts/build-win.ps1 | wc -l
+# 期望 ≥ 3（subprocess + interceptor + wa-worker 三个 root chain script）
+
+# 3. 与 electron-build-main.ts:main() 顺序对照
+grep -nE "buildSessionServer|buildPiAgentServer|buildInterceptor|buildWhatsAppWorker" \
+  scripts/electron-build-main.ts
+# 5 步顺序：session → pi → interceptor → wa-worker → main process
+```
+
+**修复策略**：
+- **当前修法（局部）**：每发现一个漏的 helper（事故 #3 / #4 都是这种），就给 build-win.ps1 加一段调对应 root script。**优点**：最小改动；**缺点**：每次 root chain 加新 helper 都可能漏一次
+- **M3 终极方案（结构性）**：把 build-win.ps1 也改成调 `bun run electron:build`（跟 macOS / Linux 对齐）。**风险**：windows 历史绕过 root chain 可能有原因（exhaustive analysis 待 M3 做）
+
+**审计输出**：§2.9 同步报告 "C 类核对结果" 必填——**C1-C14 共 14 类**陷阱本月新触发情况（v0.9.1 sync 后从 13 类升至 14 类；C14 是结构性长期债务）。
 
 ---
 
@@ -682,12 +716,12 @@ git push origin sync-$DATE
 - [ ] 01-branding-spec §8 全部通过
 - [ ] **§2.5b release notes 翻译完成**：新版本 release notes 文件（`apps/electron/resources/release-notes/{version}.md`）已译为中文 + 删链接 + 替品牌；3 组 grep（外部链接 / commit hash / craft 字样）全 0 命中
 - [ ] **§2.7b 反向核对全部通过**：A 类（自相矛盾）+ B 类（反向 grep）当月无新发现矛盾，或已记录到下月待办
-- [ ] **§2.7c 代码改造踩坑模式核对**：C1-C13 跑一遍，命中 = 0 或已修（v0.9.1 sync 后含 C10/C11/C12/C13）
+- [ ] **§2.7c 代码改造踩坑模式核对**：C1-C14 跑一遍，命中 = 0 或已修（v0.9.1 sync 后含 C10/C11/C12/C13；Windows 实测后含 C14）
 
 ## 反向核对结果（§2.7b + §2.7c 必填）
 - A 类（自相矛盾）本月新发现：N 个（详细列表 → `01-branding-spec.md §2.43` 审计表追加行）
 - B 类（反向 grep）本月新发现：N 个
-- C 类（代码踩坑模式）本月新触发：N 个（按 C1-C13 列出哪几个）
+- C 类（代码踩坑模式）本月新触发：N 个（按 C1-C14 列出哪几个）
 - P0 已修正：N 个；P1 已记录待下月：N 个
 
 ## §3.7 标记基线对照

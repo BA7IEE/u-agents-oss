@@ -63,7 +63,32 @@ piServerPath not configured. Cannot spawn Pi subprocess.
 
 **修复验证**：commit `8cc943e6`（2026-05-05）。用户在 Windows 机器跑新 zip + `bun run dist:win` 出 EXE，首次发 LLM 消息**不再报 piServerPath**（2026-05-06 实测 ✅）。
 
-### 0.4 共性教训
+### 0.4 事故 #4 — Windows EXE 缺 WhatsApp worker（事故 #3 的同根延伸，2026-05-06 修）
+
+**事故时间**：v0.9.1 sync 后 Windows EXE 实测装包成功 + 首条 LLM 消息回复正常（commit `9df0433a` 后），但 build 输出含 warning：
+```
+• file source doesn't exist  from=D:\David\0-9-1\packages\messaging-whatsapp-worker\dist\worker.cjs
+```
+
+**症状**：electron-builder warning（非 error），EXE 还是出包。**核心 LLM 功能不受影响**，但用户用 WhatsApp 集成时 worker 缺失会失败。
+
+**根因**：[`scripts/electron-build-main.ts:335`](../scripts/electron-build-main.ts) `await buildWhatsAppWorker()` 是 main bundle build 流水线的一步（顺序：sessionServer → piAgentServer → interceptor → **whatsAppWorker** → main process）。
+
+- macOS [`build-dmg.sh:208`](../apps/electron/scripts/build-dmg.sh) 跑 `bun run electron:build` → 调 `electron-build-main.ts` → 触发 `buildWhatsAppWorker()` ✓
+- Linux [`build-linux.sh`](../apps/electron/scripts/build-linux.sh) 同理 ✓
+- **Windows [`build-win.ps1`](../apps/electron/scripts/build-win.ps1)** 用内联 `npx esbuild` 跑 main bundle（绕过 root chain 历史决定），**不调 `electron-build-main.ts`**——`buildWhatsAppWorker` 没机会跑
+
+**与事故 #3 的关系**：事故 #3 fix 加了 `bun run electron:build:subprocess`（covers session-mcp-server + pi-agent-server），但这只是 root chain 中三个 sub-step 之一。**main bundle 内联的 helper（buildWhatsAppWorker）需要单独补**——事故 #3 的 fix 只是治标，事故 #4 暴露了 build-win.ps1 与 root chain 的整体差距。
+
+**修复**：[`build-win.ps1`](../apps/electron/scripts/build-win.ps1) 在事故 #3 fix（`Build subprocess servers` 块）后加一段调 `bun run build:wa-worker`（root package.json:60 已定义此 script）。加 `# U-API:` marker 标记改造点。
+
+**修复验证**：commit `<待 commit>`（2026-05-06）。下次 Windows dist:win 应见 `Building WhatsApp worker (Baileys subprocess)...` 输出，无 `worker.cjs file source doesn't exist` warning。
+
+**共性教训补充**（与事故 #3 联动）：
+- **build-win.ps1 与 root chain 之间存在结构性差距**——只要 macOS / Linux 走 `bun run electron:build`、Windows 走内联 esbuild，每次 root chain 加新 helper 都可能漏掉一个。M3 路线图应考虑把 build-win.ps1 也改成调 `bun run electron:build`（事故 #3 fix 的反方向终极方案）
+- v15 C 路 agent 提到的"common.ts 8 dead helper"中 `buildWhatsAppWorker` 不算 dead——它在 `electron-build-main.ts:261` 被本地重新定义并使用——**但 Windows 路径漏调它**就是 dead helper 的真实表现
+
+### 0.5 共性教训
 
 **为什么 typecheck / lint / validate:dev 没发现**：所有发版前自动化检查都是**纯静态**——TypeScript 编译、字符串 grep、shared 包单元测试。没有任何一项会启动一个 packaged 应用、点开会话、发出第一条消息。这是 [`05-build-release.md`](05-build-release.md) §1 检查清单的盲点（详见 §3 修订建议）。
 
@@ -157,6 +182,7 @@ package.json electron:build
 | `scripts/copy-subprocess-servers.ts` 整文件头 | `/* U-API START */ ... /* U-API END */` | `8ebe8c0`（创建）+ `8359988`（扩展） |
 | `package.json` `electron:build:subprocess` 与 `electron:build` 末尾 | JSON 不能加注释——标记在本文档 §2.1 + commit message + 同步上游守则 §5 第 1 条 | `8ebe8c0` |
 | `apps/electron/scripts/build-win.ps1` "Build subprocess servers" 块 | `# U-API:` 单行（事故 #3 修复） | `8cc943e6`（Windows 实测 verify 2026-05-06） |
+| `apps/electron/scripts/build-win.ps1` "Build WhatsApp worker" 块 | `# U-API:` 单行（事故 #4 修复，事故 #3 同根延伸） | 待 commit（2026-05-06，v0.9.1 sync 后 Windows 实测 verify 触发） |
 
 ---
 

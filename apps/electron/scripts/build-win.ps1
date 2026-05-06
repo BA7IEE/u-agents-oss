@@ -292,6 +292,22 @@ try {
     Pop-Location
 }
 
+# U-API: build-win.ps1 misses electron-build-main.ts:335 buildWhatsAppWorker() step.
+# Windows path uses inline `npx esbuild` for main bundle (instead of `bun run
+# electron:build:main`), so the helper that bundles Baileys + WhatsApp worker
+# never runs. electron-builder.yml extraResources expects worker.cjs at
+# packages/messaging-whatsapp-worker/dist/worker.cjs — without this step the
+# packaged EXE ships no WhatsApp worker bundle (event #4, fix delta from #3).
+# See .planning/12-subprocess-build-pipeline.md §0.4 + scripts/build-wa-worker.ts.
+Write-Host "  Building WhatsApp worker (Baileys subprocess)..."
+Push-Location $RootDir
+try {
+    bun run build:wa-worker
+    if ($LASTEXITCODE -ne 0) { throw "WhatsApp worker build failed" }
+} finally {
+    Pop-Location
+}
+
 # Build preload
 Write-Host "  Building preload..."
 Push-Location $RootDir
