@@ -207,6 +207,9 @@ if (!apiKey && connection.baseUrl) {
 
 主基线 grep 命令仅扫 `packages` + `apps` 下的 `.ts/.tsx`，build 脚本（`.sh` / `.ps1`）不在覆盖范围内——但仍需登记，方便上游同步时辨识改造点。
 
+> ⚠️ **命名 disambiguation**：本节的 `B1/B2` = **Build 脚本 marker**（改造点登记表）。
+> [`07-upstream-sync.md` §2.7b](.planning/07-upstream-sync.md) 里另有一组 `B1/B2/B5` = **SOP-REHEARSAL Branding 类反向核对**（审计分类，非改造点登记）—— 同名异义，不要混淆。
+
 | # | 改造类别 | 文件 | 定位 | 标记 | 引入 commit |
 |---|---|---|---|---|---|
 | B1 | adhoc 签名 escape hatch | `apps/electron/scripts/build-dmg.sh` | 注释 `allow caller to override (e.g. CSC_IDENTITY_AUTO_DISCOVERY=false bun run dist:mac)` | `# U-API:` 单行 | `6ba75da4` (M2) |
@@ -271,6 +274,7 @@ grep -rE --exclude-dir=node_modules "/\* U-API END" packages apps --include="*.t
 | C7 | §3.7 反向覆盖空白 | grep 实际标记的文件清单要全在表里 |
 | C8 | 基线 grep 命令漏注释格式 | 用本节"全格式"grep，不用旧 `// U-API:` 简写 |
 | C9 | 测试 syntax 让 baseline fail 数字假 | bun test 不带 --bail 跑，看真实 fail 数对照 M1-FIRST-RELEASE 已知技术债 |
+| C10 | 上游新增 connection 字段透传漏 | `enforceUApiBaseUrl` 重写连接时浅合并保字段（v0.9.1 起：midStreamBehavior；未来字段同样处理）|
 
 ---
 

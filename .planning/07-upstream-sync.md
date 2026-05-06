@@ -158,6 +158,11 @@ git add apps/electron/src/renderer/pages/settings/AiSettingsPage.tsx
 grep -rEn --exclude-dir=node_modules "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
   | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
 # 期望 61 ± 2（merge commit 当下浮动允许扩到 ±5，第一个 follow-up commit 后回到 ±2）
+
+# 7. (v0.9.1+) 验证 mid-stream 类型完整进入（08 §9 哨兵）
+grep -nE "MidStreamBehavior|defaultMidStreamBehavior|resolveMidStreamBehavior" packages/shared/src/config/llm-connections.ts | wc -l
+# 期望 ≥ 5（type 定义 + 2 函数 + 引用点）
+# 若为 0：merge 漏掉 v0.9.1 +124 行 mid-stream 类型，必须 abort merge 重做
 ```
 
 **为何用 `git checkout --theirs`（v12/v13 "用上游做基底"建议的具体命令）**：上游必有 v0.9.1 引入的 +58 行 midStream 子菜单 + onSetMidStreamBehavior prop —— 从我们版本挑出上游变更非常困难，反向更简单。但 `--theirs` 会**全吞**我们的 25+ 行 marker，**必须**手动从 git history 回贴（参考点：`git show :2:apps/electron/src/renderer/pages/settings/AiSettingsPage.tsx` 看 merge 时我们的版本，或 `git log -p HEAD -- <file>`）。

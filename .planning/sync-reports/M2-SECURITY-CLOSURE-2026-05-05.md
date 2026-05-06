@@ -84,7 +84,7 @@ c8400875  docs: atomic landed (4 doc updates) + spec typo fix
 | §2.7b B1（品牌变体）| 抽长串 `u_agents(_xxx)?` + 排除合法 identifier 白名单 | 9 处误报 | **3 处** ✅ |
 | §2.7b B2（域名规划）| 先按整行过滤再抽 URL | 4 处误报 | **0 违规** ✅ |
 | §2.7b B5（typo 扫描）| `--exclude` SOP + 审计表 | 2 处误报 | **0 命中** ✅ |
-| §2.7c C1-C9（代码踩坑）| Round 1 已 9/9 准确 | 0 误报 | **0 误报** ✅ |
+| §2.7c C1-C9（代码踩坑）| Round 1 已 9/9 准确 | 0 误报 | **0 误报** ✅（v0.9.1 同步起 C 类升至 C1-C10，本快照仅记 M2 安全收尾时点的 9 类）|
 | §3.7 基线对照 | 切 `--exclude-dir=node_modules` | - | **59 / 8 / 8** ✅ |
 
 **B1 剩 3 处实际是合法保留**：07 SOP 自身 grep 命令字面量 + 11 任务清单描述里引用 code identifier 名（不是真违规）。可接受。
