@@ -1,6 +1,7 @@
 {
   "name": "@u-agents/server",
   "version": "0.9.1",
+  "private": true,
   "description": "Standalone headless U Agents server (Bun runtime)",
   "type": "module",
   "main": "src/index.ts",
