@@ -1893,9 +1893,12 @@ export async function runValidation(
 // ---------------------------------------------------------------------------
 
 function printHelp(): void {
-  process.stdout.write(`craft-cli — Terminal client for U Agents server
+  // U-API: M2 cli rename — bin name 改为 u-agents-cli（commit `1a49d128`），
+  // 此 printHelp 文案漏改，v17 review F3 找到（v0.9.1 sync 后实测发现）。
+  // examples 段内 `craft-kb` / `craft-public` 保留——是 source slug，用户配置层（不是品牌）。
+  process.stdout.write(`u-agents-cli — Terminal client for U Agents server
 
-Usage: craft-cli [options] <command> [args...]
+Usage: u-agents-cli [options] <command> [args...]
 
 Connection:
   --url <ws[s]://...>    Server URL (default: $CRAFT_SERVER_URL)
@@ -1938,21 +1941,21 @@ Commands:
                          --verbose, -v       Show server stderr output
 
 Examples:
-  craft-cli run "What files are in the current directory?"
-  craft-cli run --source craft-kb "Summarize today's daily note"
-  craft-cli run --workspace-dir .github/agents --source craft-public "Read the doc"
-  craft-cli run --provider openai --model gpt-4o "Summarize this repo"
-  OPENAI_API_KEY=sk-... craft-cli run --provider openai "Hello"
-  GOOGLE_API_KEY=... craft-cli run --provider google --model gemini-2.0-flash "Hello"
-  DEEPSEEK_API_KEY=sk-... craft-cli run --provider deepseek --model deepseek-v4-flash "Hello"
-  echo "Analyze this code" | craft-cli run
-  craft-cli ping
-  craft-cli sessions
-  craft-cli send abc-123 "What files are in the current directory?"
-  echo "Summarize this" | craft-cli send abc-123
-  craft-cli --validate-server
-  craft-cli invoke system:homeDir
-  craft-cli --json workspaces | jq '.[].name'
+  u-agents-cli run "What files are in the current directory?"
+  u-agents-cli run --source craft-kb "Summarize today's daily note"
+  u-agents-cli run --workspace-dir .github/agents --source craft-public "Read the doc"
+  u-agents-cli run --provider openai --model gpt-4o "Summarize this repo"
+  OPENAI_API_KEY=sk-... u-agents-cli run --provider openai "Hello"
+  GOOGLE_API_KEY=... u-agents-cli run --provider google --model gemini-2.0-flash "Hello"
+  DEEPSEEK_API_KEY=sk-... u-agents-cli run --provider deepseek --model deepseek-v4-flash "Hello"
+  echo "Analyze this code" | u-agents-cli run
+  u-agents-cli ping
+  u-agents-cli sessions
+  u-agents-cli send abc-123 "What files are in the current directory?"
+  echo "Summarize this" | u-agents-cli send abc-123
+  u-agents-cli --validate-server
+  u-agents-cli invoke system:homeDir
+  u-agents-cli --json workspaces | jq '.[].name'
 `)
 }
 

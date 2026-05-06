@@ -452,7 +452,8 @@ export class Commands {
       })
       await adapter.sendText(
         msg.channelId,
-        'Only existing bot owners can redeem pairing codes. Ask an owner to add you in the Craft Agent app.',
+        // U-API: brand — v0.9.1 上游引入 pairing code rejection 文案，直发给用户
+        'Only existing bot owners can redeem pairing codes. Ask an owner to add you in the U Agents app.',
         replyOpts,
       )
       return

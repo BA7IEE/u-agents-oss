@@ -84,9 +84,13 @@ extraMetadata:
   main: dist/main.cjs
 
 # Auto-update: electron-updater fetches from this URL for update manifests (.yml files)
+# U-API: publish.url must end with /latest because R2 layout puts manifests at
+# /latest/latest-mac.yml + /latest/latest.yml (mirrors upstream hotfix path).
+# Without /latest suffix electron-updater fetches root /latest-mac.yml = 404.
+# See .planning/06-update-server.md §1 + sync-reports/M2-REBUILD-HOTFIX-2026-05-05.md.
 publish:
   provider: generic
-  url: https://update.u-agents.u-studio.cn
+  url: https://update.u-agents.u-studio.cn/latest
 
 # Disable ASAR to avoid decompression overhead and click delays
 asar: false

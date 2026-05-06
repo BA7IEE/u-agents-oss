@@ -232,7 +232,8 @@ export function buildRejectionReply(reason: AccessRejectReason): string | null {
     case 'bot-sender':
       return null
     case 'not-owner':
-      return 'This bot is private. Ask the owner to invite you in the Craft Agent app.'
+      // U-API: brand — v0.9.1 上游引入此文案，rejection reply 直发给用户
+      return 'This bot is private. Ask the owner to invite you in the U Agents app.'
     case 'not-on-binding-allowlist':
       return "You're not on the allow-list for this conversation. Ask the owner to add you."
   }
