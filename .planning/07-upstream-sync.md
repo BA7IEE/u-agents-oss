@@ -276,6 +276,46 @@ ls packages/shared/eslint-rules/ 2>/dev/null
 
 任何**非空**或**与上次记录不一致**的输出都需要 review + 决定是否修复。
 
+### 2.5b 翻译上游 release notes 为中文（**v0.9.1 sync 后机制化为月度 SOP**）
+
+> **背景**：`apps/electron/resources/release-notes/{version}.md` 是上游用英文写的、随 packaged app 出现在用户"关于"对话框/版本历史里的用户向文案。每次上游同步必带新 release note 文件，**用户**（中文桌面用户）打开看到一堆英文 + GitHub issue 链接 + commit hash + craft 字面量——直接破坏白标。
+
+**SOP**：每次同步含新 release notes 文件，必须翻译成中文。**绝不**直接接受上游英文版进发版包。
+
+**翻译要求**（4 项硬规则）：
+1. **翻译为中文**——按用户向语气，不是逐字硬翻；技术细节大幅简化（内部状态机名 / helper 函数 / 内部代码引用对用户无意义，删或重写）
+2. **删除所有外部链接**：
+   - GitHub issue / PR 引用（如 `(#672)` `[#697](https://github.com/...)` 等全删）
+   - Commit hash（如 `(`fd68c070`, `bd575ed1`)` 全删）
+   - 内部代码路径（如 `apps/online-docs/source-guides/google-oauth-setup.mdx`，改写为"OAuth 配置文档"）
+3. **品牌替换**：
+   - `Custom-endpoint` / `pi_compat` connections → "U-API（自定义端点）"（首次出现完整说明）
+   - `Craft's <symbol>` 等 → 整段改写为用户向描述（不暴露品牌）
+   - `CraftMcpClient` 等内部类名 → "MCP 客户端"
+   - `agents.craft.do` / 上游域名 → 整段简化或删（首次出现可改为占位 URL）
+4. **保留**：
+   - UI 路径（如 `Settings → Messaging → Telegram`）—— 这是用户在 UI 里能看到的
+   - 版本号（`Pi SDK 0.72.1`）
+   - 贡献者命令（`bun run sort-locales`）—— 用户会用到
+
+**核对手段**：
+```bash
+# 翻译完跑下面三组 grep，全部应 = 0 命中
+FILE=apps/electron/resources/release-notes/{version}.md
+
+# 1. 残留链接？
+grep -nE "https?://|github\.com|\(#[0-9]+\)" "$FILE"
+
+# 2. 残留 commit hash？
+grep -nE "\`[a-f0-9]{7,10}\`" "$FILE"
+
+# 3. craft / lukilabs 字样残留？
+grep -niE "craft|lukilabs|agents\.craft" "$FILE"
+```
+
+**历次执行**：
+- v0.9.1 sync（2026-05-06 commit `5a87e9e1` 后）：原文 56 行 → 译文 59 行；删 9 处 GitHub URL + 13 处 commit hash + 5 处 craft 字面量；语义通顺重组（如 5 行 mid-stream 段重组为 2 段 + 列表）。
+
 ### 2.6 跑构建与 typecheck
 
 ```bash
@@ -640,6 +680,7 @@ git push origin sync-$DATE
 
 ## 验收
 - [ ] 01-branding-spec §8 全部通过
+- [ ] **§2.5b release notes 翻译完成**：新版本 release notes 文件（`apps/electron/resources/release-notes/{version}.md`）已译为中文 + 删链接 + 替品牌；3 组 grep（外部链接 / commit hash / craft 字样）全 0 命中
 - [ ] **§2.7b 反向核对全部通过**：A 类（自相矛盾）+ B 类（反向 grep）当月无新发现矛盾，或已记录到下月待办
 - [ ] **§2.7c 代码改造踩坑模式核对**：C1-C13 跑一遍，命中 = 0 或已修（v0.9.1 sync 后含 C10/C11/C12/C13）
 
