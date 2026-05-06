@@ -550,6 +550,17 @@ export function buildDefaultConnection(): LlmConnection {
 
 **用户可自由配置的字段**：`apiKey`、`name`（连接名）、`customEndpoint.api`（协议二选一）、`customEndpoint.supportsImages`、`models[]`、`defaultModel`、`piAuthProvider`（按 api 自动派生）。
 
+> **`supportsImages` 字段语义（v21 P2 精确化）**：U-API 体系内有两层 `supportsImages`：
+> - **连接级**：`customEndpoint.supportsImages`（boolean，默认 `true`）—— endpoint 整体的 image 支持默认值，决定 UI 是否暴露图片上传按钮入口；
+> - **per-model**：`models[i].supportsImages`（boolean，可选）—— **每个模型独立 override**，存在则覆盖连接级默认。
+>
+> 代码契约（详见 `packages/shared/CLAUDE.md` "Custom endpoint model capabilities" 段）：
+> 1. **`supportsImages: false` 在 model 级别必须保留为有效 override**——即使连接级默认 `true`，某个模型设 `supportsImages: false` 也必须真生效（图片附件不会发给该模型）；
+> 2. **运行时 capability 刷新**：`llmConnections.SAVE` handler 通过 `SessionManager.refreshConnectionRuntime` 主动推送给 active Pi custom-endpoint 会话；惰性路径 `getOrCreateAgent` 作 backstop；
+> 3. **send-time gating**：session 层在发送时再次 gate 图片附件，subprocess 刷新失败时也不会把图片发给已禁用 image 的模型。
+>
+> **结论**：用户在 UI 配置 `customEndpoint.supportsImages` 是改连接级默认；如要让单个模型禁用 image，应改 `models[i].supportsImages = false`（而不是关连接级默认导致所有模型都禁用）。
+
 #### 6.2.2 `isUApiSlug` 改造点（必加 `// U-API:` 标记 — CLAUDE.md §3.7）
 
 | 文件 | 旧条件 | 新条件 |

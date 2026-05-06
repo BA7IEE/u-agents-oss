@@ -162,7 +162,9 @@ v20 11 包 private       7692d36d
 | 主 U-API marker（packages + apps/.ts/.tsx）| **67** |
 | `/* U-API START/END */` 配对 | **8/8** |
 | Build 脚本 marker（B1-B4）| **4** |
-| main HEAD | `7692d36d` |
+| 发布快照 commit | `7692d36d`（v0.9.1 三平台产物源自此 commit）|
+| 本报告 commit | `3d55984d`（SYNC-v0.9.1-RELEASE 落地）|
+| main HEAD（v21 review 后）| `0bf156cb`（v21 review 报告 ff 后；v21 P3 回填）|
 | origin/main | 已 push 同步 |
 | upstream/main | `b31904c6` (v0.9.1) — fork 38 commits ahead |
 | worktree | `claude/happy-lovelace-53cea9` 已 ff merge 进 main |

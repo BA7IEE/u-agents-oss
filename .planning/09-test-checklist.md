@@ -416,6 +416,18 @@ CONFIG="$HOME/.u-agents/config.json"  # M1 改造完成后的位置（详见 01-
 - [ ] 发版脚本未使用 `--script` 上传旧安装脚本；若必须上传安装脚本，先确认 `scripts/install-app.sh` / `scripts/install-app.ps1` 已完整白标且不含 `agents.craft.do` / `.craft-agent` / `Craft-Agents-*`
 - [ ] `grep -rn "craft-agents-docs\|SearchCraftAgents\|mcp__craft-agents-docs__\|connectDocsUpstream\|docsTools\|callDocsUpstream" packages apps --include='*.ts' --include='*.tsx' --include='*.md'` 为 0（M1 完全裁剪该 MCP 后；覆盖 session MCP docs upstream proxy、toolNames、source-guides、sources/storage、SessionManager 和 mode/pre-tool/source/prerequisite 豁免分支）
 
+### 13.3.1 FEATURE_FLAGS 默认值锁定（v21 P2 补遗）
+
+> 验证 `packages/shared/src/feature-flags.ts` 中的 `FEATURE_FLAGS.craftAgentsCli` 默认值在 M1/M2 发版包内确实为 `false`——否则 `prompts/system.ts:533` 等 craft 字面量分支会被注入用户可见 system prompt（`AGENTS.md` §3.7 C6 模式）。
+
+- [ ] 启动 M1/M2 包，**不**设置 `U_AGENTS_FEATURE_CRAFT_AGENTS_CLI` 环境变量
+- [ ] DevTools / agent 真实 system prompt 中**不出现** `craft-agent`、`craft-cli`、`Craft CLI` 字面量（grep `prompts/system.ts:533` 附近 `${FEATURE_FLAGS.craftAgentsCli ? ...}` 三元的 truthy 分支）
+- [ ] `permissions-config.ts:379` 的 `^craft-agent\\s` Bash 模式不被启用（craft-agent CLI 命令默认不进许可白名单）
+- [ ] 反向验证：手动 `U_AGENTS_FEATURE_CRAFT_AGENTS_CLI=1 bun run start`（仅本机测试，不进发版）→ system prompt 才出现 craft 字段；确认 flag 真生效
+- [ ] 发版打包时 grep 构建产物 `apps/electron/release/.../app/dist/main.cjs`：含 `craftAgentsCli` 标识符（说明 flag 编进去了）+ 但默认 `false` 值不触发字面量注入
+
+> 详见 `04-feature-cuts.md` "代码可保留，UI 必须隐藏" 原则 + `AGENTS.md` §3.7 C6（system prompt craft 字面量未门控）。
+
 ### 13.4 Sentry / 遥测隐私验证（Round 42 补遗）
 
 - [ ] M1 包构建环境不设置 `SENTRY_ELECTRON_INGEST_URL`；启动后不产生任何 Sentry 网络请求
