@@ -85,6 +85,9 @@ DATE=$(date +%Y%m%d)
 git checkout -b sync/upstream-$DATE
 ```
 
+> ⚠️ **`$DATE` 是 shell 局部变量**——必须**全程在同一个 shell session 里执行**后续命令（§2.4.5 `git commit`、§2.8 `git tag sync-$DATE` 都用 `$DATE`）。开新 terminal / 新 SSH session 后 `$DATE` 会失效，会推空 tag `sync-`。
+> 替代方案：直接用 inline `git tag sync-$(date +%Y%m%d)`。
+
 ### 2.3 执行 merge
 
 ```bash
@@ -124,10 +127,40 @@ git checkout --ours package.json
 |---|---|
 | `apps/electron/electron-builder.yml` | 取上游为基础，再手动改回我们的 7 个字段（含 `copyright`） |
 | `packages/shared/src/branding.ts` | 同上：取上游 + 改回 VIEWER_URL + 替换 ASCII art |
-| `packages/shared/src/config/llm-connections.ts` | 取上游（我们没改这个文件），但 review 看是否有新 ProviderType |
+| `packages/shared/src/config/llm-connections.ts` | 取上游（我们没改这个文件），但 review 看是否有新 ProviderType；v0.9.1 同步**注意 +124 行 mid-stream 类型必须完整进入**（详见 [`08-conflict-zones.md` §9](08-conflict-zones.md) 哨兵） |
 | `packages/shared/src/config/provider-metadata.ts` | 手动合并：保留 'u-api' entry + getProviderMetadata 修改 |
 | `apps/electron/src/renderer/components/onboarding/*` | 逐文件手动合并 |
 | `apps/electron/src/renderer/components/apisetup/ApiKeyInput.tsx` | 最痛苦的一个：保留我们的 `mode === 'u_api'` 分支，接受上游对其他分支的修改 |
+| **`apps/electron/src/renderer/pages/settings/AiSettingsPage.tsx`** | **v0.9.1+ 新增手解主战场**——见下方 6 步 cheatsheet |
+
+**AiSettingsPage.tsx 6 步手解 cheatsheet**（v0.9.1 同步专用，§3.7 #19-#25 涉及 11+ 处 marker）：
+
+```bash
+# 1. 确认冲突
+git status   # 应见 both modified: apps/electron/src/renderer/pages/settings/AiSettingsPage.tsx
+
+# 2. 用上游版做基底（覆盖我们当前内容）—— 上游必有逻辑变更，从我们版挑出比从上游版贴回我们的 marker 容易
+git checkout --theirs apps/electron/src/renderer/pages/settings/AiSettingsPage.tsx
+
+# 3. 在编辑器里手动重新插入 §3.7 #19-#25 标记（共 11+ 处实例）
+#    用 grep 定位插入点（symbol 名稳定，行号会漂）：
+grep -n "isUApiSlug\|isUApiConnection\|getApiKeyMethodForConnection\|uApiConnections\|always show Default Connection\|last U-API connection cannot be deleted\|restore Add Connection button" apps/electron/src/renderer/pages/settings/AiSettingsPage.tsx
+#    参考 CLAUDE.md §3.7 表 #19-#25 列举的注释/单行标记/块标记位置
+
+# 4. 加完 marker 后 grep 总数验证
+grep -c "U-API" apps/electron/src/renderer/pages/settings/AiSettingsPage.tsx
+# 期望 ≥ 11 处实例（19=1, 20=5, 21=1, 22=1, 23=1块, 24=1, 25=1块）
+
+# 5. 标记冲突已解决
+git add apps/electron/src/renderer/pages/settings/AiSettingsPage.tsx
+
+# 6. 跑全仓 baseline 验证 §3.7（merge 完所有冲突后再跑）
+grep -rEn --exclude-dir=node_modules "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
+  | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
+# 期望 61 ± 2（merge commit 当下浮动允许扩到 ±5，第一个 follow-up commit 后回到 ±2）
+```
+
+**为何用 `git checkout --theirs`（v12/v13 "用上游做基底"建议的具体命令）**：上游必有 v0.9.1 引入的 +58 行 midStream 子菜单 + onSetMidStreamBehavior prop —— 从我们版本挑出上游变更非常困难，反向更简单。但 `--theirs` 会**全吞**我们的 25+ 行 marker，**必须**手动从 git history 回贴（参考点：`git show :2:apps/electron/src/renderer/pages/settings/AiSettingsPage.tsx` 看 merge 时我们的版本，或 `git log -p HEAD -- <file>`）。
 
 #### 2.4.4 处理 🟡 品牌密集
 
@@ -154,8 +187,10 @@ git commit -m "sync: merge upstream/main as of YYYY-MM-DD"
 
 ```bash
 # 1. 检查是否引入新的 LlmProviderType
-grep -nE "^\s*\| '" packages/shared/src/config/llm-connections.ts | grep -i ProviderType
-# 把输出和上次同步时记下的 type 列表对比
+# 直接看 LlmProviderType union 定义（行内不含 'ProviderType' 字面量，下面命令两步走更稳）
+grep -nB1 -A20 "type LlmProviderType" packages/shared/src/config/llm-connections.ts
+# 输出含整段 union（'anthropic' | 'pi' | 'pi_compat' | ...）
+# 把输出和上次同步时记下的 type 列表对比；多出来的 entry = 上游新加
 
 # 2. 检查是否引入新的 OnboardingStep
 grep -nE "^\s*\| '" apps/electron/src/renderer/components/onboarding/OnboardingWizard.tsx | grep -i Step
@@ -239,15 +274,30 @@ ls packages/shared/eslint-rules/ 2>/dev/null
 ### 2.6 跑构建与 typecheck
 
 ```bash
-# 1. 重新装依赖
+# 0. 重新装依赖（让 v0.9.1 新 scripts 如 sort-locales 出现，并触发 husky prepare）
 bun install
 
-# 2. typecheck
+# 0a. (v0.9.1+) 必跑：locale 字典序检查
+# v0.9.1 引入 lint:i18n:sorted hook，merge 时若 zh-Hans.json 不字典序会阻塞 commit
+bun run lint:i18n:sorted
+# 失败修复路径：
+bun run sort-locales
+git add packages/shared/src/i18n/locales/*.json
+# 然后才能继续 commit
+
+# 0b. (v0.9.1 Pi SDK 升级 0.70.2→0.72.1) 必跑：重 build pi-agent-server 子进程
+# 否则 packages/pi-agent-server/dist/index.js 仍是 0.70.2 老产物，packaged 应用
+# spawn 时新 koffi binding + 老 JS 不兼容 = LLM 请求 silent fail（M2 无单测覆盖）
+bun run server:build:subprocess
+# 等价于 cd packages/session-mcp-server && bun run build && cd ../pi-agent-server && bun run build
+
+# 1. typecheck
 bun run typecheck:all
 # 任何报错必须解决
 
-# 3. lint（OSS 工作区不要跑组合 bun run lint；该脚本会调用 OSS 缺失的 check-raw-sends.sh）
+# 2. lint（OSS 工作区不要跑组合 bun run lint；该脚本会调用 OSS 缺失的 check-raw-sends.sh）
 bun run lint:i18n:parity
+bun run lint:i18n:sorted          # v0.9.1+ 必跑（同 step 0a，复测确保未漂回）
 bun run lint:electron
 bun run lint:shared
 bun run lint:ui
@@ -478,10 +528,11 @@ diff /tmp/baseline-fails /tmp/current-fails
 
 **核对手段（每次同步必跑）**：
 ```bash
-# 1. 找上游本次新增的 connection 字段
-git diff upstream/main..HEAD -- packages/shared/src/config/llm-connections.ts | grep -E "^[+-]\s+\w+\?:" | head
+# 1. 找上游本次新增的 connection 字段（**方向**：merge-base → upstream HEAD，找上游加了什么）
+git diff $(git merge-base HEAD upstream/main)..upstream/main -- packages/shared/src/config/llm-connections.ts | grep -E "^\+\s+\w+\?:" | head
 # 输出格式：+ midStreamBehavior?: MidStreamBehavior
 # 上游 v0.9.1 应能 grep 到 midStreamBehavior
+# ⚠️ 不要写反方向：`upstream/main..HEAD` 查的是"我们相对上游删除的"，merge 前必然 0 命中假报
 
 # 2. 核对 enforceUApiBaseUrl 是否透传所有上游字段
 sed -n '/function enforceUApiBaseUrl/,/^function\|^const/p' packages/shared/src/config/storage.ts | grep -E "name:|baseUrl:|authType:|providerType:|models:|midStreamBehavior:|<新字段>"
@@ -637,6 +688,49 @@ bun run lint:i18n:parity
 **原因**：上游升级了 `@anthropic-ai/claude-agent-sdk`，但 SDK 二进制（platform-specific）在我们的 build script 中未被同步替换。
 
 **处理**：参考 `electron-builder.yml` 第 64-76 行的注释，确保 build 脚本中的 SDK binary 软链/拷贝逻辑仍然有效。详见 `05-build-release.md`。
+
+### 4.5 (v0.9.1+) locale 排序 hook 阻塞 commit
+
+**症状**：merge upstream/main 后跑 `git commit` 时 husky pre-commit hook 报：
+```
+Error: zh-Hans.json keys are not sorted alphabetically.
+Fix: bun run sort-locales
+```
+这是 v0.9.1 上游引入的 `scripts/sort-locales.ts` + `lint:i18n:sorted` 守门——保证 locale 文件按字典序，避免历次 mass-translate script 留下的乱序。
+
+**根因**：我们的 zh-Hans.json 在 M2 中文化期间按"插入顺序"加了一些 key（如 `about.basedOn` 系列被追加在文件末尾），不符合字典序——v0.9.1 之前没 hook 不报错，merge 后立即阻塞。
+
+**处理**（**绝不**用 `--no-verify` 跳过）：
+```bash
+# 1. 自动修复（v0.9.1 引入的工具脚本）
+bun run sort-locales
+
+# 2. 重 add（修了的 locale 文件需要重新 stage）
+git add packages/shared/src/i18n/locales/*.json
+
+# 3. 验证
+bun run lint:i18n:sorted   # 应静默退出（exit 0）
+
+# 4. 继续 commit（hook 不再阻塞）
+git commit -m "..."
+```
+
+**为什么不能 --no-verify**：CLAUDE.md 默认禁止跳 hook（`fix the underlying issue`）；此处 underlying issue 就是 locale 不字典序，sort-locales 自动修就行，没理由跳 hook。
+
+### 4.6 (v0.9.1+) Pi SDK 0.70.2 → 0.72.1 但子进程跑老产物
+
+**症状**：merge 后应用启动正常、onboarding 走完，**首次发 LLM 消息 silent fail**（pi-agent-server 进程起来但 LLM 请求不返回，no error log）。
+
+**根因**：pi-* 三包升级 0.70.2 → 0.72.1，bun install 装新版到 node_modules，但 `packages/pi-agent-server/dist/index.js` 是预先 bundled 的产物（不是 ESM source），bun install 不会自动重 build。**packaged 应用 spawn 时新 koffi native binding + 老 JS 不兼容**——M2 无单测覆盖，typecheck 也不能 catch（dist 不入 typecheck）。
+
+**处理**：
+```bash
+# 在 §2.6 step 0b 已加，但若漏跑可补救：
+bun run server:build:subprocess
+# 等价于 cd packages/session-mcp-server && bun run build && cd ../pi-agent-server && bun run build
+```
+
+事故 #1（M1 期 commit `8ebe8c0`）/ #3（M2 期 commit `8cc943e6`）的同根模式——helper 函数定义但漏接到链路，详见 [`12-subprocess-build-pipeline.md`](12-subprocess-build-pipeline.md) §0。
 
 ---
 

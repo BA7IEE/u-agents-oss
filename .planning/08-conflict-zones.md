@@ -152,8 +152,13 @@
 - 我们的 §3.7 改造点没碰该文件类型定义，**3-way merge 大概率自动通过**——但**必须核对该文件 v0.9.1 +124 行完整进入 main**，避免被误判为"跟我们改造冲突"而 abort merge
 
 **冲突处理**：
-- 同步时优先核对 `git diff acb08842..upstream/main -- packages/shared/src/config/llm-connections.ts | wc -l` 应有 ~124 行
-- merge 后核对：`grep -n "MidStreamBehavior\|defaultMidStreamBehavior\|resolveMidStreamBehavior" packages/shared/src/config/llm-connections.ts | wc -l` 应 ≥ 5（type 定义 + 2 个函数 + 引用点）
+- 同步时优先核对：
+  ```bash
+  # 用 --stat 直接拿 insertions 数（避免 wc -l 包含 hunk 头/上下文导致的 149 vs 124 误判）
+  git diff --stat $(git merge-base HEAD upstream/main)..upstream/main -- packages/shared/src/config/llm-connections.ts
+  # 期望输出含 "1 file changed, 124 insertions(+)"（数字可能因后续 v0.9.2 而变）
+  ```
+- merge 后核对：`grep -nE "MidStreamBehavior\|defaultMidStreamBehavior\|resolveMidStreamBehavior" packages/shared/src/config/llm-connections.ts | wc -l` 应 ≥ 5（type 定义 + 2 个函数 + 引用点）
 - 注：这是 §3.3 七文件之外的"v0.9.1 临时哨兵"——v0.9.2 同步成功后该文件可能不再敏感，到时按情况移出
 
 ---
