@@ -324,12 +324,18 @@
 
 **M3 任务大类**：
 
+> **v21 后启动包**（详见 [REVIEW-21-FULL-2026-05-07.md §2.4](sync-reports/REVIEW-21-FULL-2026-05-07.md)）：
+> - **P0 同 commit 落地**：[M3-OAUTH-RELAY-SPEC.md](M3-OAUTH-RELAY-SPEC.md) + [M3-DEAD-PATH-CLEANUP-SPEC.md](M3-DEAD-PATH-CLEANUP-SPEC.md)
+> - **P1 启动同期**：[M3-SENTRY-DSN-ASSERTION-SPEC.md](M3-SENTRY-DSN-ASSERTION-SPEC.md) + [M3-REFRESH-API-SSRF-SPEC.md](M3-REFRESH-API-SSRF-SPEC.md)
+
 | 类别 | 内容 | 涉及文件（待 M3 时回到 `01-branding-spec.md` 跟进）|
 |---|---|---|
-| OAuth relay | 部署一个 Cloudflare Worker / Node 服务 | `packages/shared/src/auth/oauth-relay.ts`、`slack-oauth.ts` |
+| OAuth relay | 部署一个 Cloudflare Worker / Node 服务 — 详见 [M3-OAUTH-RELAY-SPEC.md](M3-OAUTH-RELAY-SPEC.md) | `packages/shared/src/auth/oauth-relay.ts`、`slack-oauth.ts` |
 | 文档站 | 用 Mintlify / VitePress / Docusaurus 都行 | 需 fork `apps/online-docs` 或新建仓库 |
 | 分享 viewer | `apps/viewer` 自部署 | 需配 R2/S3 后端存会话 JSON |
-| 错误上报 | 自建 Sentry self-hosted 或 GlitchTip；启用前处理 machine hash、sessionId、agent error 原文、console capture、`.env.example` 示例和“reported”文案 | `01-branding-spec.md` §2.40 + `apps/electron` 中 Sentry init |
+| 死路径清理 | 三死路径与 OAuth relay **同 commit** 清理（CRAFT_*_ENTRY env / craft-clipboard 文件名 / Craft CLI system prompt 三元）— 详见 [M3-DEAD-PATH-CLEANUP-SPEC.md](M3-DEAD-PATH-CLEANUP-SPEC.md) | `apps/electron/src/main/index.ts`、`packages/shared/src/utils/files.ts`、`prompts/system.ts` |
+| 错误上报 | 自建 Sentry self-hosted 或 GlitchTip；启用前 build-time DSN assertion 防止 prod 漏注事故 — 详见 [M3-SENTRY-DSN-ASSERTION-SPEC.md](M3-SENTRY-DSN-ASSERTION-SPEC.md) | `01-branding-spec.md` §2.40 + `apps/electron/scripts/electron-build-main.ts` + `apps/electron` 中 Sentry init |
+| SSRF 防护 | `refreshApiRenew` 走用户配置 URL，需加 `assertPublicHttpsUrl()` 阻止云元数据/内网访问 — 详见 [M3-REFRESH-API-SSRF-SPEC.md](M3-REFRESH-API-SSRF-SPEC.md) | `packages/shared/src/utils/url-safety.ts` + `packages/shared/src/sources/credential-manager.ts` |
 | Server 分发 | 如要发布 standalone server，统一 `scripts/build-server.ts` 产物命名、systemd service、Docker volume、bin 入口；Round 45 补充：build-server 生成的 docker-compose 模板也必须改 `services: craft-server`、`craft-data:/root/.craft-agent`、`volumes: craft-data` | `scripts/build-server.ts` 中 `craft-server` / `craft-data` / `/root/.craft-agent` / tarball 命名 |
 
 **出口条件**：
