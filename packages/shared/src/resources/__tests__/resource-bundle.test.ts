@@ -138,6 +138,8 @@ describe('resource-bundle', () => {
       const source = bundle.resources.sources![0]!
       expect(source.slug).toBe('github')
       // Auth state should be reset
+      // U-API: test asserts the field directly to verify reset semantics, not gating logic
+      // eslint-disable-next-line craft-shared/no-inline-source-auth-check
       expect(source.config.isAuthenticated).toBe(false)
       expect(source.config.connectionStatus).toBe('needs_auth')
       expect(source.config.connectionError).toBeUndefined()

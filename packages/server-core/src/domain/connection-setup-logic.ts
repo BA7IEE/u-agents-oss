@@ -21,6 +21,7 @@ import {
   U_API_BASE_URL,
   U_API_NAME,
   U_API_SLUG,
+  defaultMidStreamBehavior,
 } from '@u-agents/shared/config'
 
 // ============================================================
@@ -278,6 +279,7 @@ export function createBuiltInConnection(slug: string, baseUrl?: string | null): 
     defaultModel: getDefaultModelForConnection(providerType, template.piAuthProvider),
     modelSelectionMode: providerType === 'pi' ? 'automaticallySyncedFromProvider' : undefined,
     piAuthProvider: template.piAuthProvider,
+    midStreamBehavior: defaultMidStreamBehavior(providerType),
     createdAt: Date.now(),
   }
 }
