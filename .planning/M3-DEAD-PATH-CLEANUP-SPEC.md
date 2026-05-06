@@ -6,6 +6,21 @@
 
 ---
 
+## 修订记录
+
+**2026-05-07（实施时修订）**：grep 实测后调整 CRAFT_DEBUG 决策。
+
+| spec 原假设 | grep 实测 | 修订后决策 |
+|---|---|---|
+| `CRAFT_DEBUG` → 改名 `U_AGENTS_DEBUG` | 14+ 处真消费方（feature-flags / server / unified-network-interceptor / interceptor-common / debug.ts / agent/options.ts / pi-agent.ts × 2 / platform-headless × 2 / server/index.ts × 2）| **保留 `CRAFT_DEBUG`**——上游全局调试 flag，跨进程/SDK 边界用，跟用户可见无关，改名风险大于收益 |
+| `CRAFT_SCRIPTS` → 改名 `U_AGENTS_SCRIPTS` | 0 真消费方（仅自身设置 + 1 处注释）| **删除整行设置**（scriptsDir 变量保留作 mainLog 输出用）|
+| `CRAFT_AGENT_VERSION` → 改名 `U_AGENTS_VERSION` | 0 真消费方 | **删除整行设置** |
+| `CRAFT_COMMANDS_ENTRY/CRAFT_CLI_ENTRY/CRAFT_COMMANDS_DOC_PATH/CRAFT_CLI_DOC_PATH` → 删除 | 0 真消费方 ✓ | 与 spec 一致，**删除** |
+
+**最终落地**：删除 6 行 + 改 1 行注释 + 5 处 craft-clipboard → u-agents-clipboard。CRAFT_DEBUG 不动。
+
+---
+
 ## 0. 为什么必须与 M3-1 同 commit
 
 [REVIEW-21-FULL-2026-05-07.md §2.4 #2](sync-reports/REVIEW-21-FULL-2026-05-07.md) 强制要求"M3 cleanup 三死路径与 OAuth relay 改造**同 commit**清理"。原因：

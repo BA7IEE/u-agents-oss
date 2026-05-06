@@ -269,6 +269,7 @@ grep -rEn "U-API" apps/electron/scripts/ 2>/dev/null | wc -l
 > - v0.9.1 sync（2026-05-06 commit `bd2a005d`）：64 处（routing.ts 加 1 处 + block-markers.ts 加 1 处 + resource-bundle.test.ts 加 1 处；上游 v0.9.1 引入的 1 个 routing bug + 3 处 ESLint 违规我们 patch 后加 marker）
 > - v17 漏盘补丁（2026-05-07）：67 处（access-control.ts + commands.ts messaging brand + cli/src/index.ts printHelp，3 处都是 v0.9.1 sync 时漏盘 / M2 cli rename 时漏盘）；同次 commit 顺手修 F1 自动更新 publish.url 缺 `/latest` 后缀（electron-builder.yml）+ F6 07-upstream-sync 基线 61→64 漂移
 > - **M3 SSRF 防护（2026-05-07）：71 处**（url-safety.ts 加 `assertPublicHttpsUrl` 块 1 处 + credential-manager.ts:982 单行 1 处 + credential-manager-renew.test.ts 单行 1 处；详见 [`.planning/M3-REFRESH-API-SSRF-SPEC.md`](.planning/M3-REFRESH-API-SSRF-SPEC.md)，对应 §3.7 #43/#44a/#44b）
+> - **M3 死路径清理（2026-05-07）：71 处不变**（main/index.ts 删 6 行 CRAFT_* env + 1 行注释；utils/files.ts 5 处 craft-clipboard → u-agents-clipboard；删除 + 品牌替换不计 marker。详见 [`.planning/M3-DEAD-PATH-CLEANUP-SPEC.md`](.planning/M3-DEAD-PATH-CLEANUP-SPEC.md) 修订记录——CRAFT_DEBUG 14+ 处真消费方决策保留）
 
 **每次同步必跑 grep（覆盖全部注释格式）**：
 
