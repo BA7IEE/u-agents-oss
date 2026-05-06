@@ -311,6 +311,15 @@ Sentry.init({
 - 隐私政策（中文）—— 明确收集什么、不收集什么
 - 国内合规：如面向公众销售，需要 ICP 备案；如涉及生成式 AI，需要按照《生成式人工智能服务管理暂行办法》考虑算法备案问题
 
+**v0.9.1 同步后隐私政策起草补充项**（v15 B 路盲区 5 提示）：
+- **Telegram 集成数据收集**：v0.9.1 上游加 Telegram bot whitelisting + access control（per-binding `'inherit' | 'allow-list' | 'open'` + workspace-level `'open' | 'owner-only'`）。涉及"用户 ID 白名单"——属 PII 处理，但**当前 [`packages/messaging-gateway/src`](../packages/messaging-gateway/src) 已经处理 Telegram 数据**（v0.9.1 加 access control 反而是 PII 收敛而非新增暴露）。隐私政策章节应说明：
+  - U Agents 不主动采集用户 Telegram 用户名/ID
+  - 仅当用户主动绑定 Telegram bot 时存储用户白名单（本地配置文件）
+  - 数据存储位置：`~/.u-agents/messaging-gateway/`
+  - 不上传任何 Telegram 数据到 token.u-studio.cn 或第三方
+- **WhatsApp 集成数据**：同样原则（已在 packages/messaging-whatsapp-worker 处理）
+- **Per-model image support toggle**（v0.9.1 新增）：用户附件图片在 LLM 不支持图像时被替换占位符——这是隐私正向（图片不会泄露给不支持的 LLM）
+
 这两份文档不在本仓库管理范围内，但产品上架前必须完成，建议放在官网（`u-studio.cn`）。
 
 ---

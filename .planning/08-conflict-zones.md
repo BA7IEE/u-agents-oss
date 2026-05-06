@@ -132,6 +132,37 @@
 
 ---
 
+### 8. `packages/shared/package.json`（exports 字段哨兵，**M2 期间补**）
+
+**为什么哨兵**：
+- M2 atomicWriteFileSync 改造（commit `25d38ab9`）让 `topic-registry.ts` 和 `window-state.ts` 跨包 import `@u-agents/shared/utils/files`，但 packages/shared 的 `exports` 字段没暴露 `./utils/files`——dist:mac 含 SDK 时 esbuild bundle 失败（详见 commit `a751a977` 修复）
+- 这一行 `"./utils/files": "./src/utils/files.ts"` 是 fork 改造的"接缝"——上游若重写整个 exports 段，会**静默丢这一行**，重现 dist:mac 失败
+
+**冲突处理**：
+- 同步时优先看上游对 `packages/shared/package.json` exports 段的改动
+- 我们加的 `./utils/files` 必须保留（git 自动 merge 通常 OK，但要核对）
+- **核对手段**：每次同步后 grep `"./utils/files"` packages/shared/package.json，必须命中 1 处
+- JSON 文件不能写 `// U-API:` marker——这是 §3.7 表外的"哨兵型"改造点，必须靠本节文档+commit message 双重防御
+
+### 9. `packages/shared/src/config/llm-connections.ts`（**v0.9.1 mid-stream 类型新增哨兵**）
+
+**为什么哨兵**：
+- upstream v0.9.1（commit `b31904c6`，2026-05-06）在该文件加 +124 行 `MidStreamBehavior` type + `defaultMidStreamBehavior` + `resolveMidStreamBehavior` 两函数（mid-stream send 行为类型定义的真实落地处）
+- 这是 v0.9.1 主 feature 的核心代码——同步时若漏合并，连接级 mid-stream 配置会缺类型定义编译失败 / 缺 fallback 函数运行时报错
+- 我们的 §3.7 改造点没碰该文件类型定义，**3-way merge 大概率自动通过**——但**必须核对该文件 v0.9.1 +124 行完整进入 main**，避免被误判为"跟我们改造冲突"而 abort merge
+
+**冲突处理**：
+- 同步时优先核对：
+  ```bash
+  # 用 --stat 直接拿 insertions 数（避免 wc -l 包含 hunk 头/上下文导致的 149 vs 124 误判）
+  git diff --stat $(git merge-base HEAD upstream/main)..upstream/main -- packages/shared/src/config/llm-connections.ts
+  # 期望输出含 "1 file changed, 124 insertions(+)"（数字可能因后续 v0.9.2 而变）
+  ```
+- merge 后核对：`grep -nE "MidStreamBehavior\|defaultMidStreamBehavior\|resolveMidStreamBehavior" packages/shared/src/config/llm-connections.ts | wc -l` 应 ≥ 5（type 定义 + 2 个函数 + 引用点）
+- 注：这是 §3.3 七文件之外的"v0.9.1 临时哨兵"——v0.9.2 同步成功后该文件可能不再敏感，到时按情况移出
+
+---
+
 ## 🟡 品牌密集（10+ 个）
 
 这些文件每次同步几乎都会有冲突，但冲突逻辑简单：**接受上游内容 → 跑品牌替换 → 完成**。

@@ -571,6 +571,25 @@ export function buildDefaultConnection(): LlmConnection {
 - BASE_SLUG_FOR_METHOD 改成 `'u-api'`（不带 `-default` 后缀）：第一次新增连接时，`resolveSlugForMethod('u_api', null, {'u-api-default'})` 返回 `'u-api'`（因为 `u-api-default` 不等于 `u-api`，base 没被占用）。第二次新增返回 `'u-api-2'`，依此类推。
 - `isUApiSlug` regex 必须同时匹配 `'u-api-default'`、`'u-api'`、`'u-api-2'`、`'u-api-3'`...：`slug === 'u-api-default' || /^u-api(-\d+)?$/.test(slug)`
 
+#### 6.2.4 `midStreamBehavior` 字段策略（v0.9.1+ 上游引入）
+
+**背景**：upstream v0.9.1（commit `b31904c6`，2026-05-06）引入 `connection.midStreamBehavior` 字段，控制用户在 agent mid-stream 时发后续消息的行为：`'steer'`（注入到当前 turn）或 `'queue'`（等当前 turn 结束再发）。详见 [`07-upstream-sync.md`](07-upstream-sync.md) C10。
+
+**U-API 模板策略：不写入字段，依赖上游兜底**：
+- `BUILT_IN_CONNECTION_TEMPLATES['u-api']` 保持 §3.7 #5 原样，**不增加 `midStreamBehavior` 字段**
+- 上游 [`packages/server-core/src/domain/connection-setup-logic.ts`](../packages/server-core/src/domain/connection-setup-logic.ts) `createBuiltInConnection()` 通过 `defaultMidStreamBehavior(providerType)` 自动按 providerType 兜底：`anthropic → 'queue'`，`pi/pi_compat → 'steer'`
+- 我们 `providerType: 'pi_compat'` → 自动落 `'steer'`（与上游 craft-agents-oss 默认行为一致）
+- `resolveMidStreamBehavior()` 对老 `config.json` 缺字段做 fallback，**既有用户配置零迁移压力**
+
+**为什么不在模板硬写**：
+- 上游设计就是"模板不存这个字段"，硬写会跟上游 fallback 逻辑分叉，下次同步时 git auto-merge 易引入死代码
+- 跟 §3.6 双品牌区分原则一致：U-API 仅锁 baseUrl + providerType + authType，不主动定义其他行为字段
+
+**enforceUApiBaseUrl 必须保留新字段（C10 同步规则）**：
+- §3.7 #1 `enforceUApiBaseUrl` 重写连接的逻辑必须**保留** `midStreamBehavior`（如果用户已经设置过）
+- 参考上游 [`storage.ts:2585`](../packages/shared/src/config/storage.ts) `updateLlmConnection` 的字段覆盖列表
+- 下次同步若上游再增 connection 字段（M3 期可能加 `temperature` / `topP` 等），同样处理：`enforceUApiBaseUrl` 透传，不要因为模板里没定义就丢字段。详见 [`07-upstream-sync.md`](07-upstream-sync.md) §2.7c C10
+
 ### 6.3 Provider 元信息
 - `packages/shared/src/config/provider-metadata.ts`
   - **新增**一个 entry：

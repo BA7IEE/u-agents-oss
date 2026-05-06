@@ -297,6 +297,7 @@
 - [ ] zh-Hans.json 中无 "Craft" 字面量
 - [ ] 用户协议 + 隐私政策上线
 - [ ] 至少 1 次成功的上游同步（按 `07-upstream-sync.md`）
+- [ ] **`perf-baseline-M2.md` 重测**（M1 perf-baseline 是 hotfix 时点快照；M2 4 项安全 fix + v0.9.1 Pi SDK 0.72.1 + mid-stream 类型必然影响性能。M1 cold-start 已触线 298/300 MB 期望值，M2 应重新建立基线，避免外部 AI 误读 M1 数据为现状。详见 [`perf-baseline-M1.md`](perf-baseline-M1.md) 顶部"历史快照"声明）
 - [~] **R2 重打 + 重传**（让 R2 生产产物含 M2 安全主线 4/4 fix）：
   - [x] **macOS arm64 DMG 重打**（2026-05-05，含 SDK + 4 项 M2 fix；本地 verify：atomicWriteFileSync ×12 / `tlsRejectUnauthorized ?? true` 默认严格 / MIN_LLM_API_KEY_LENGTH ×4 / mode:448 ×4）
   - [ ] macOS x64 DMG 重打（待跑 `CSC_IDENTITY_AUTO_DISCOVERY=false bun run dist:mac:x64`）
@@ -311,8 +312,14 @@
 
 **核心交付物**：
 - 自建 OAuth relay 服务（消除 `agents.craft.do` 残留瑕疵）
-- 自建文档站（`u-agents.u-studio.cn/docs/*`；M1/M2 的 docs URL 可先是占位页或 404，但完整文档站到 M3 才交付）
-- 自建会话分享 viewer（`u-agents.u-studio.cn/s/*`）
+  - ⚠️ **v0.9.1 上游影响**：commit `70828cbc` / `34521a7d` 把 Google OAuth 推荐配置从 "Desktop app" 改为 "Web application"（详见 [`apps/online-docs/source-guides/google-oauth-setup.mdx`](../apps/online-docs/source-guides/google-oauth-setup.mdx)）。两个 redirect URI：`http://localhost:6477/callback`（desktop loopback）+ `https://agents.craft.do/auth/callback`（WebUI/headless）。**M3 自建 relay 时**必须考虑 Web app client 类型——意味着需要稳定的 HTTPS 回调域名（即 `auth.u-agents.u-studio.cn` 或 `agents.u-studio.cn/auth/callback`）+ 可能影响 desktop 流程的端口策略（loopback 仍 OK，但 callback 域名注册要含两个）
+- 自建文档站（`u-agents.u-studio.cn/docs/*`）
+  - ⚠️ **M1 14/14 已上线 `https://agents.u-studio.cn`** = 简单下载页（Next.js 静态站）。**M3 文档站升级 vs 重建 vs 加路径**边界未定：
+    - 选项 A：在现有站点加 `/docs` 路径（最小改动，复用 Next.js stack）
+    - 选项 B：另起 `docs.u-agents.u-studio.cn` 子域（完全独立，可换 Mintlify / VitePress / Docusaurus）
+    - 选项 C：把 `agents.u-studio.cn` 整体重写为文档+下载混合（重做工作量大）
+    - 决策时机：M3 入口（M2 完成 + 50+ 活跃用户）；M2 期间不动现有下载页
+- 自建会话分享 viewer（`u-agents.u-studio.cn/s/*` 或 `share.u-agents.u-studio.cn`，避免与文档站路径冲突）
 - 自建 Sentry（或 Plausible / Umami 等隐私友好的错误上报）
 
 **M3 任务大类**：

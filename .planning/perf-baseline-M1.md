@@ -1,5 +1,7 @@
 # M1 性能基准（v0.9.0+u-agents.1，含 SDK）
 
+> ⚠️ **历史快照**（2026-05-05 测）：本基线是 M1 hotfix 时点的快照。**M2 已落地 4 项安全 fix（atomicWriteFileSync ×11 / TLS 严格化 / dir 0o700 / Token 长度限制）必然影响 disk I/O 性能 + cold-start memory**，加上 v0.9.1 同步会引入 Pi SDK 0.72.1 + mid-stream 类型，**本基线在 M2/v0.9.1 后会被读为"伪现状"**。详见本文 §5 完成判定与 11-roadmap.md M2 出口"perf-baseline-M2 重测"。
+
 **目的**：建立 M1 阶段性能基准，未来上游同步 + hotfix 后对照检测回归
 **对应**：M1 出口判定 §4 第 11 项（首发当日报告标 ⏸ 后补）+ [09-test-checklist.md §16.2](09-test-checklist.md)
 **测量基线**：v0.9.0+u-agents.1，含 Claude SDK binary（commit `8b8a5986` 后的本地 DMG）
