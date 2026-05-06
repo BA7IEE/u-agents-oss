@@ -120,7 +120,49 @@ grep -c "file source doesn't exist" <build_log>
 
 如果未来某个 warning 升级为真正影响核心功能（用户报错），按事故 #2 模式（commit `8359988`）修：在 build-win.ps1 加对应 vendor 下载段 + `# U-API:` marker 进 §3.7 Build 脚本子表（B4+）。
 
-### 0.5 共性教训
+### 0.5 事故 #5 — Windows EXE 缺 dist/interceptor.cjs（事故 #3/#4 同根第 3 个，2026-05-06 修）
+
+**事故时间**：v16 review B 路 agent 静态分析发现，commit `<待 commit>` 修。
+
+**症状**：v0.9.1 sync + 事故 #4 fix 后，Windows EXE 装包 + 首条 LLM 消息回复正常，但 **packaged Windows 应用的 Pi subprocess interceptor 永久不工作**——因为 EXE 包内不含 `apps/electron/dist/interceptor.cjs`。功能受损：流量监控失效 / MCP schema 注入失效 / tool intent capture 失效。多 MCP 场景必撞。
+
+**为什么用户没察觉**：interceptor 不阻塞"首条 LLM 消息"主路径（pi-agent-server 能 spawn + LLM 请求-响应正常），所以 Windows 装包 + 发消息 happy path 测试不能 catch。这是 v15 C 路 agent 警示的"common.ts 8 dead helper"中 buildInterceptor 项的精确兑现。
+
+**根因**：[`scripts/electron-build-main.ts:332 buildInterceptor()`](../scripts/electron-build-main.ts) 是 main bundle 流水线的第 3 步（顺序：sessionServer → piAgentServer → **interceptor** → whatsAppWorker → main process）。
+
+- macOS [`build-dmg.sh`](../apps/electron/scripts/build-dmg.sh) 跑 `bun run electron:build` → 调 `electron-build-main.ts` → 触发 buildInterceptor → 产 `apps/electron/dist/interceptor.cjs` ✓
+- Linux [`build-linux.sh`](../apps/electron/scripts/build-linux.sh) 同理 ✓
+- **Windows [`build-win.ps1`](../apps/electron/scripts/build-win.ps1) §6** 只 `Copy-Item` `unified-network-interceptor.ts`（**`.ts` 源**）到 `apps/electron/packages/shared/src/`（这是 dev 模式 `--preload` 用），**没产 `dist/interceptor.cjs` bundle**——packaged 模式失效
+
+[`runtime-resolver.ts:168-169`](../packages/shared/src/agent/backend/internal/runtime-resolver.ts) 运行时找：
+```typescript
+return resolveUpwards(hostRuntime.appRootPath, join('dist', 'interceptor.cjs'))
+  ?? resolveUpwards(hostRuntime.appRootPath, join('apps', 'electron', 'dist', 'interceptor.cjs'));
+```
+Windows EXE 包内必然 `undefined`，Pi subprocess 静默 fallback。
+
+**与事故 #3/#4 的关系**：
+- 事故 #3 fix（commit `8cc943e6`）补了 main bundle 5 步流水线的 step 1+2（subprocess servers）
+- 事故 #4 fix（commit `3ee6e4dd`）补了 step 4（WhatsApp worker）
+- **事故 #5 = step 3**（interceptor）—— 同根模式第 3 个胞胎。三起事故共同根因 = `build-win.ps1 与 root chain 结构性差距`（C14）
+
+**修复**：[`build-win.ps1`](../apps/electron/scripts/build-win.ps1) 在事故 #4 fix（"Build WhatsApp worker"块）后加一段调 `bun run build:interceptor`（`apps/electron/package.json:22` 已定义此 script，cwd = `$ElectronDir`，产 `dist/interceptor.cjs`）。加 `# U-API:` marker（B4）。
+
+**修复验证**：commit `<待 commit>`（2026-05-06）。下次 Windows dist:win 应见 `Building network interceptor bundle...` 输出 + EXE 包内含 `resources/app/dist/interceptor.cjs`。
+
+**5 步流水线修复完整状态（事故 #3 + #4 + #5 后）**：
+
+| 流水线步骤 | macOS/Linux | Windows | 修法 |
+|---|---|---|---|
+| 1. buildSessionServer | electron:build | electron:build:subprocess | 事故 #3 fix |
+| 2. buildPiAgentServer | electron:build | electron:build:subprocess | 事故 #3 fix |
+| 3. buildInterceptor | electron:build | **build:interceptor** | **事故 #5 fix（本次）** |
+| 4. buildWhatsAppWorker | electron:build | build:wa-worker | 事故 #4 fix |
+| 5. main process esbuild | electron:build | inline npx esbuild | 历史决定 |
+
+**步骤 1+2+3+4 全闭环 = 事故 #3/#4/#5 修后 Windows 路径与 root chain 在 main bundle 流水线达成等价**。M3 终极方案（C14）= 把 step 5 也改成调 root chain，可考虑跳过本节单独 helper 修复，但风险大（main process 的 OAuth env var inject 逻辑 Windows 路径有特殊处理）。
+
+### 0.6 共性教训
 
 **为什么 typecheck / lint / validate:dev 没发现**：所有发版前自动化检查都是**纯静态**——TypeScript 编译、字符串 grep、shared 包单元测试。没有任何一项会启动一个 packaged 应用、点开会话、发出第一条消息。这是 [`05-build-release.md`](05-build-release.md) §1 检查清单的盲点（详见 §3 修订建议）。
 
@@ -215,6 +257,7 @@ package.json electron:build
 | `package.json` `electron:build:subprocess` 与 `electron:build` 末尾 | JSON 不能加注释——标记在本文档 §2.1 + commit message + 同步上游守则 §5 第 1 条 | `8ebe8c0` |
 | `apps/electron/scripts/build-win.ps1` "Build subprocess servers" 块 | `# U-API:` 单行（事故 #3 修复） | `8cc943e6`（Windows 实测 verify 2026-05-06） |
 | `apps/electron/scripts/build-win.ps1` "Build WhatsApp worker" 块 | `# U-API:` 单行（事故 #4 修复，事故 #3 同根延伸） | 待 commit（2026-05-06，v0.9.1 sync 后 Windows 实测 verify 触发） |
+| `apps/electron/scripts/build-win.ps1` "Build network interceptor bundle" 块 | `# U-API:` 单行（事故 #5 修复，事故 #3/#4 同根第 3 个） | 待 commit（2026-05-06，v16 review B 路静态分析发现） |
 
 ---
 

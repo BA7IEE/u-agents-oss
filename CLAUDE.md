@@ -223,12 +223,13 @@ if (!apiKey && connection.baseUrl) {
 | B1 | adhoc 签名 escape hatch | `apps/electron/scripts/build-dmg.sh` | 注释 `allow caller to override (e.g. CSC_IDENTITY_AUTO_DISCOVERY=false bun run dist:mac)` | `# U-API:` 单行 | `6ba75da4` (M2) |
 | B2 | Windows EXE 缺 pi-agent-server 修复（事故 #3）| `apps/electron/scripts/build-win.ps1` | 注释 `build-win.ps1 missed subprocess server build that build-dmg.sh L208 triggers` | `# U-API:` 单行 | M2 收尾（详见 [`12-subprocess-build-pipeline.md`](.planning/12-subprocess-build-pipeline.md) §0.3） |
 | B3 | Windows EXE 缺 WhatsApp worker 修复（事故 #4）| `apps/electron/scripts/build-win.ps1` | 注释 `build-win.ps1 misses electron-build-main.ts:335 buildWhatsAppWorker() step` | `# U-API:` 单行 | v0.9.1 sync 后 Windows 实测 verify 触发（详见 [`12-subprocess-build-pipeline.md`](.planning/12-subprocess-build-pipeline.md) §0.4） |
+| B4 | Windows EXE 缺 dist/interceptor.cjs 修复（事故 #5，事故 #3/#4 同根第 3 个）| `apps/electron/scripts/build-win.ps1` | 注释 `build-win.ps1 misses electron-build-main.ts:332 buildInterceptor() step` | `# U-API:` 单行 | v16 review B 路静态分析触发（详见 [`12-subprocess-build-pipeline.md`](.planning/12-subprocess-build-pipeline.md) §0.5） |
 
 **Build 脚本 marker 单独 grep 命令**：
 
 ```bash
 grep -rEn "U-API" apps/electron/scripts/ 2>/dev/null | wc -l
-# 期望：≥3（B1 + B2 + B3）
+# 期望：≥4（B1 + B2 + B3 + B4）
 ```
 
 **同步上游验证基线**（**v0.9.1 sync 后 2026-05-06 刷新**）：
@@ -288,7 +289,7 @@ grep -rE --exclude-dir=node_modules "/\* U-API END" packages apps --include="*.t
 | C11 | 上游新文件用旧 NPM scope | sync 后 grep `@craft-agent/` 必须 = 0；命中跑 batch sed rename（v0.9.1 sync 触发 12 文件 20 处） |
 | C12 | 上游 release 自身 lint 违规 | sync 后跑 lint 套件，errors case-by-case 处理：语义等价改源码 / `// eslint-disable-next-line` + `// U-API:` 注释加进 §3.7 |
 | C13 | 上游 release 自身 test fail | 区分 (a) 我们 patch 真能修（如 routing.ts 漏分类）→ commit fix；(b) 上游 bug 我们继承 → 记 sync 报告 follow-up，不阻塞 merge |
-| C14 | build-win.ps1 与 root chain 结构性差距 | sync 后核 dist 产物缺什么；每发现一个漏的 helper 就给 build-win.ps1 加一段调对应 root script（事故 #3 + #4 同根；M3 终极方案：build-win.ps1 改调 `bun run electron:build`）|
+| C14 | build-win.ps1 与 root chain 结构性差距 | sync 后核 dist 产物缺什么；每发现一个漏的 helper 就给 build-win.ps1 加一段调对应 root script（事故 #3 + #4 + #5 同根三胞胎，main bundle 5 步流水线 step 1+2+3+4 已修；M3 终极方案：build-win.ps1 改调 `bun run electron:build`）|
 
 ---
 

@@ -308,6 +308,24 @@ try {
     Pop-Location
 }
 
+# U-API: build-win.ps1 misses electron-build-main.ts:332 buildInterceptor() step.
+# §6 above only copies the .ts source for dev-mode --preload; packaged builds
+# need apps/electron/dist/interceptor.cjs. runtime-resolver.ts:168 expects this
+# bundle at packaged runtime — without it the Pi subprocess silently falls back
+# to no interceptor (loses traffic monitor / MCP schema injection / tool intent
+# capture). LLM messages still work but multi-MCP scenarios break.
+# Same root cause as incidents #3/#4: build-win.ps1 bypasses electron:build:main
+# chain, so each helper in the 5-step main bundle pipeline must be补 separately.
+# See .planning/12-subprocess-build-pipeline.md §0.5 (incident #5).
+Write-Host "  Building network interceptor bundle..."
+Push-Location $ElectronDir
+try {
+    bun run build:interceptor
+    if ($LASTEXITCODE -ne 0) { throw "Interceptor bundle build failed" }
+} finally {
+    Pop-Location
+}
+
 # Build preload
 Write-Host "  Building preload..."
 Push-Location $RootDir

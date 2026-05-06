@@ -254,7 +254,7 @@ echo "U-API START/END 配对数（必须相等且 = 8）:"
 grep -rE --exclude-dir=node_modules "/\* U-API START" packages apps --include="*.ts" --include="*.tsx" | wc -l
 grep -rE --exclude-dir=node_modules "/\* U-API END" packages apps --include="*.ts" --include="*.tsx" | wc -l
 
-echo "Build 脚本 marker（B1 build-dmg.sh + B2 build-win.ps1，期望 ≥2）:"
+echo "Build 脚本 marker（B1 build-dmg.sh + B2/B3/B4 build-win.ps1，期望 ≥4）:"
 grep -rEn "U-API" apps/electron/scripts/ 2>/dev/null | wc -l
 # 详见 CLAUDE.md §3.7 "代码改造点统一加 // U-API: 标记" + Build 脚本子表（B1/B2）
 
@@ -651,12 +651,12 @@ diff /tmp/baseline-fails /tmp/sync-fails
 ```
 • file source doesn't exist  from=...\packages\messaging-whatsapp-worker\dist\worker.cjs
 ```
-事故 #3（pi-agent-server 缺失）2026-05-05 已修，但事故 #4（WhatsApp worker 缺失）是同根模式的延伸：[`scripts/electron-build-main.ts:main()`](../scripts/electron-build-main.ts) 的 main bundle 流水线含 5 步：sessionServer → piAgentServer → interceptor → **whatsAppWorker** → main process。事故 #3 fix 加了 `bun run electron:build:subprocess`（covers session-mcp-server + pi-agent-server）但只是治标——**main bundle 内联的 helper 必须单独补**。
+事故 #3（pi-agent-server 缺失）2026-05-05 已修，但事故 #4（WhatsApp worker 缺失）+ 事故 #5（dist/interceptor.cjs 缺失）是同根模式的延伸：[`scripts/electron-build-main.ts:main()`](../scripts/electron-build-main.ts) 的 main bundle 流水线含 5 步：sessionServer → piAgentServer → **interceptor** → **whatsAppWorker** → main process。事故 #3 fix 加了 `bun run electron:build:subprocess`（covers session-mcp-server + pi-agent-server）治标 step 1+2；事故 #4 fix 补 step 4（`build:wa-worker`）；事故 #5 fix 补 step 3（`build:interceptor`）。**至此 main bundle 5 步中 step 1+2+3+4 全闭环**。
 
 **踩坑机制**：
 - macOS [`build-dmg.sh`](../apps/electron/scripts/build-dmg.sh) 跑 `bun run electron:build` → 调 `electron-build-main.ts` → 5 步全跑 ✓
 - Linux [`build-linux.sh`](../apps/electron/scripts/build-linux.sh) 同理 ✓
-- **Windows [`build-win.ps1`](../apps/electron/scripts/build-win.ps1)** 用内联 `npx esbuild` 跑 main bundle（绕过 root chain 历史决定），**不调 `electron-build-main.ts`**——5 步中 sessionServer + piAgentServer 已被事故 #3 fix 补齐，但 **interceptor + whatsAppWorker 两步可能仍被漏**
+- **Windows [`build-win.ps1`](../apps/electron/scripts/build-win.ps1)** 用内联 `npx esbuild` 跑 main bundle（绕过 root chain 历史决定），**不调 `electron-build-main.ts`**——5 步中 sessionServer + piAgentServer 被事故 #3 fix 补齐 / whatsAppWorker 被事故 #4 fix 补齐 / interceptor 被事故 #5 fix 补齐 / step 5 main process 由 build-win.ps1 自身 inline npx esbuild 处理（这一步 build-win.ps1 历史就是 owner，没差距）
 
 **核对手段（每次 sync 后必跑）**：
 ```bash
