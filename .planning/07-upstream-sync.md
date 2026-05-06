@@ -203,14 +203,20 @@ grep -nA3 "if \(isCompatProvider" packages/server-core/src/model-fetchers/index.
 # 应仍能找到 "if (isCompatProvider(connection.providerType)) return"。若上游改成对 pi_compat 也拉模型，会让 U-API 用户看到自动拉的模型清单覆盖手动添加的——需要评估
 
 # 9. 检查 U-API 改造标记完整性（防止 git auto-merge 吞掉我们的改造）
-echo "U-API 改造标记总数（应与上次同步记录一致或更高）:"
-grep -rEn "// U-API:|/\* U-API (START|END)" packages apps --include="*.ts" --include="*.tsx" \
-  | grep -v node_modules | wc -l
+# **必须使用全格式 grep**——旧版 `// U-API:|/\* U-API (START|END)` 漏 HTML 注释（<!-- -->）+
+# JSX 行内注释（{/* */}），同步时会假报数低（v9/v10 review 期间 REVIEW-3 修正过的"基线 47 而非 44"
+# 就是这个根因）。CLAUDE.md §3.7 已改全格式，本节同步对齐。
+echo "U-API 改造标记总数（期望 61，允许 ±2 浮动；超出范围必须停下逐项核对）:"
+grep -rEn --exclude-dir=node_modules "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
+  | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
 
-echo "U-API START/END 配对数（必须相等）:"
-grep -rE "/\* U-API START" packages apps --include="*.ts" --include="*.tsx" | grep -v node_modules | wc -l
-grep -rE "/\* U-API END" packages apps --include="*.ts" --include="*.tsx" | grep -v node_modules | wc -l
-# 详见 CLAUDE.md §3.7 "代码改造点统一加 // U-API: 标记"
+echo "U-API START/END 配对数（必须相等且 = 8）:"
+grep -rE --exclude-dir=node_modules "/\* U-API START" packages apps --include="*.ts" --include="*.tsx" | wc -l
+grep -rE --exclude-dir=node_modules "/\* U-API END" packages apps --include="*.ts" --include="*.tsx" | wc -l
+
+echo "Build 脚本 marker（B1 build-dmg.sh + B2 build-win.ps1，期望 ≥2）:"
+grep -rEn "U-API" apps/electron/scripts/ 2>/dev/null | wc -l
+# 详见 CLAUDE.md §3.7 "代码改造点统一加 // U-API: 标记" + Build 脚本子表（B1/B2）
 
 # 10. 检查 ConfigWatcher handleConfigChange 是否仍只调 loadStoredConfig（防自触发死循环）
 echo "ConfigWatcher handleConfigChange 函数体应仅调 loadStoredConfig，不应出现 migrate* 调用:"
@@ -339,7 +345,7 @@ grep -nE "u-studi[^o]|agnets|agnest|uagentss|u-aagents" .planning/*.md \
 
 ### 2.7c C 类：代码改造踩坑模式核对（**REVIEW-6 2026-05-04 加入**）
 
-> **背景**：6 轮 review + hotfix 暴露 9 类"代码改造模式陷阱"。每月同步必跑下面 grep，命中即停下逐项核对。这是从血泪教训中提炼的 anti-pattern detector。
+> **背景**：6 轮 review + hotfix 暴露 9 类"代码改造模式陷阱"。v0.9.1 上游同步追加 C10（新增 connection 字段透传），共 10 类。每月同步必跑下面 grep，命中即停下逐项核对。这是从血泪教训中提炼的 anti-pattern detector。
 
 #### C1 — 硬编码 slug 而非用 `isUApiSlug` helper
 
@@ -463,7 +469,31 @@ diff /tmp/baseline-fails /tmp/current-fails
 # 期望：仅 OAuth Metadata Discovery 行有差异（network flaky）；其他 diff = 真新引入回归
 ```
 
-**审计输出**：§2.9 同步报告 "C 类核对结果" 必填——9 类陷阱本月新触发情况。
+#### C10 — 上游新增 connection 字段，`enforceUApiBaseUrl` 重写时漏透传
+
+**历史触发**：upstream v0.9.1（commit `b31904c6`，2026-05-06）引入 `connection.midStreamBehavior` 字段（`'steer' | 'queue' | undefined`）。这是**上游会持续发生的模式**：每个新 release 都可能在 `LlmConnection` 类型上加新 optional 字段。
+
+**踩坑机制**：
+我们 §3.7 #1 `enforceUApiBaseUrl`（`packages/shared/src/config/storage.ts`）在启动时强制重置 U-API 连接，重写逻辑里如果只覆盖了模板硬定义的字段（baseUrl / authType / providerType / models 等），新字段会**静默丢**——用户在 UI 改的 `midStreamBehavior` / 未来 `temperature` 等会在下次启动被吞。
+
+**核对手段（每次同步必跑）**：
+```bash
+# 1. 找上游本次新增的 connection 字段
+git diff upstream/main..HEAD -- packages/shared/src/config/llm-connections.ts | grep -E "^[+-]\s+\w+\?:" | head
+# 输出格式：+ midStreamBehavior?: MidStreamBehavior
+# 上游 v0.9.1 应能 grep 到 midStreamBehavior
+
+# 2. 核对 enforceUApiBaseUrl 是否透传所有上游字段
+sed -n '/function enforceUApiBaseUrl/,/^function\|^const/p' packages/shared/src/config/storage.ts | grep -E "name:|baseUrl:|authType:|providerType:|models:|midStreamBehavior:|<新字段>"
+# 上游每加一个字段，本节命中数应同步加一行
+```
+
+**修复策略**：
+- **选项 A（推荐）**：参考上游 [`storage.ts:updateLlmConnection`](../packages/shared/src/config/storage.ts) 的 `{ ...existing, ...updates }` 浅合并模式，保证未知字段透传
+- **选项 B**：在 `enforceUApiBaseUrl` 顶部 `const { /* lockdown 字段 */ baseUrl, authType, providerType, ...rest } = existingConnection` + 重写后展开 `...rest`——但 lockdown 字段必须显式列出，避免 baseUrl 被 rest 覆盖回去
+- **不要**用 hard-coded 字段白名单（每次同步都漏字段）
+
+**审计输出**：§2.9 同步报告 "C 类核对结果" 必填——**C1-C10 共 10 类**陷阱本月新触发情况（v0.9.1 同步起从 9 类升至 10 类）。
 
 ---
 
@@ -499,12 +529,12 @@ git push origin sync-$DATE
 ## 验收
 - [ ] 01-branding-spec §8 全部通过
 - [ ] **§2.7b 反向核对全部通过**：A 类（自相矛盾）+ B 类（反向 grep）当月无新发现矛盾，或已记录到下月待办
-- [ ] **§2.7c 代码改造踩坑模式核对**：C1-C9 跑一遍，命中 = 0 或已修
+- [ ] **§2.7c 代码改造踩坑模式核对**：C1-C10 跑一遍，命中 = 0 或已修（v0.9.1 同步起含 C10）
 
 ## 反向核对结果（§2.7b + §2.7c 必填）
 - A 类（自相矛盾）本月新发现：N 个（详细列表 → `01-branding-spec.md §2.43` 审计表追加行）
 - B 类（反向 grep）本月新发现：N 个
-- C 类（代码踩坑模式）本月新触发：N 个（按 C1-C9 列出哪几个）
+- C 类（代码踩坑模式）本月新触发：N 个（按 C1-C10 列出哪几个）
 - P0 已修正：N 个；P1 已记录待下月：N 个
 
 ## §3.7 标记基线对照
