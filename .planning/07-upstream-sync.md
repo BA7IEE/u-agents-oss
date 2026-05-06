@@ -679,6 +679,8 @@ grep -nE "buildSessionServer|buildPiAgentServer|buildInterceptor|buildWhatsAppWo
 - **当前修法（局部）**：每发现一个漏的 helper（事故 #3 / #4 都是这种），就给 build-win.ps1 加一段调对应 root script。**优点**：最小改动；**缺点**：每次 root chain 加新 helper 都可能漏一次
 - **M3 终极方案（结构性）**：把 build-win.ps1 也改成调 `bun run electron:build`（跟 macOS / Linux 对齐）。**风险**：windows 历史绕过 root chain 可能有原因（exhaustive analysis 待 M3 做）
 
+**已知非阻塞 warning（v0.9.1 sync 后基线）**：事故 #4 fix 后 Windows dist:win 仍有 3 条 `file source doesn't exist`（vendor/codex / vendor/copilot / resources/bin/win32-x64）—— 都是 platform-specific binary 下载链路缺失，但都是可选 feature，**核心 LLM 功能不受影响**。详见 [`12-subprocess-build-pipeline.md` §0.4b](12-subprocess-build-pipeline.md)。下次 sync 监控：`grep -c "file source doesn't exist" <build_log>` 应 ≤ 3；超过 = build-win.ps1 又落后了，按事故 #2 模式补 vendor 下载段。
+
 **审计输出**：§2.9 同步报告 "C 类核对结果" 必填——**C1-C14 共 14 类**陷阱本月新触发情况（v0.9.1 sync 后从 13 类升至 14 类；C14 是结构性长期债务）。
 
 ---

@@ -88,6 +88,38 @@ piServerPath not configured. Cannot spawn Pi subprocess.
 - **build-win.ps1 与 root chain 之间存在结构性差距**——只要 macOS / Linux 走 `bun run electron:build`、Windows 走内联 esbuild，每次 root chain 加新 helper 都可能漏掉一个。M3 路线图应考虑把 build-win.ps1 也改成调 `bun run electron:build`（事故 #3 fix 的反方向终极方案）
 - v15 C 路 agent 提到的"common.ts 8 dead helper"中 `buildWhatsAppWorker` 不算 dead——它在 `electron-build-main.ts:261` 被本地重新定义并使用——**但 Windows 路径漏调它**就是 dead helper 的真实表现
 
+### 0.4b 已知非阻塞 warning（事故 #4 后剩余的 vendor binary 缺失，2026-05-06 记录）
+
+事故 #4 fix 后 Windows dist:win 实测仍含 3 条 `file source doesn't exist` warning（**electron-builder warning 而非 error，EXE 仍出包，核心 LLM 功能不受影响**）：
+
+| Warning 文件 | 用途 | 用户感知 |
+|---|---|---|
+| `apps/electron/vendor/codex/win32-x64` | OpenAI Codex CLI（agent 工具调用 codex 命令时用）| 不用 codex 完全无感 |
+| `apps/electron/vendor/copilot/win32-x64` | GitHub Copilot CLI 集成 | 不用 copilot 完全无感 |
+| `apps/electron/resources/bin/win32-x64` | 部分 shell wrapper 二进制（高级工具调用）| 大多数用户用不到 |
+
+**根因**：跟事故 #2（vendor/bun 缺失，已修）同模式——electron-builder.yml 把这些 platform-specific binary 列在 `extraResources`，但需要 build 时下载到 `vendor/<name>/<platform-arch>/`，**build-win.ps1 没触发对应下载流程**。
+
+**为什么不算事故 #5**：
+- 事故 #4 = main bundle 内联 helper 漏跑（直接影响核心 LLM 链路）
+- 这三个 = vendor binary 下载链路缺失（仅影响可选 feature）
+- 严格定义不同，但**根因都是 build-win.ps1 与 root chain 结构性差距**（C14 已记录，M3 终极方案统一处理）
+
+**当前决策**：**不阻塞 v0.9.1 R2 分发**。
+- 三个 binary 都是可选 feature，绝大多数用户用不上
+- 修复需要研究每个 vendor 的下载脚本（参考 build-dmg.sh 对 vendor/bun 的处理），时间不确定
+- M3 路线图把 build-win.ps1 改调 `bun run electron:build` 时一并解决
+
+**下次同步前核对手段**：
+```bash
+# Windows dist:win 后 grep build 输出
+# 如果 warning 数量从 3 增加（新增 vendor binary）= build-win.ps1 又落后了
+grep -c "file source doesn't exist" <build_log>
+# 期望 ≤ 3（v0.9.1 后基线）
+```
+
+如果未来某个 warning 升级为真正影响核心功能（用户报错），按事故 #2 模式（commit `8359988`）修：在 build-win.ps1 加对应 vendor 下载段 + `# U-API:` marker 进 §3.7 Build 脚本子表（B4+）。
+
 ### 0.5 共性教训
 
 **为什么 typecheck / lint / validate:dev 没发现**：所有发版前自动化检查都是**纯静态**——TypeScript 编译、字符串 grep、shared 包单元测试。没有任何一项会启动一个 packaged 应用、点开会话、发出第一条消息。这是 [`05-build-release.md`](05-build-release.md) §1 检查清单的盲点（详见 §3 修订建议）。
