@@ -82,7 +82,7 @@ piServerPath not configured. Cannot spawn Pi subprocess.
 
 **修复**：[`build-win.ps1`](../apps/electron/scripts/build-win.ps1) 在事故 #3 fix（`Build subprocess servers` 块）后加一段调 `bun run build:wa-worker`（root package.json:60 已定义此 script）。加 `# U-API:` marker 标记改造点。
 
-**修复验证**：commit `<待 commit>`（2026-05-06）。下次 Windows dist:win 应见 `Building WhatsApp worker (Baileys subprocess)...` 输出，无 `worker.cjs file source doesn't exist` warning。
+**修复验证**：commit `3ee6e4dd`（2026-05-06，Windows 实测 verify commit `8fea0c00`）。Windows dist:win 输出含 `Building WhatsApp worker (Baileys subprocess)...` + EXE 大小从 220.8 MB → 221.4 MB（含 Baileys bundle），无 `worker.cjs file source doesn't exist` warning。
 
 **共性教训补充**（与事故 #3 联动）：
 - **build-win.ps1 与 root chain 之间存在结构性差距**——只要 macOS / Linux 走 `bun run electron:build`、Windows 走内联 esbuild，每次 root chain 加新 helper 都可能漏掉一个。M3 路线图应考虑把 build-win.ps1 也改成调 `bun run electron:build`（事故 #3 fix 的反方向终极方案）
@@ -122,7 +122,7 @@ grep -c "file source doesn't exist" <build_log>
 
 ### 0.5 事故 #5 — Windows EXE 缺 dist/interceptor.cjs（事故 #3/#4 同根第 3 个，2026-05-06 修）
 
-**事故时间**：v16 review B 路 agent 静态分析发现，commit `<待 commit>` 修。
+**事故时间**：v16 review B 路 agent 静态分析发现，commit `c0fe89cc` 修。
 
 **症状**：v0.9.1 sync + 事故 #4 fix 后，Windows EXE 装包 + 首条 LLM 消息回复正常，但 **packaged Windows 应用的 Pi subprocess interceptor 永久不工作**——因为 EXE 包内不含 `apps/electron/dist/interceptor.cjs`。功能受损：流量监控失效 / MCP schema 注入失效 / tool intent capture 失效。多 MCP 场景必撞。
 
@@ -148,7 +148,7 @@ Windows EXE 包内必然 `undefined`，Pi subprocess 静默 fallback。
 
 **修复**：[`build-win.ps1`](../apps/electron/scripts/build-win.ps1) 在事故 #4 fix（"Build WhatsApp worker"块）后加一段调 `bun run build:interceptor`（`apps/electron/package.json:22` 已定义此 script，cwd = `$ElectronDir`，产 `dist/interceptor.cjs`）。加 `# U-API:` marker（B4）。
 
-**修复验证**：commit `<待 commit>`（2026-05-06）。下次 Windows dist:win 应见 `Building network interceptor bundle...` 输出 + EXE 包内含 `resources/app/dist/interceptor.cjs`。
+**修复验证**：commit `c0fe89cc`（2026-05-06）。下次 Windows dist:win 应见 `Building network interceptor bundle...` 输出 + EXE 包内含 `resources/app/dist/interceptor.cjs`。Windows 实测 verify 待 user 用 commit `c0fe89cc` 重打 EXE（事故 #4 实测时 commit `8fea0c00` 不含本 fix）。
 
 **5 步流水线修复完整状态（事故 #3 + #4 + #5 后）**：
 
@@ -256,8 +256,8 @@ package.json electron:build
 | `scripts/copy-subprocess-servers.ts` 整文件头 | `/* U-API START */ ... /* U-API END */` | `8ebe8c0`（创建）+ `8359988`（扩展） |
 | `package.json` `electron:build:subprocess` 与 `electron:build` 末尾 | JSON 不能加注释——标记在本文档 §2.1 + commit message + 同步上游守则 §5 第 1 条 | `8ebe8c0` |
 | `apps/electron/scripts/build-win.ps1` "Build subprocess servers" 块 | `# U-API:` 单行（事故 #3 修复） | `8cc943e6`（Windows 实测 verify 2026-05-06） |
-| `apps/electron/scripts/build-win.ps1` "Build WhatsApp worker" 块 | `# U-API:` 单行（事故 #4 修复，事故 #3 同根延伸） | 待 commit（2026-05-06，v0.9.1 sync 后 Windows 实测 verify 触发） |
-| `apps/electron/scripts/build-win.ps1` "Build network interceptor bundle" 块 | `# U-API:` 单行（事故 #5 修复，事故 #3/#4 同根第 3 个） | 待 commit（2026-05-06，v16 review B 路静态分析发现） |
+| `apps/electron/scripts/build-win.ps1` "Build WhatsApp worker" 块 | `# U-API:` 单行（事故 #4 修复，事故 #3 同根延伸） | `3ee6e4dd`（2026-05-06，v0.9.1 sync 后 Windows 实测 verify `8fea0c00` 触发）|
+| `apps/electron/scripts/build-win.ps1` "Build network interceptor bundle" 块 | `# U-API:` 单行（事故 #5 修复，事故 #3/#4 同根第 3 个） | `c0fe89cc`（2026-05-06，v16 review B 路静态分析发现）|
 
 ---
 
