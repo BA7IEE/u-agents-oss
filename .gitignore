@@ -73,3 +73,6 @@ credentials.enc
 # act (local GitHub Actions runner)
 .secrets
 .actrc
+
+# husky 9.x 内部 trampoline，bun install 自动生成（M2.5 #3 装回，REVIEW-22 P3 关闭）
+.husky/_/
