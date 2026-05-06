@@ -148,7 +148,7 @@ Windows EXE 包内必然 `undefined`，Pi subprocess 静默 fallback。
 
 **修复**：[`build-win.ps1`](../apps/electron/scripts/build-win.ps1) 在事故 #4 fix（"Build WhatsApp worker"块）后加一段调 `bun run build:interceptor`（`apps/electron/package.json:22` 已定义此 script，cwd = `$ElectronDir`，产 `dist/interceptor.cjs`）。加 `# U-API:` marker（B4）。
 
-**修复验证**：commit `c0fe89cc`（2026-05-06）。下次 Windows dist:win 应见 `Building network interceptor bundle...` 输出 + EXE 包内含 `resources/app/dist/interceptor.cjs`。Windows 实测 verify 待 user 用 commit `c0fe89cc` 重打 EXE（事故 #4 实测时 commit `8fea0c00` 不含本 fix）。
+**修复验证**：commit `c0fe89cc`（2026-05-06）。Windows 实测 verify 通过（2026-05-07，commit `eba259be` 后用户跑 dist:win，EXE 大小 220.8 MB → **221.41 MB**（+0.6 MB = interceptor.cjs 进了 bundle），装包 + 会话回复正常）。
 
 **5 步流水线修复完整状态（事故 #3 + #4 + #5 后）**：
 
