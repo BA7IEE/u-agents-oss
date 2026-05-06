@@ -18,8 +18,10 @@
 
 **M3 范围（不在本次）**：
 - secure-storage.ts 解密失败改 backup-then-rebuild
-- apps/cli rename u-agents-cli + CLI 改造
 - apps/electron 35 fail 测试修复评估
+
+**本日后续完成（不在本盘点报告内）**：
+- ✅ apps/cli rename u-agents-cli（commit `1a49d128`，详见 [`M2-CLI-RENAME-SPEC.md`](../M2-CLI-RENAME-SPEC.md)）
 
 ---
 
@@ -113,7 +115,7 @@ c8400875  docs: atomic landed (4 doc updates) + spec typo fix
 | macOS Apple 公证 | ⏸（需 Apple Developer 账号 $99/年）|
 | Web UI / Viewer 白标 | ⏸ |
 | 用户协议 + ICP 备案 | ⏸ |
-| apps/cli rename | ⏸（M3 与 CLI 改造一起）|
+| apps/cli rename | ✅ 本日后续完成（commit `1a49d128`）|
 
 ---
 
@@ -133,7 +135,7 @@ c8400875  docs: atomic landed (4 doc updates) + spec typo fix
 
 - **a Linux AppImage 打包** — M2 三平台对齐，1-2 小时
 - **b macOS Apple 公证** — 需注册 Apple Developer + 半天审核 + 1 小时配置
-- **c apps/cli rename + CLI 改造** — M2/M3 边界，1-2 小时
+- ~~**c apps/cli rename + CLI 改造**~~ — ✅ 本日后续完成（commit `1a49d128`，详见 [`M2-CLI-RENAME-SPEC.md`](../M2-CLI-RENAME-SPEC.md)）
 - **d 写"M2 完成度盘点报告"** — 当所有 M2 任务接近完成时
 
 ### 不要做的事

@@ -213,7 +213,7 @@ M2 实测策略：种子用户反馈中"哪个按钮看着别扭/挤"集中审�
 # 1. 7 locale parity（应全过）
 bun run lint:i18n:parity
 
-# 2. zh-Hans 仍未翻译键（应只剩 §2.1 的 31 个白名单）
+# 2. zh-Hans 仍未翻译键（应只剩 §2.1 的 34 个白名单）
 bun -e '
 const en = await Bun.file("packages/shared/src/i18n/locales/en.json").json();
 const zh = await Bun.file("packages/shared/src/i18n/locales/zh-Hans.json").json();

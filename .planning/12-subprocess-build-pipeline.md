@@ -43,7 +43,27 @@ piServerPath not configured. Cannot spawn Pi subprocess.
 
 **已知限制**：`downloadBun()` 一次只能下一个 arch，单一 `apps/electron/vendor/bun/bun` 路径。当前实现按 host arch 下载——arm64 build host 同时打 arm64+x64 时，**x64 DMG 会带 arm64 bun**，装到 Intel Mac 上仍会复现 Dock 闪退。M1 主分发面是 Apple Silicon，可接受；M2 必须拆成按 arch 分两次构建。详见 §6。
 
-### 0.3 共性教训
+### 0.3 事故 #3 — Windows EXE 缺 pi-agent-server（事故 #1 的 Windows 翻版，2026-05-05 修）
+
+**事故时间**：M2 dist:win 重打验证阶段（用户在 Windows 机器跑 `bun run dist:win` 出 EXE 后首次发消息）。
+
+**症状**：Windows 安装包能装、应用能启动、onboarding 走完、Token 存入；首次发任何 LLM 消息立即报：
+
+```
+piServerPath not configured. Cannot spawn Pi subprocess.
+```
+
+跟事故 #1 在 macOS 的症状完全一致——但事故 #1 的修复**只覆盖了 macOS 链路**。
+
+**根因**：[`apps/electron/scripts/build-dmg.sh:208`](../apps/electron/scripts/build-dmg.sh) 走 `bun run electron:build` 完整 chain，自动触发 `electron:build:subprocess` → `copy-subprocess-servers.ts`。**[`apps/electron/scripts/build-win.ps1`](../apps/electron/scripts/build-win.ps1) 没对齐**——它只手动调 `electron:build:preload` / esbuild main / vite build / `copy-assets.ts` / `electron-builder`，**漏掉 subprocess server 这一步**。结果 Windows EXE 跟事故 #1 一样空 `resources/pi-agent-server/`、runtime resolveServerPath() 返回 undefined。
+
+**为什么 v9/v10 review 没发现**：3 + 4 = 7 路 review agent 都跑的静态扫——没有一个 agent 跑过 dist:win 实测。`scripts/copy-subprocess-servers.ts` 顶部 U-API 注释（"upstream's `electron:build` chain never invokes copyPiAgentServer"）里"electron:build"指 root npm script chain，没人注意到 `build-win.ps1` 是**绕过 root chain 的独立 PowerShell 脚本**。
+
+**修复**：[`apps/electron/scripts/build-win.ps1`](../apps/electron/scripts/build-win.ps1) 在 "Build preload" 块前加一段调 `bun run electron:build:subprocess`，与 `build-dmg.sh:208` 行为对齐。加 `// U-API:` marker（详见 §2.3）。
+
+**修复验证**：commit `8cc943e6`（2026-05-05）。用户在 Windows 机器跑新 zip + `bun run dist:win` 出 EXE，首次发 LLM 消息**不再报 piServerPath**（2026-05-06 实测 ✅）。
+
+### 0.4 共性教训
 
 **为什么 typecheck / lint / validate:dev 没发现**：所有发版前自动化检查都是**纯静态**——TypeScript 编译、字符串 grep、shared 包单元测试。没有任何一项会启动一个 packaged 应用、点开会话、发出第一条消息。这是 [`05-build-release.md`](05-build-release.md) §1 检查清单的盲点（详见 §3 修订建议）。
 
@@ -136,6 +156,7 @@ package.json electron:build
 |---|---|---|
 | `scripts/copy-subprocess-servers.ts` 整文件头 | `/* U-API START */ ... /* U-API END */` | `8ebe8c0`（创建）+ `8359988`（扩展） |
 | `package.json` `electron:build:subprocess` 与 `electron:build` 末尾 | JSON 不能加注释——标记在本文档 §2.1 + commit message + 同步上游守则 §5 第 1 条 | `8ebe8c0` |
+| `apps/electron/scripts/build-win.ps1` "Build subprocess servers" 块 | `# U-API:` 单行（事故 #3 修复） | `8cc943e6`（Windows 实测 verify 2026-05-06） |
 
 ---
 

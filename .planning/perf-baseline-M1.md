@@ -22,7 +22,7 @@
 | 本地 disk 空闲 | 48 GB |
 | U-API Token 状态 | 配好且使用中 |
 | 测量日期 | 2026-05-05 |
-| 测量人 | AI（M2/M5/M6/全组）+ user（M1/M3 待测） |
+| 测量人 | AI（M2/M5/M6/全组）+ user（M1/M3 已补测，详见 §2 记录表）|
 | **装的版本** | hotfix v0.9.0+u-agents.1（**不含 SDK**——R2 上的 5/5 04:28 版） |
 | 装的位置 | `/Applications/U Agents.app`（du = 499 MB） |
 
@@ -196,4 +196,4 @@ du -sh "/Applications/U Agents.app" ~/.u-agents
 
 ✅ **M1 出口判定 §4 第 11 项性能基准 → 完成**
 
-M1 实质完成度：**12/14 → 13/14**（仅剩 #13 网站下载页）。
+M1 实质完成度：**12/14 → 13/14 → 14/14 ✅**（#13 网站下载页 https://agents.u-studio.cn 已上线，2026-05-05）。

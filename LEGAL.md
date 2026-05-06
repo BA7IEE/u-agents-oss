@@ -155,18 +155,9 @@ Apache 2.0 §4(c) 要求 derivative work 的 distribution **必须包含** NOTIC
 #### M2（自定义 About 对话框）
 
 M2 阶段新建一个 React 自定义 About 对话框（菜单项 "About U Agents..." 调 IPC 打开 BrowserWindow），届时升级为：
-- 可点击的"View third-party licenses" → 内嵌 `LICENSE` 文件查看
-- 可点击的"View NOTICE" → 内嵌 `NOTICE` 全文查看
 - 可点击的 GitHub 链接（如果产品方决定显示上游引用）
-
-> M1 阶段**不要**为追求"可点击链接"强行做自定义对话框——会扩大改造范围，破坏 M1 "最小可白标"目标。
-
-#### M2（自定义 About 对话框）
-
-M2 阶段新建一个 React 自定义 About 对话框（菜单项 "About U Agents..." 调 IPC 打开 BrowserWindow），届时升级为：
-- 可点击的 GitHub 链接
 - 可点击的 Apache 2.0 链接 → 内嵌 `LICENSE` 文件查看
-- "View third-party licenses" → 内嵌 `NOTICE` 全文
+- "View third-party licenses" → 内嵌 `NOTICE` 全文查看
 
 > M1 阶段**不要**为追求"可点击链接"强行做自定义对话框——会扩大改造范围，破坏 M1 "最小可白标"目标。
 
@@ -181,9 +172,9 @@ M2 阶段新建一个 React 自定义 About 对话框（菜单项 "About U Agent
 | 项 | 状态 |
 |---|---|
 | 改名（不含 "Craft"）| ✅ U Agents / 优智体 |
-| 改 Bundle ID | ✅ `cn.u-studio.u-agents`（待落地，详见 `.planning/01-branding-spec.md`）|
-| 替换所有 Logo / Icon | 🔲 待落地 |
-| 移除/替换 `craft.do` 域名引用 | 🔲 待落地（44 处） |
+| 改 Bundle ID | ✅ `cn.u-studio.u-agents`（已落地于 `electron-builder.yml`，详见 `.planning/01-branding-spec.md`）|
+| 替换所有 Logo / Icon | ✅ 已落地（M1 首发：`apps/electron/resources/icon.*` + `craft-logos/` 全替换为 U Agents 视觉）|
+| 移除/替换 `craft.do` 域名引用 | ⚠️ 已清理用户可见路径；剩余约 17 处属已知瑕疵（OAuth relay 首次授权地址栏短暂显示 `agents.craft.do`，路线图 M3 自建 relay 后解决；上游 `README.md` / `docs/cli.md` 内 `craft-cli` 字面量按 §3.6 + `08-conflict-zones.md` 设计保留——M1 不发布范围）|
 | **不**暗示官方背书 | ✅ |
 
 ### 可以做的（合规表述）

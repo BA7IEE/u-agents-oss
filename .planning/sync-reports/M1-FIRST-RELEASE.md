@@ -134,3 +134,8 @@ DMG 验收：`U Agents.app/Contents/Resources/{LICENSE,NOTICE}` 都在；NOTICE 
 2. 用户人工：步骤 4 R2 上传 + DNS 配置
 3. 通知种子用户启动 M1 装包测试
 4. M1 后补：性能基准 + 网站下载页
+
+> **本报告为 M1 首发版（v0.9.0+u-agents.1，5/4）当时快照**。后续进展：
+> - 5/5 hotfix 重打 → 详见 [`M2-REBUILD-HOTFIX-2026-05-05.md`](M2-REBUILD-HOTFIX-2026-05-05.md)
+> - 5/5 含 SDK 重打 → 详见 [`M2-REBUILD-WITH-SDK-2026-05-05.md`](M2-REBUILD-WITH-SDK-2026-05-05.md)
+> - 性能基准 → 已记录到 [`perf-baseline-M1.md`](../perf-baseline-M1.md)（M1 出口判定 §4 第 11 项 ✅）

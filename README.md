@@ -614,7 +614,9 @@ This project uses the [Claude Agent SDK](https://www.npmjs.com/package/@anthropi
 
 ### Trademark
 
-"Craft" and "U Agents" are trademarks of Craft Docs Ltd. See [TRADEMARK.md](TRADEMARK.md) for usage guidelines.
+"Craft" and "Craft Agents" are trademarks of Craft Docs Ltd. — see [TRADEMARK.md](TRADEMARK.md) for usage guidelines.
+
+"U Agents" / "优智体" are trademarks of U Studio (operated by tungwerl@gmail.com). U Agents is a closed-source fork of the Apache 2.0-licensed `craft-agents-oss` upstream project; see [LEGAL.md](LEGAL.md) for compliance details.
 
 ## Contributing
 

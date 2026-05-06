@@ -230,21 +230,21 @@
 5. **#27 adhoc 脚本必须在 #28 打包之前**——`bun run electron:dist:adhoc:mac` 否则不存在
 6. **#29 更新服务器必须在 #28 之后**——上传需要打包产物；同时必须在第一次发安装包前**已就绪**（`update.u-agents.u-studio.cn` DNS 生效）
 
-**出口条件**（M1 完成判定）：
-- [ ] 全新装机能完成 onboarding，能发第一条对话
-- [ ] 按 `09-test-checklist.md` §1.2 走通 adhoc 包"首次启动需用户手动绕过 Gatekeeper"流程
-- [ ] About 对话框含 "Based on Craft Agents" 署名（`LEGAL.md` §2）
-- [ ] `01-branding-spec.md` §8 的 4 个 grep 命令全部通过（仅允许已知瑕疵的 OAuth relay 残留）
-- [ ] `02-llm-gateway-spec.md` §10 的验收全部通过
-- [ ] **`bun run lint:i18n:parity` 通过**（7 个 locale 与 en.json key 数一致）
-- [ ] **`bun run typecheck:all` 通过**（所有 import 路径正确解析，NPM scope 改名后无残留）
-- [ ] **`bun run test:shared:all` 通过**（#24d 覆盖至少 10 个测试文件 + 所有因 M1 改造失败的测试 fixture）
-- [ ] **`bun run validate:dev` 整体通过**（typecheck + 上面所有 test 一次跑完）
-- [ ] **`09-test-checklist.md` §3.5 后端 setup 流程端到端验证通过**（防止 #17b 改了但没接入）
-- [ ] **M1 性能基准已记录**到 `.planning/perf-baseline-M1.md`（详见 `09-test-checklist.md` §16.2）
-- [ ] 自动更新指向 `update.u-agents.u-studio.cn`，能拉到自建的 latest.yml
-- [ ] 网站下载页显著位置展示"首次启动指引"（教用户右键打开 / 系统设置允许）
-- [ ] Sentry DSN 未被注入（`SENTRY_ELECTRON_INGEST_URL` 不设置）
+**出口条件**（M1 完成判定）— **14/14 ✅ 全部完成**（详见 [`M1-READINESS.md`](M1-READINESS.md) §4 + [`perf-baseline-M1.md`](perf-baseline-M1.md) §5）：
+- [x] 全新装机能完成 onboarding，能发第一条对话
+- [x] 按 `09-test-checklist.md` §1.2 走通 adhoc 包"首次启动需用户手动绕过 Gatekeeper"流程
+- [x] About 对话框含 "Based on Craft Agents" 署名（决策已改为通过 NOTICE/LICENSE 文件落实 §4(c) 合规，详见 [`LEGAL.md`](../LEGAL.md) §2）
+- [x] `01-branding-spec.md` §8 的 4 个 grep 命令全部通过（仅允许已知瑕疵的 OAuth relay 残留）
+- [x] `02-llm-gateway-spec.md` §10 的验收全部通过
+- [x] **`bun run lint:i18n:parity` 通过**（7 个 locale 与 en.json key 数一致）
+- [x] **`bun run typecheck:all` 通过**（所有 import 路径正确解析，NPM scope 改名后无残留）
+- [x] **`bun run test:shared:all` 通过**（baseline 12 stable + 1-2 OAuth flaky；REVIEW v8 修 url-safety:48 后从 13→12）
+- [x] **`bun run validate:dev` 整体通过**（typecheck + 上面所有 test 一次跑完）
+- [x] **`09-test-checklist.md` §3.5 后端 setup 流程端到端验证通过**（防止 #17b 改了但没接入）
+- [x] **M1 性能基准已记录**到 `.planning/perf-baseline-M1.md`
+- [x] 自动更新指向 `update.u-agents.u-studio.cn`，能拉到自建的 latest.yml
+- [x] 网站下载页显著位置展示"首次启动指引"（已上线 https://agents.u-studio.cn ，2026-05-05）
+- [x] Sentry DSN 未被注入（`SENTRY_ELECTRON_INGEST_URL` 不设置）
 
 **已知 M1 不做的事**（推迟到后续阶段）：
 - ❌ macOS 正式签名 + Apple 公证（M2，需要 Apple Developer 账号 $99/年）
@@ -254,7 +254,7 @@
 - ❌ 自建文档站、官网（M3）
 - ❌ 自建 Sentry / 错误上报（M3 或更晚）
 - ❌ 自建会话分享 viewer（M3）。**M1 阶段隐藏所有分享 UI 入口**（按钮、菜单项、命令面板命令），**禁止**使用 craft 的 share URL。详见 `04-feature-cuts.md` §7。
-- ❌ 中文化深度优化（M2，zh-Hans.json 1376 keys 全覆盖；M2 commit 75bcda8 已补齐 17 处遗漏翻译，品牌词污染清零，详见 `M2-I18N-SCAN.md`）
+- ✅ 中文化深度优化（**M2 已完成**，移出 M1 不做清单——zh-Hans.json 1376 keys 全覆盖；commits `75bcda89` / `99ba7cf6` 补齐 17 处遗漏翻译 + 51 篇历史 release notes，品牌词污染清零，详见 `M2-I18N-SCAN.md`）
 - ❌ CLI 改造（M2 或不做）
 - ❌ Web UI / Viewer 改造（M2）
 
@@ -287,6 +287,8 @@
 | **CLI 改造** | ✅ **apps/cli rename craft-cli → u-agents-cli**（commit `1a49d128`，2026-05-05；4 处改 + 6 处 e2e fixture 保留）| `M2-CLI-RENAME-SPEC.md` |
 
 **出口条件**：
+- [x] **M2 安全主线 4/4 完成**（git 仓库已落地：TLS 严格 `c516e4d2` + atomicWriteFileSync 11 处 `25d38ab9` + dir 0o700 + Token 长度 `2972d8f4`；⚠️ R2 生产分发缺口未解决，详见 [`REVIEW-8-FULL-2026-05-05.md`](sync-reports/REVIEW-8-FULL-2026-05-05.md) §3）
+- [x] **apps/cli rename craft-cli → u-agents-cli**（commit `1a49d128`，详见 [`M2-CLI-RENAME-SPEC.md`](M2-CLI-RENAME-SPEC.md)）
 - [ ] **macOS 切到正式签名 + 公证**（按 `09-test-checklist.md` §1.3 验收）
 - [ ] **macOS 用户从 M1 adhoc 版本自动更新到 M2 公证版本之后，启动不再被 Gatekeeper 拦截**
 - [ ] 三平台安装包均通过 `09-test-checklist.md`
@@ -295,6 +297,11 @@
 - [ ] zh-Hans.json 中无 "Craft" 字面量
 - [ ] 用户协议 + 隐私政策上线
 - [ ] 至少 1 次成功的上游同步（按 `07-upstream-sync.md`）
+- [~] **R2 重打 + 重传**（让 R2 生产产物含 M2 安全主线 4/4 fix）：
+  - [x] **macOS arm64 DMG 重打**（2026-05-05，含 SDK + 4 项 M2 fix；本地 verify：atomicWriteFileSync ×12 / `tlsRejectUnauthorized ?? true` 默认严格 / MIN_LLM_API_KEY_LENGTH ×4 / mode:448 ×4）
+  - [ ] macOS x64 DMG 重打（待跑 `CSC_IDENTITY_AUTO_DISCOVERY=false bun run dist:mac:x64`）
+  - [x] Windows EXE 重打（2026-05-06 完成；事故 #3 fix `8cc943e6` 实测 verify，详见 [`12-subprocess-build-pipeline.md`](12-subprocess-build-pipeline.md) §0.3）
+  - [ ] R2 上传 + CDN 刷新（三平台齐了一次性传，避免 `latest-mac.yml` / `latest.yml` 版本号漂移）
 
 ---
 

@@ -159,7 +159,7 @@ if (!apiKey && connection.baseUrl) {
 | 3 | startup lock | `packages/shared/src/config/storage.ts` | 注释 `continuous startup lock, not a one-shot migration` | 单行 | 02 §4.3 |
 | 4 | 凭证 keyless 特判 | `packages/shared/src/auth/state.ts` | 函数 `hasCredentials` 内 `if (!apiKey && connection.baseUrl)` 块 | 单行 | 02 §4.1 |
 | 5 | BUILT_IN_CONNECTION_TEMPLATES `'u-api'` 模板 | `packages/server-core/src/domain/connection-setup-logic.ts` | 注释 `multi-connection soft lockdown — base 'u-api' template` | 块 | 03 §1.10.1 |
-| 6 | validateSetupTestInput 扩展 | `packages/server-core/src/domain/connection-setup-logic.ts` | 注释 `validateSetupTestInput 扩展，支持 pi_compat` | 块 | 02 §4.x |
+| 6 | validateSetupTestInput 扩展 | `packages/server-core/src/domain/connection-setup-logic.ts` | 注释 `validateSetupTestInput 扩展，支持 pi_compat` | 块 | 02 §4.2 |
 | 7 | u_api ApiSetupMethod 类型 | `apps/electron/src/renderer/components/onboarding/APISetupStep.tsx` | 注释 `u_api ApiSetupMethod 定义（M1 多 provider 裁剪后保留）` | 块 | 03 §1.10 |
 | 8 | API_SETUP_ICONS u_api 项 | 同上 | 常量 `API_SETUP_ICONS` 内（在 #7 块内）| 块内 | 03 §1.10 |
 | 9 | BASE_SLUG_FOR_METHOD u_api 项 | `apps/electron/src/renderer/hooks/useOnboarding.ts` | 注释 `multi-connection soft lockdown — base 'u-api'` | 单行 | 02 §6.2.2 |
@@ -202,6 +202,22 @@ if (!apiKey && connection.baseUrl) {
 | 34 | LLM API key 长度限制 | `packages/shared/src/credentials/manager.ts` | 注释 `LLM API key length bounds` + 常量 `MIN_LLM_API_KEY_LENGTH` / `MAX_LLM_API_KEY_LENGTH` | 单行 | `M2-SECURITY-CLEANUP-SPEC.md` |
 | 35 | apps/cli rename | `apps/cli/src/index.ts` | 注释 `tmpDir prefix renamed (M2 cli rename)` + `skill description rebrand` | 单行（2 处）| `M2-CLI-RENAME-SPEC.md` |
 | 36 | REVIEW-4 P0 多连接 keyless 回归测试 | `packages/shared/src/auth/__tests__/state.test.ts` | describe block `hasCredentials keyless special case (multi-connection)` | 单行 | REVIEW-4 + REVIEW-5 §1 P1 |
+
+**Build 脚本 marker（M2 后期补充，不计入主基线）**：
+
+主基线 grep 命令仅扫 `packages` + `apps` 下的 `.ts/.tsx`，build 脚本（`.sh` / `.ps1`）不在覆盖范围内——但仍需登记，方便上游同步时辨识改造点。
+
+| # | 改造类别 | 文件 | 定位 | 标记 | 引入 commit |
+|---|---|---|---|---|---|
+| B1 | adhoc 签名 escape hatch | `apps/electron/scripts/build-dmg.sh` | 注释 `allow caller to override (e.g. CSC_IDENTITY_AUTO_DISCOVERY=false bun run dist:mac)` | `# U-API:` 单行 | `6ba75da4` (M2) |
+| B2 | Windows EXE 缺 pi-agent-server 修复（事故 #3）| `apps/electron/scripts/build-win.ps1` | 注释 `build-win.ps1 missed subprocess server build that build-dmg.sh L208 triggers` | `# U-API:` 单行 | M2 收尾（详见 [`12-subprocess-build-pipeline.md`](.planning/12-subprocess-build-pipeline.md) §0.3） |
+
+**Build 脚本 marker 单独 grep 命令**：
+
+```bash
+grep -rEn "U-API" apps/electron/scripts/ 2>/dev/null | wc -l
+# 期望：≥2（B1 + B2）
+```
 
 **同步上游验证基线**（**M2 apps/cli rename 后 2026-05-05 刷新**）：
 

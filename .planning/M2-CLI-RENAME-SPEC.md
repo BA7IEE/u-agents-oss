@@ -120,7 +120,7 @@
     | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
   # 期望：61
 
-  # (f) packages/shared test baseline 不变 (13 stable + 2 OAuth flaky)
+  # (f) packages/shared test baseline 不变 (13 stable + 2 OAuth flaky；commit 当时实测；REVIEW v8 修 url-safety:48 后基线变 12 stable + 1-2 OAuth flaky，详见 07 §C9)
   cd packages/shared && bun test 2>&1 | tail -3
 
 提交：单 commit
@@ -149,7 +149,7 @@
 | craft-validate-/created by craft-cli 残留 | 0 命中 ✓ |
 | craft-public e2e fixture 保留 | 6 处 ✓（≥4 期望）|
 | U-API 标记数 | 59 → **61** ✓ (+2 markers) |
-| packages/shared test | 13 stable + 2 OAuth flaky ✓（基线不变）|
+| packages/shared test | 13 stable + 2 OAuth flaky ✓（基线不变；commit 当时实测，REVIEW v8 修后基线变 12，详见 07 §C9）|
 
 **执行 AI 聪明细节**：marker 4 放在外层 TS 代码注释（不在 template literal 内），避免污染 SKILL.md frontmatter 输出。这是 spec 没明确写的，执行 AI 自己想到了。
 

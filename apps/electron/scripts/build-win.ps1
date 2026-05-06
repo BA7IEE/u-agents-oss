@@ -278,6 +278,20 @@ try {
     Pop-Location
 }
 
+# U-API: build-win.ps1 missed subprocess server build that build-dmg.sh L208 triggers
+# via `bun run electron:build`. Without this step apps/electron/resources/pi-agent-server/
+# stays empty, the packaged EXE ships no pi-agent-server bundle, and the first LLM
+# message throws "piServerPath not configured" at runtime.
+# See .planning/12-subprocess-build-pipeline.md §0.3 + §2.3 + scripts/copy-subprocess-servers.ts.
+Write-Host "  Building subprocess servers (pi-agent-server + session-mcp-server)..."
+Push-Location $RootDir
+try {
+    bun run electron:build:subprocess
+    if ($LASTEXITCODE -ne 0) { throw "Subprocess server build failed" }
+} finally {
+    Pop-Location
+}
+
 # Build preload
 Write-Host "  Building preload..."
 Push-Location $RootDir
