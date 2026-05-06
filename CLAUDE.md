@@ -219,6 +219,14 @@ if (!apiKey && connection.baseUrl) {
 | 41 | messaging pairing-code rejection 文案品牌（v0.9.1 引入）| `packages/messaging-gateway/src/commands.ts` | 注释 `brand — v0.9.1 上游引入 pairing code rejection 文案` | 单行 | 同上 |
 | 42 | apps/cli printHelp craft-cli → u-agents-cli（M2 cli rename 漏盘补丁）| `apps/cli/src/index.ts` | 注释 `M2 cli rename — bin name 改为 u-agents-cli (commit 1a49d128), 此 printHelp 文案漏改` | 单行 | REVIEW-17 F3（M2-CLI-RENAME 验收清单未含 printHelp）|
 
+**M3 SSRF 防护落地（v21 后 P1，详见 [`M3-REFRESH-API-SSRF-SPEC.md`](.planning/M3-REFRESH-API-SSRF-SPEC.md)）**：
+
+| # | 改造类别 | 文件 | 定位（用 `grep` 找）| 标记 | 关联规格 |
+|---|---|---|---|---|---|
+| 43 | `assertPublicHttpsUrl` helper（IPv4/IPv6 私网 + 云元数据域名）| `packages/shared/src/utils/url-safety.ts` | 块 `M3 SSRF 防护 — assertPublicHttpsUrl helper` | 块 | M3-REFRESH-API-SSRF-SPEC §2.1 |
+| 44a | `refreshApiRenew` 接入 SSRF guard | `packages/shared/src/sources/credential-manager.ts:~982` | 注释 `M3 SSRF 防护 — 阻止 credential-bearing fetch` | 单行 | M3-REFRESH-API-SSRF-SPEC §2.2 |
+| 44b | `refreshApiRenew` SSRF 回归测试（5 个）| `packages/shared/src/sources/__tests__/credential-manager-renew.test.ts` | 注释 `M3 SSRF 防护 — 拒绝 credential-bearing fetch 到云元数据/私网` | 单行 | C5 自洽（新改造点必加单测） |
+
 **Build 脚本 marker（M2 后期补充，不计入主基线）**：
 
 主基线 grep 命令仅扫 `packages` + `apps` 下的 `.ts/.tsx`，build 脚本（`.sh` / `.ps1`）不在覆盖范围内——但仍需登记，方便上游同步时辨识改造点。
@@ -240,13 +248,13 @@ grep -rEn "U-API" apps/electron/scripts/ 2>/dev/null | wc -l
 # 期望：≥4（B1 + B2 + B3 + B4）
 ```
 
-**同步上游验证基线**（**v17 漏盘补丁 + 自动更新路径修复后 2026-05-07 刷新**）：
+**同步上游验证基线**（**M3 SSRF 防护落地后 2026-05-07 刷新**）：
 
-| 指标 | 基线（2026-05-07 v17 漏盘补丁后）| 下次同步允许浮动 |
+| 指标 | 基线（2026-05-07 M3-SSRF 后）| 下次同步允许浮动 |
 |---|---|---|
-| U-API 标记总数（含全部注释格式）| **67** | ±2 |
-| `/* U-API START */` 块数 | **8** | 必须等于 END |
-| `/* U-API END */` 块数 | **8** | 必须等于 START |
+| U-API 标记总数（含全部注释格式）| **71** | ±2 |
+| `/* U-API START */` 块数 | **9** | 必须等于 END |
+| `/* U-API END */` 块数 | **9** | 必须等于 START |
 
 > 浮动 ±2 是为了容纳"上游改了某改造点附近代码，我们顺手补/合并标记"的合理变化。**超出 ±2 必须停下逐项核对**——多半是 git 自动合并吞掉了改造，或者引入了未文档化的新改造（应补进 §3.7 表）。
 >
@@ -259,7 +267,8 @@ grep -rEn "U-API" apps/electron/scripts/ 2>/dev/null | wc -l
 > - M2 dir 0o700 + Token 长度限制（2026-05-05 commit `2972d8f4`）：59 处（3 处 dir mode 0o700 marker：watcher.ts / storage.ts / window-state.ts + 1 处 manager.ts MIN/MAX 长度常量 marker）
 > - M2 apps/cli rename（2026-05-05 commit `1a49d128`）：61 处（apps/cli/src/index.ts 加 2 处 marker：tmpDir 前缀 + skill description）
 > - v0.9.1 sync（2026-05-06 commit `bd2a005d`）：64 处（routing.ts 加 1 处 + block-markers.ts 加 1 处 + resource-bundle.test.ts 加 1 处；上游 v0.9.1 引入的 1 个 routing bug + 3 处 ESLint 违规我们 patch 后加 marker）
-> - **v17 漏盘补丁（2026-05-07）：67 处**（access-control.ts + commands.ts messaging brand + cli/src/index.ts printHelp，3 处都是 v0.9.1 sync 时漏盘 / M2 cli rename 时漏盘）；同次 commit 顺手修 F1 自动更新 publish.url 缺 `/latest` 后缀（electron-builder.yml）+ F6 07-upstream-sync 基线 61→64 漂移
+> - v17 漏盘补丁（2026-05-07）：67 处（access-control.ts + commands.ts messaging brand + cli/src/index.ts printHelp，3 处都是 v0.9.1 sync 时漏盘 / M2 cli rename 时漏盘）；同次 commit 顺手修 F1 自动更新 publish.url 缺 `/latest` 后缀（electron-builder.yml）+ F6 07-upstream-sync 基线 61→64 漂移
+> - **M3 SSRF 防护（2026-05-07）：71 处**（url-safety.ts 加 `assertPublicHttpsUrl` 块 1 处 + credential-manager.ts:982 单行 1 处 + credential-manager-renew.test.ts 单行 1 处；详见 [`.planning/M3-REFRESH-API-SSRF-SPEC.md`](.planning/M3-REFRESH-API-SSRF-SPEC.md)，对应 §3.7 #43/#44a/#44b）
 
 **每次同步必跑 grep（覆盖全部注释格式）**：
 
@@ -269,12 +278,12 @@ grep -rEn "U-API" apps/electron/scripts/ 2>/dev/null | wc -l
 # 抗 build-dmg.sh 中间态把 SDK 包复制到 apps/electron/node_modules/ 让数字暂时虚高的情况
 grep -rEn --exclude-dir=node_modules "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
   | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
-# 期望：67（基线，允许 65-69）
+# 期望：71（基线，允许 69-73）
 
 # 块标记 START/END 配对（数量必须相等）
 grep -rE --exclude-dir=node_modules "/\* U-API START" packages apps --include="*.ts" --include="*.tsx" | wc -l
 grep -rE --exclude-dir=node_modules "/\* U-API END" packages apps --include="*.ts" --include="*.tsx" | wc -l
-# 期望：均 = 8
+# 期望：均 = 9
 ```
 
 **基线刷新规则**：每次同步成功后，在本表填新数字 + 当次同步日期。

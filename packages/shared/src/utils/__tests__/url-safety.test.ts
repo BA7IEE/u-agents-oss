@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test'
-import { classifyExternalUrl, isSafeExternalUrl } from '../url-safety.ts'
+import { classifyExternalUrl, isSafeExternalUrl, assertPublicHttpsUrl } from '../url-safety.ts'
 
 describe('classifyExternalUrl — safe external (standard web schemes)', () => {
   it('classifies http:// as safe-external', () => {
@@ -112,5 +112,93 @@ describe('isSafeExternalUrl', () => {
   it('returns false for malformed input', () => {
     expect(isSafeExternalUrl('')).toBe(false)
     expect(isSafeExternalUrl('not a url')).toBe(false)
+  })
+})
+
+describe('assertPublicHttpsUrl — accepts public https', () => {
+  it.each([
+    ['https://api.openai.com/v1/auth/refresh'],
+    ['https://example.com:8443/refresh'],
+    ['https://api.u-studio.cn/auth/renew'],
+    ['https://172.15.0.1/'],   // 172.15 is public (boundary outside 172.16-31)
+    ['https://172.32.0.1/'],   // 172.32 is public (boundary outside 172.16-31)
+    ['https://11.0.0.1/'],     // 11.x is public (boundary outside 10.x)
+  ])('accepts %s', (url) => {
+    const result = assertPublicHttpsUrl(url)
+    expect(result.ok).toBe(true)
+  })
+})
+
+describe('assertPublicHttpsUrl — rejects SSRF targets', () => {
+  it.each([
+    ['https://169.254.169.254/computeMetadata/v1/'],  // GCP/AWS IMDS
+    ['https://metadata.google.internal/'],
+    ['https://metadata.azure.com/'],
+    ['https://127.0.0.1/admin'],
+    ['https://localhost:9200/'],
+    ['https://10.0.0.1/'],
+    ['https://192.168.1.1/'],
+    ['https://172.16.0.1/'],
+    ['https://172.31.255.255/'],
+    ['https://0.0.0.0/'],
+  ])('rejects %s', (url) => {
+    const result = assertPublicHttpsUrl(url)
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.reason.length).toBeGreaterThan(0)
+    }
+  })
+})
+
+describe('assertPublicHttpsUrl — rejects non-https schemes', () => {
+  it.each([
+    ['http://api.example.com/refresh'],
+    ['file:///etc/passwd'],
+    ['javascript:alert(1)'],
+    ['data:text/plain;base64,SGVsbG8='],
+    ['ftp://example.com/'],
+  ])('rejects non-https %s', (url) => {
+    const result = assertPublicHttpsUrl(url)
+    expect(result.ok).toBe(false)
+  })
+})
+
+describe('assertPublicHttpsUrl — edge cases', () => {
+  it('rejects empty string', () => {
+    expect(assertPublicHttpsUrl('').ok).toBe(false)
+  })
+
+  it('rejects whitespace', () => {
+    expect(assertPublicHttpsUrl('   ').ok).toBe(false)
+  })
+
+  it('rejects malformed URL', () => {
+    expect(assertPublicHttpsUrl('not a url').ok).toBe(false)
+  })
+
+  it('rejects non-string input', () => {
+    // @ts-expect-error testing runtime guard
+    expect(assertPublicHttpsUrl(null).ok).toBe(false)
+    // @ts-expect-error testing runtime guard
+    expect(assertPublicHttpsUrl(undefined).ok).toBe(false)
+    // @ts-expect-error testing runtime guard
+    expect(assertPublicHttpsUrl(123).ok).toBe(false)
+  })
+
+  it('returns parsed URL on success', () => {
+    const result = assertPublicHttpsUrl('https://api.example.com/path?q=1')
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.url.hostname).toBe('api.example.com')
+      expect(result.url.pathname).toBe('/path')
+    }
+  })
+
+  it('returns reason on failure', () => {
+    const result = assertPublicHttpsUrl('https://127.0.0.1/')
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.reason).toContain('private/loopback')
+    }
   })
 })

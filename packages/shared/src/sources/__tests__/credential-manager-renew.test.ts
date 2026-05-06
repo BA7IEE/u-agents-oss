@@ -231,3 +231,116 @@ describe('refreshApiRenew via refresh()', () => {
     expect(headers['Authorization']).toBe('Bearer old-token');
   });
 });
+
+// U-API: M3 SSRF 防护 — 拒绝 credential-bearing fetch 到云元数据/私网（详见 .planning/M3-REFRESH-API-SSRF-SPEC.md）
+describe('refreshApiRenew SSRF guard', () => {
+  let credManager: SourceCredentialManager;
+
+  beforeEach(() => {
+    setCalls = [];
+    fetchCalls = [];
+    credManager = new SourceCredentialManager();
+  });
+
+  afterEach(() => {
+    mockGet.mockReset();
+  });
+
+  test('rejects renew endpoint pointing at AWS/GCP IMDS', async () => {
+    mockGet.mockImplementationOnce(() => Promise.resolve({
+      value: 'old-token', expiresAt: Date.now() - 60_000,
+    }));
+
+    const source = createRenewSource({
+      api: {
+        baseUrl: 'https://api.example.com',
+        authType: 'bearer',
+        renewEndpoint: { path: 'http://169.254.169.254/latest/meta-data/iam/security-credentials/' },
+      },
+    });
+
+    // SSRF guard throws inside try/catch → refresh() returns null (consistent with other failures);
+    // critical assertion is that fetch() was NEVER called with the malicious URL (no token leak).
+    const result = await credManager.refresh(source);
+    expect(result).toBeNull();
+    expect(fetchCalls).toHaveLength(0);
+  });
+
+  test('rejects renew endpoint pointing at localhost', async () => {
+    mockGet.mockImplementationOnce(() => Promise.resolve({
+      value: 'old-token', expiresAt: Date.now() - 60_000,
+    }));
+
+    const source = createRenewSource({
+      api: {
+        baseUrl: 'https://api.example.com',
+        authType: 'bearer',
+        renewEndpoint: { path: 'https://localhost:9200/auth/refresh' },
+      },
+    });
+
+    // SSRF guard throws inside try/catch → refresh() returns null (consistent with other failures);
+    // critical assertion is that fetch() was NEVER called with the malicious URL (no token leak).
+    const result = await credManager.refresh(source);
+    expect(result).toBeNull();
+    expect(fetchCalls).toHaveLength(0);
+  });
+
+  test('rejects renew endpoint pointing at private 192.168.x', async () => {
+    mockGet.mockImplementationOnce(() => Promise.resolve({
+      value: 'old-token', expiresAt: Date.now() - 60_000,
+    }));
+
+    const source = createRenewSource({
+      api: {
+        baseUrl: 'https://api.example.com',
+        authType: 'bearer',
+        renewEndpoint: { path: 'https://192.168.1.1/auth/refresh' },
+      },
+    });
+
+    // SSRF guard throws inside try/catch → refresh() returns null (consistent with other failures);
+    // critical assertion is that fetch() was NEVER called with the malicious URL (no token leak).
+    const result = await credManager.refresh(source);
+    expect(result).toBeNull();
+    expect(fetchCalls).toHaveLength(0);
+  });
+
+  test('rejects http:// (non-https) renew endpoint', async () => {
+    mockGet.mockImplementationOnce(() => Promise.resolve({
+      value: 'old-token', expiresAt: Date.now() - 60_000,
+    }));
+
+    const source = createRenewSource({
+      api: {
+        baseUrl: 'https://api.example.com',
+        authType: 'bearer',
+        renewEndpoint: { path: 'http://api.example.com/auth/refresh' },
+      },
+    });
+
+    // SSRF guard throws inside try/catch → refresh() returns null (consistent with other failures);
+    // critical assertion is that fetch() was NEVER called with the malicious URL (no token leak).
+    const result = await credManager.refresh(source);
+    expect(result).toBeNull();
+    expect(fetchCalls).toHaveLength(0);
+  });
+
+  test('still accepts public https renew endpoint', async () => {
+    mockGet.mockImplementationOnce(() => Promise.resolve({
+      value: 'old-token', expiresAt: Date.now() - 60_000,
+    }));
+    mockFetch({ access_token: 'new-token', expires_in: 3600 });
+
+    const source = createRenewSource({
+      api: {
+        baseUrl: 'https://api.example.com',
+        authType: 'bearer',
+        renewEndpoint: { path: 'https://api.example.com/auth/refresh' },
+      },
+    });
+
+    await credManager.refresh(source);
+    expect(fetchCalls).toHaveLength(1);
+  });
+});

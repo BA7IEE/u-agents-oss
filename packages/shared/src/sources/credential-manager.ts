@@ -24,6 +24,7 @@ import {
   type MicrosoftService,
 } from './types.ts';
 import { buildAuthorizationHeader } from './api-tools.ts';
+import { assertPublicHttpsUrl } from '../utils/url-safety.ts';
 import type { CredentialId, StoredCredential } from '../credentials/types.ts';
 import { getCredentialManager } from '../credentials/index.ts';
 import { CraftOAuth, getMcpBaseUrl, prepareMcpOAuth, exchangeMcpOAuth, type OAuthCallbacks, type OAuthTokens } from '../auth/oauth.ts';
@@ -978,6 +979,15 @@ export class SourceCredentialManager {
       const url = renewConfig.path.startsWith('http')
         ? renewConfig.path
         : new URL(renewConfig.path, baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`).toString();
+
+      // U-API: M3 SSRF 防护 — 阻止 credential-bearing fetch 到云元数据/私网（详见 .planning/M3-REFRESH-API-SSRF-SPEC.md）
+      const safety = assertPublicHttpsUrl(url);
+      if (!safety.ok) {
+        throw new Error(
+          `Renew endpoint URL rejected by SSRF guard: ${safety.reason}. ` +
+          `Configured path: ${renewConfig.path}, resolved: ${url}`,
+        );
+      }
 
       // 2. Build headers: defaultHeaders < renewEndpoint.headers < Authorization
       const headers: Record<string, string> = {
