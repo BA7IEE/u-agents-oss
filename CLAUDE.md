@@ -282,6 +282,7 @@ grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_mod
 > - **M2.5 #3 husky 装回（2026-05-07）：71 处不变**（.husky/pre-commit 跑 lint:i18n:staged；.husky/_/ gitignored 由 bun install 自动重建）。每次 git commit 自动跑 i18n staged 检查；无 staged 相关文件时直接 skip 不卡 commit。
 > - **M2.5 #4 macOS x64 装包实测：deferred**（用户暂无 x64 机器；R2 上 v0.9.1 macOS x64 包已上线但未经用户实测验证）。M2 评级保持 A−（不到 A），等下次有机会实测后升 A。其它 follow-up（M3-1 OAuth relay / M3-4 GlitchTip / M3-2/3 文档站）等用户活跃数据驱动。
 > - **v23 P1 follow-up（2026-05-07）：73 处**（api-tools.ts 加 import 1 处 + createApiTool fetch 前 1 处 SSRF marker；新增 §3.7 #45a/#45b。同 commit：webui/login.html placeholder + 3 个 release-notes brand 替换不计 marker——属 01-branding-spec §1 全表）。详见 [`.planning/sync-reports/REVIEW-23-DEEP-MULTI-AGENT-2026-05-07.md`](.planning/sync-reports/REVIEW-23-DEEP-MULTI-AGENT-2026-05-07.md) §2.2。
+> - **v0.9.2 sync（2026-05-07 commit `a76e502d`）：73 处不变**（上游 +38 文件 / +1369 −304 主要是 spawn-helpers + system-prompt-override + OAuth refresh 重整；merge 干净未碰任何 §3.7 改造点；C11 触发 1 处 NPM scope rename `sendmessage-oauth-refresh.test.ts` 已修 + 6 处 brand 化 + 0 单测新增——基线维持。详见 [`.planning/sync-reports/SYNC-v0.9.2-20260507.md`](.planning/sync-reports/SYNC-v0.9.2-20260507.md)）。
 
 **每次同步必跑 grep（覆盖全部注释格式）**：
 
