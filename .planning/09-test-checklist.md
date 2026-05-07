@@ -506,6 +506,52 @@ CONFIG="$HOME/.u-agents/config.json"  # M1 改造完成后的位置（详见 01-
 - [ ] Build 脚本子表 ≥ **13**（实测 20）
 - [ ] 超出 ±2 必须停下逐项核对——多半是 git 自动合并吞掉了改造，或引入未文档化的新改造（应补进 §3.7 表）
 
+### 13.8 sync 报告必备贴片（v24 H1.F4 教训：SOP 写了 ≠ 实战跑了）
+
+> v24 复盘发现 v0.9.2 sync 报告自吹"验证了 SOP 实战可用性"但 §13.5/§13.6 5 项实战 0 跑。**今后 sync 报告必须贴 grep 实测输出，否则视为未跑**。
+
+每次 sync 完毕，sync 报告（`SYNC-vX.Y.Z-YYYYMMDD.md`）的"§5 验证结果"章节**必须贴下面 7 块 grep 实测输出**（不是 yes/no 勾选，是命令 + 输出文本）：
+
+```bash
+## §5 验证结果（v24 后强制贴片）
+
+### §5.1 主基线 grep（§3.7 期望 73/9/9）
+$ grep -rEn --exclude-dir=node_modules "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
+    | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
+[实际数字]
+
+### §5.2 §13.5 M2 安全 fix 4/4（必跑 4 条 grep + 必跑测试套件）
+$ grep -n "tlsRejectUnauthorized" apps/electron/src/main/handlers/workspace.ts apps/electron/src/preload/bootstrap.ts
+$ grep -rn "atomicWriteFileSync" packages/shared/src/config/storage.ts ... | wc -l
+$ grep -n "0o700" packages/shared/src/config/watcher.ts ... | wc -l
+$ grep -n "MIN_LLM_API_KEY_LENGTH\|MAX_LLM_API_KEY_LENGTH" packages/shared/src/credentials/manager.ts
+$ bun test packages/shared/src/__tests__/m2-security-regression.test.ts 2>&1 | tail -5
+
+### §5.3 §13.6 M3 安全 fix（SSRF + DSN + 死路径）
+$ grep -n "assertPublicHttpsUrl" packages/shared/src/utils/url-safety.ts
+$ grep -n "assertPublicHttpsUrl\|safety.ok" packages/shared/src/sources/credential-manager.ts packages/shared/src/sources/api-tools.ts
+$ bun test packages/shared/src/sources/__tests__/credential-manager-renew.test.ts packages/shared/src/sources/__tests__/api-tools-ssrf.test.ts 2>&1 | tail -5
+$ grep -n "U_AGENTS_PACKAGING" apps/electron/scripts/build-dmg.sh apps/electron/scripts/build-linux.sh apps/electron/scripts/build-win.ps1 | wc -l
+$ grep -rEn "CRAFT_COMMANDS_ENTRY|CRAFT_CLI_ENTRY|CRAFT_AGENT_VERSION|CRAFT_SCRIPTS|CRAFT_COMMANDS_DOC_PATH|CRAFT_CLI_DOC_PATH|craft-clipboard" packages apps --include="*.ts" --include="*.tsx" --include="*.json" 2>/dev/null | wc -l
+
+### §5.4 §13.7 v22 后 CI / hook（validate:ci + husky 触发统计）
+$ bun run validate:ci 2>&1 | tail -10
+$ ls -la .husky/pre-commit
+$ git log --since="last sync" --oneline | wc -l   # husky 实际触发次数（每个 commit 都过 hook）
+
+### §5.5 用户可见 brand grep（无新泄漏）
+$ grep -rEn "Craft Agents?" --include="*.ts" --include="*.tsx" --include="*.json" --include="*.html" --include="*.md" \
+    | grep -v node_modules | grep -v __tests__ | grep -v "TRADEMARK.md" | grep -v "NOTICE" | grep -v ".planning"
+
+### §5.6 craft.do 守恒（应仍 4 处已知瑕疵）
+$ grep -rEn "agents\.craft\.do" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null | wc -l
+
+### §5.7 测试 baseline 漂移（v22 → v0.9.2 → 当下）
+$ bun test packages/shared 2>&1 | tail -5  # 记 pass/fail/skip 数字 vs 上次 sync
+```
+
+**任何 sync 报告缺 §5.1-§5.7 任一贴片 = review 评级降一级**。这是把 SOP 工程化为"必跑且必贴"的硬约束。
+
 ---
 
 ## 14. 自动更新（核心，必须每次都测）

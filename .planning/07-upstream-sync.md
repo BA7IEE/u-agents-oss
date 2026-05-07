@@ -113,10 +113,31 @@ git diff --name-only --diff-filter=U
 ```bash
 # bun.lock 永远用上游版本
 git checkout --theirs bun.lock
-# package.json 类（保留 name/version/homepage，接受其他）
-# 手动 merge，或用 ours-then-patch 策略：
-git checkout --ours package.json
-# 然后跑 git diff upstream/main -- package.json 看上游加了什么 dependencies，手动加进来
+
+# package.json 类（v0.9.2 sync 实战标准做法）：
+# 上游每次 release 都 bump 全部 14+ 个 package.json 的 version，与我们的 NPM scope rename
+# (@craft-agent/ → @u-agents/) + private:true 在同一文件同一行交叉，git auto-merge 处理不了。
+# 标准做法：take ours（保留我们的 scope + private + description），sed 批量 bump version：
+
+OLD_VER="0.9.1"  # 上次 sync 时的版本
+NEW_VER="0.9.2"  # 上游本次 release 的版本
+
+# 1. take ours 全部 conflicted package.json
+for f in $(git diff --name-only --diff-filter=U | grep package.json); do
+  git checkout --ours "$f"
+done
+
+# 2. sed 批量 bump version（macOS 用 -i ''；Linux 用 -i）
+for f in $(git diff --name-only --diff-filter=U HEAD | grep package.json) \
+         $(find . -name 'package.json' -not -path '*/node_modules/*' -maxdepth 4); do
+  sed -i '' "s/\"version\": \"${OLD_VER}\"/\"version\": \"${NEW_VER}\"/" "$f"
+done
+
+# 3. （可选但推荐）手动 review 上游有没有加新 dependency
+git diff upstream/main -- package.json | grep -E '^\+\s+"' | head -10
+
+# 4. git add 全部
+git add $(find . -name 'package.json' -not -path '*/node_modules/*' -maxdepth 4)
 ```
 
 #### 2.4.3 处理 🔴 核心锁定
@@ -188,7 +209,28 @@ git commit -m "sync: merge upstream/main as of YYYY-MM-DD"
 
 参照 `08-conflict-zones.md` §"应当冲突而没冲突的危险信号"。这是同步的最大坑——git 觉得没冲突，但实际我们的锁定被绕过了。
 
-逐项执行：
+#### 2.5.0 前置硬校验（必跑 0 残留，不达标 typecheck 必 fail）
+
+v24 H1.F3 实战教训（v0.9.2 sync `sendmessage-oauth-refresh.test.ts` typecheck fail 才发现）——**先跑这两条 grep，命中 = 立即 batch sed 修，再跑 typecheck**：
+
+```bash
+# 硬校验 1：@craft-agent/ NPM scope 0 残留（C11 模式）
+N=$(grep -rE '"@craft-agent/|from .@craft-agent/' packages apps --include="*.ts" --include="*.tsx" --include="*.json" 2>/dev/null | grep -v node_modules | wc -l)
+echo "@craft-agent/ 残留数：$N（期望 0）"
+# 命中：batch sed rename
+[ "$N" -gt 0 ] && grep -rlE '"@craft-agent/|from .@craft-agent/' packages apps --include="*.ts" --include="*.tsx" --include="*.json" 2>/dev/null | grep -v node_modules | xargs sed -i '' 's|@craft-agent/|@u-agents/|g'
+
+# 硬校验 2：上游 release commit 自身的 brand 注释漏盘（v17 + v24 模式）
+# v0.9.1 漏 messaging access-control 文案 / v0.9.2 漏 pi-agent-server/index.ts 注释
+git show upstream/main --unified=0 -- '*.ts' '*.tsx' | grep -E '^\+.*(Craft|craft\.do)' | grep -v node_modules
+# 命中：逐处审视——是 brand leak（要改）还是真接口名（按 §1.4 决策保留）
+
+# 硬校验 3（可选）：v0.9.1 mid-stream 类型完整性
+grep -nE "MidStreamBehavior|defaultMidStreamBehavior|resolveMidStreamBehavior" packages/shared/src/config/llm-connections.ts | wc -l
+# 期望 ≥ 5；< 5 = 上游版本回退或 merge 漏字段
+```
+
+#### 2.5.1 完整扫描（在前置硬校验通过后跑）
 
 ```bash
 # 1. 检查是否引入新的 LlmProviderType

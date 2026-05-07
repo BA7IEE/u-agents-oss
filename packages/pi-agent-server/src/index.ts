@@ -1282,7 +1282,8 @@ async function handlePrompt(msg: Extract<InboundMessage, { type: 'prompt' }>): P
 
     const session = await ensureSession();
 
-    // Force the Craft-built system prompt onto the Pi session. Direct assignment
+    // U-API: brand — v0.9.2 sync 漏盘 "Craft-built" → "U Agents-built"（v24 F1 / G1.F2.1）
+    // Force the U Agents-built system prompt onto the Pi session. Direct assignment
     // to `state.systemPrompt` is wiped on every `session.prompt()` call by the Pi
     // SDK (see system-prompt-override.ts).
     if (msg.systemPrompt) {

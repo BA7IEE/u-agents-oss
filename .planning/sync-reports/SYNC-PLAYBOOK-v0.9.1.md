@@ -2,7 +2,7 @@
 
 > ⚠️ **已封存（2026-05-07 v23 review）**：本 Playbook 是 v0.9.1 sync **时点档案**，所有数字（基线 61、START/END 8/8、HEAD `fc22763f`、merge-base `acb08842`）反映 2026-05-06 当时状态——**不要照抄到下次 sync**！
 >
-> **下次 sync 请以 [`CLAUDE.md` §3.7 同步上游验证基线](../../CLAUDE.md) 为准**：当前最新基线（M3-SSRF 落地后 2026-05-07）= **71 / 9 / 9**。
+> **下次 sync 请以 [`CLAUDE.md` §3.7 同步上游验证基线](../../CLAUDE.md) 为准**（基线随 follow-up commit 持续演进；本 playbook 不再硬编码当时数字以避免文档漂移）。
 >
 > 本文档保留作为 v0.9.1 sync 全流程实战范本（C10 字段透传 / C11 NPM scope rename / C12 ESLint 违规 / C13 上游 release 自身 test fail / C14 build-win.ps1 同根三胞胎 — 这些模式仍然有用）。下次 sync 应另写 `SYNC-PLAYBOOK-v0.10.x.md`（参考本文结构 + 当前基线数字）。
 >
