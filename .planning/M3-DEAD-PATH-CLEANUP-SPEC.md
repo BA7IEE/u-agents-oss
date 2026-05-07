@@ -89,17 +89,19 @@ grep -rn "CRAFT_COMMANDS_ENTRY\|CRAFT_CLI_ENTRY\|CRAFT_COMMANDS_DOC_PATH\|CRAFT_
 
 > **若选 A**：必须同时改 [`packages/shared/src/feature-flags.ts:79-81`](../packages/shared/src/feature-flags.ts) `craftAgentsCli` getter（删或永远 return false）+ `permissions-config.ts:379` + `pre-tool-use.ts:808/822` 共 4 处消费点。
 
-### 1.4 §3.7 改造点 marker（必加）
+### 1.4 §3.7 改造点 marker（实施后修订，与"修订记录"一致）
 
-| # | 文件 | 注释（grep 关键字）| 标记 |
+> **2026-05-07 修订**：原表头预设要加 3 处 marker（CRAFT_DEBUG/SCRIPTS/AGENT_VERSION 改名），但 grep 实测后决策改为"CRAFT_DEBUG 保留 + CRAFT_SCRIPTS/CRAFT_AGENT_VERSION 删除"。**删除/重命名都不需要加 marker**（§3.7 marker 是给"我们改了上游代码、但保留行为"的改造贴的；删除/纯改名属品牌替换全表 §1，不是 §3.7 改造点）。
+
+| # | 文件 | 处理 | 是否加 marker |
 |---|---|---|---|
-| 46 | `apps/electron/src/main/index.ts:114` | `M3 cleanup — CRAFT_DEBUG → U_AGENTS_DEBUG` | 单行 |
-| 47 | `apps/electron/src/main/index.ts:150` | `M3 cleanup — CRAFT_SCRIPTS → U_AGENTS_SCRIPTS` | 单行 |
-| 48 | `apps/electron/src/main/index.ts:161` | `M3 cleanup — CRAFT_AGENT_VERSION → U_AGENTS_VERSION` | 单行 |
-| —  | `packages/shared/src/utils/files.ts` 5 处 | （不加 marker；这是品牌替换不是改造）| 无 |
-| —  | `apps/electron/src/main/index.ts:151-160` 删除 | （不加 marker；删除不需要 marker）| 无 |
+| —  | `apps/electron/src/main/index.ts:114` `process.env.CRAFT_DEBUG = '1'` | **保留不动**（14+ 真消费方）| 无（不是改造）|
+| —  | `apps/electron/src/main/index.ts:150` `process.env.CRAFT_SCRIPTS = scriptsDir` | **删除整行**（0 真消费方）| 无（删除不要 marker）|
+| —  | `apps/electron/src/main/index.ts:161` `process.env.CRAFT_AGENT_VERSION = ...` | **删除整行**（0 真消费方）| 无（删除不要 marker）|
+| —  | `apps/electron/src/main/index.ts:151-160` 4 个 ENTRY/DOC_PATH 删除 | **删除**（spec §1.1）| 无 |
+| —  | `packages/shared/src/utils/files.ts` 5 处 `craft-clipboard` → `u-agents-clipboard` | **品牌替换**（spec §1.2）| 无（属 01-branding-spec.md §1 全表）|
 
-> 改造完成后 [AGENTS.md §3.7](../AGENTS.md) 主表加 #46-#48（**与 M3-OAUTH-RELAY 的 #43-#45 一起**：基线 67 → 73）。
+> **结论**：M3-DEAD-PATH 改造 = 6 行删除 + 5 处品牌替换 + 0 处 marker 新增。**§3.7 marker 基线不变**（71/9/9 仍来自 M3-1 OAuth relay + M3-SSRF 落地）。
 
 ---
 

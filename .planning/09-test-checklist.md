@@ -437,6 +437,75 @@ CONFIG="$HOME/.u-agents/config.json"  # M1 改造完成后的位置（详见 01-
 - [ ] 若 M3 启用错误上报：不得上传原始 `sessionId`、稳定 machine hash、agent error 原文、Token、用户输入、模型输出或本地绝对路径
 - [ ] renderer `captureConsoleIntegration` 启用前必须通过脱敏测试，确认 `console.error` message / exception / extra 都被 scrub
 
+### 13.5 M2 安全 fix 4/4 验证（v23 P0 补遗，对应 §3.7 #31a-#34）
+
+> 验证 M2 安全主线 4 项（TLS 严格 / atomicWriteFileSync / dir 0o700 / Token 长度限制）已生效且未被回归。**每次发版必跑**。
+
+**TLS 严格化（§3.7 #31a/#31b）**：
+- [ ] `grep -n "tlsRejectUnauthorized" apps/electron/src/main/handlers/workspace.ts apps/electron/src/preload/bootstrap.ts` 不应有 `false` 默认值
+- [ ] `bun test packages/shared 2>&1 | grep -E "TLS strict|m2-security"` 全绿（应命中 `m2-security-regression.test.ts: 'TLS strict marker 三处全在'`）
+- [ ] 反向：故意改 `workspace.ts` 加 `tlsRejectUnauthorized: false` → 跑 m2-security-regression.test.ts 应 **fail**
+
+**atomicWriteFileSync（§3.7 #32a-#32d）**：
+- [ ] `grep -rn "atomicWriteFileSync" packages/shared/src/config/storage.ts packages/shared/src/config/preferences.ts packages/messaging-gateway/src/topic-registry.ts apps/electron/src/main/window-state.ts | wc -l` ≥ 4
+- [ ] `bun test packages/shared/src/utils/__tests__/atomic-write.test.ts 2>&1 | tail -3` 全绿（11 tests）
+- [ ] 模拟断电：启动应用 → 在 `~/.u-agents/config.json` 写入瞬间 `kill -9` → 重启后配置文件**完整可读**（atomic rename 保证）
+
+**dir 0o700（§3.7 #33a-#33c）**：
+- [ ] `grep -n "0o700" packages/shared/src/config/watcher.ts packages/shared/src/config/storage.ts apps/electron/src/main/window-state.ts | wc -l` ≥ 3
+- [ ] macOS/Linux：启动应用 → `stat -f "%Mp%Lp" ~/.u-agents` 应为 `700`（drwx------）
+- [ ] Windows：N/A（NTFS ACL 模型不同，此项跳过）
+
+**LLM API key 长度限制（§3.7 #34）**：
+- [ ] `grep -n "MIN_LLM_API_KEY_LENGTH\|MAX_LLM_API_KEY_LENGTH" packages/shared/src/credentials/manager.ts` 应命中常量定义
+- [ ] `bun test packages/shared/src/credentials/__tests__/api-key-length.test.ts 2>&1 | tail -3` 全绿（8 tests）
+- [ ] UI 验证：onboarding 输入超长 token（> 4096 字符）应被拒绝并提示
+
+### 13.6 M3 安全 fix 验证（v23 P0 补遗，对应 §3.7 #43-#44 + Build 子表 B5-B7）
+
+> 验证 M3 入口前 4 项 spec 落地后的安全/可观测能力。
+
+**SSRF 防护（§3.7 #43/#44a/#44b）**：
+- [ ] `grep -n "assertPublicHttpsUrl" packages/shared/src/utils/url-safety.ts` 应命中函数定义（块标记 `/* U-API START: M3 SSRF 防护 */`）
+- [ ] `grep -n "assertPublicHttpsUrl\|safety.ok" packages/shared/src/sources/credential-manager.ts` 应命中 `refreshApiRenew` 接入点
+- [ ] `bun test packages/shared/src/utils/__tests__/url-safety.test.ts 2>&1 | grep "assertPublicHttpsUrl"` 全绿
+- [ ] `bun test packages/shared/src/sources/__tests__/credential-manager-renew.test.ts 2>&1 | grep "SSRF guard"` 全绿
+- [ ] 反向：手动构造 `refreshApi.refreshUrl = 'http://169.254.169.254/'` → 调 refresh 应被拦截，不发 fetch
+
+**M3-Sentry build-time DSN assertion（§3.7 Build 子表 B5/B6/B7）**：
+- [ ] `grep -n "U_AGENTS_PACKAGING" apps/electron/scripts/build-dmg.sh apps/electron/scripts/build-linux.sh apps/electron/scripts/build-win.ps1 | wc -l` ≥ 3（三平台都 export）
+- [ ] `grep -n "assertSentryDsnForPackaging" scripts/electron-build-main.ts` 应命中
+- [ ] M2 过渡期：build 时不设 `SENTRY_ELECTRON_INGEST_URL` → 控制台 `console.warn` 提示但**不**阻塞 build
+- [ ] M3-4 GlitchTip 上线后：assertion 切 `process.exit(1)` → build 时缺 DSN 必须 fail
+
+**M3 死路径清理（§3.7 §3.4 决策清单）**：
+- [ ] 必须 0 残留：`grep -rEn "CRAFT_COMMANDS_ENTRY|CRAFT_CLI_ENTRY|CRAFT_AGENT_VERSION|CRAFT_SCRIPTS|CRAFT_COMMANDS_DOC_PATH|CRAFT_CLI_DOC_PATH|craft-clipboard" packages apps --include="*.ts" --include="*.tsx" --include="*.json" 2>/dev/null | wc -l` 应等于 **0**
+- [ ] CRAFT_DEBUG 等 14+ 真消费方按 M3-DEAD-PATH-CLEANUP-SPEC §1.4 决策**保留**：grep `CRAFT_DEBUG` 命中数应在 14+
+- [ ] `agents.craft.do` 残留检查：grep 应得 **4**（仅 oauth-relay.ts L3 + slack-oauth.ts L269/L359/L360 — 已知瑕疵 M3-1 未做）；**5+ 必须停下查多出来的**
+
+### 13.7 v22 后 CI / 开发钩子验证（v23 P0 补遗）
+
+> 验证 M2.5 #3 husky pre-commit 装回 + M2.5 #5 CI 4 死引用修。**每次 sync 后 + 每次发版前必跑**。
+
+**`bun run validate:ci` 全链路全绿**：
+- [ ] `cd /Users/dengwang/Documents/u-agents-oss/u-agents && bun run validate:ci 2>&1 | tail -10` exit 0
+  - 应包含：typecheck:all 干净 / test:shared:all (3 子测试 file) / test:doc-tools (Python smoke 19 pass) / lint:i18n:parity OK (6 locales, 1447 keys) / lint:i18n:sorted OK / lint:i18n:coverage OK
+- [ ] 反向：随便破坏一个 i18n key（如把 `zh-Hans.json` 删一行）→ `validate:ci` 应 fail
+
+**husky pre-commit hook 装回**：
+- [ ] `ls -la .husky/pre-commit` 文件存在且 executable
+- [ ] `cat .husky/pre-commit` 包含 `bun run lint:i18n:staged`
+- [ ] 模拟测试：`echo " " >> packages/shared/src/i18n/locales/en.json && git add . && git commit -m "test"` → hook 应触发 `lint:i18n:staged`
+  - 若该改动破坏 sort/parity → hook 应 abort commit
+  - 若该改动只是空白 / 与 i18n 无关 → hook 直接 skip 不卡
+- [ ] `.husky/_/` 目录由 `bun install` 自动重建，gitignored（不入版本控制）
+
+**§3.7 marker 基线 grep 必跑**（每次 sync 后 + 每次 follow-up commit 后）：
+- [ ] 主基线 = **71 ± 2**（M3-SSRF 落地后；详见 [`CLAUDE.md` §3.7](../CLAUDE.md)）
+- [ ] `/* U-API START */` = **9** 且与 `/* U-API END */` 配对
+- [ ] Build 脚本子表 ≥ **13**（实测 20）
+- [ ] 超出 ±2 必须停下逐项核对——多半是 git 自动合并吞掉了改造，或引入未文档化的新改造（应补进 §3.7 表）
+
 ---
 
 ## 14. 自动更新（核心，必须每次都测）
