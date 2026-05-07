@@ -13,6 +13,8 @@ import { guardLargeResult } from '../utils/large-response.ts';
 import { MAX_DOWNLOAD_SIZE, formatBytes } from '../utils/binary-detection.ts';
 import type { ApiCredential, BasicAuthCredential } from './credential-manager.ts';
 import { isMultiHeaderCredential } from './credential-manager.ts';
+// U-API: M3 SSRF 防护 — 阻止 credential-bearing fetch 到云元数据/私网（详见 .planning/M3-REFRESH-API-SSRF-SPEC.md §5.2 follow-up）
+import { assertPublicHttpsUrl } from '../utils/url-safety.ts';
 
 // Re-export for convenience
 export type { ApiCredential, BasicAuthCredential } from './credential-manager.ts';
@@ -256,6 +258,19 @@ export function createApiTool(
         }
 
         debug(`[api-tools] ${config.name}: headers=${JSON.stringify(fetchOptions.headers)}, bodyLength=${fetchOptions.body ? String(fetchOptions.body).length : 0}`);
+
+        // U-API: M3 SSRF 防护 — 拒绝云元数据/私网/非 https URL（防恶意 source 配 baseUrl 诱导 AI 带 Authorization 打云元数据）
+        const safety = assertPublicHttpsUrl(url);
+        if (!safety.ok) {
+          debug(`[api-tools] ${config.name} SSRF guard rejected ${url}: ${safety.reason}`);
+          return {
+            content: [{
+              type: 'text' as const,
+              text: `Request blocked by SSRF guard: ${safety.reason}. URL: ${url}`,
+            }],
+            isError: true,
+          };
+        }
 
         const response = await fetch(url, fetchOptions);
 

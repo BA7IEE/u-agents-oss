@@ -224,8 +224,10 @@ if (!apiKey && connection.baseUrl) {
 | # | 改造类别 | 文件 | 定位（用 `grep` 找）| 标记 | 关联规格 |
 |---|---|---|---|---|---|
 | 43 | `assertPublicHttpsUrl` helper（IPv4/IPv6 私网 + 云元数据域名）| `packages/shared/src/utils/url-safety.ts` | 块 `M3 SSRF 防护 — assertPublicHttpsUrl helper` | 块 | M3-REFRESH-API-SSRF-SPEC §2.1 |
-| 44a | `refreshApiRenew` 接入 SSRF guard | `packages/shared/src/sources/credential-manager.ts:~982` | 注释 `M3 SSRF 防护 — 阻止 credential-bearing fetch` | 单行 | M3-REFRESH-API-SSRF-SPEC §2.2 |
+| 44a | `refreshApiRenew` 接入 SSRF guard | `packages/shared/src/sources/credential-manager.ts` | 函数 `refreshApiRenew` 内 `M3 SSRF 防护 — 阻止 credential-bearing fetch` | 单行 | M3-REFRESH-API-SSRF-SPEC §2.2 |
 | 44b | `refreshApiRenew` SSRF 回归测试（5 个）| `packages/shared/src/sources/__tests__/credential-manager-renew.test.ts` | 注释 `M3 SSRF 防护 — 拒绝 credential-bearing fetch 到云元数据/私网` | 单行 | C5 自洽（新改造点必加单测） |
+| 45a | `createApiTool` 接入 SSRF guard（v23 §5.2 follow-up 落地）| `packages/shared/src/sources/api-tools.ts` | 注释 `M3 SSRF 防护 — 拒绝云元数据/私网/非 https URL` + import 注释 | 单行（2 处）| REVIEW-23 §2.2 / M3-REFRESH-API-SSRF-SPEC §5.2 |
+| 45b | `createApiTool` SSRF 回归测试（4 个）| `packages/shared/src/sources/__tests__/api-tools-ssrf.test.ts` | describe `api-tools SSRF guard` | 单行 | C5 自洽 |
 
 **Build 脚本 marker（M2 后期补充，不计入主基线）**：
 
@@ -253,11 +255,11 @@ grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_mod
 # scripts/typecheck-staged.sh + scripts/lint-i18n-staged.sh）
 ```
 
-**同步上游验证基线**（**M3 SSRF 防护落地后 2026-05-07 刷新**）：
+**同步上游验证基线**（**v23 P1 follow-up 落地后 2026-05-07 刷新**）：
 
-| 指标 | 基线（2026-05-07 M3-SSRF 后）| 下次同步允许浮动 |
+| 指标 | 基线（2026-05-07 v23 后）| 下次同步允许浮动 |
 |---|---|---|
-| U-API 标记总数（含全部注释格式）| **71** | ±2 |
+| U-API 标记总数（含全部注释格式）| **73** | ±2 |
 | `/* U-API START */` 块数 | **9** | 必须等于 END |
 | `/* U-API END */` 块数 | **9** | 必须等于 START |
 
@@ -279,6 +281,7 @@ grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_mod
 > - **M2.5 #5 CI dead refs 修（2026-05-07）：71 处不变**（scripts/check-i18n-coverage.ts + check-raw-sends.sh + typecheck-staged.sh + lint-i18n-staged.sh 4 个 stub 实现；v0.9.1 上游 package.json 引用入口但漏文件 — C13 模式继承）。**`bun run validate:ci` 现全绿**，v0.9.1 sync 后第一次。Build 脚本子表 grep 命令含范围扩到 scripts/，期望 ≥13
 > - **M2.5 #3 husky 装回（2026-05-07）：71 处不变**（.husky/pre-commit 跑 lint:i18n:staged；.husky/_/ gitignored 由 bun install 自动重建）。每次 git commit 自动跑 i18n staged 检查；无 staged 相关文件时直接 skip 不卡 commit。
 > - **M2.5 #4 macOS x64 装包实测：deferred**（用户暂无 x64 机器；R2 上 v0.9.1 macOS x64 包已上线但未经用户实测验证）。M2 评级保持 A−（不到 A），等下次有机会实测后升 A。其它 follow-up（M3-1 OAuth relay / M3-4 GlitchTip / M3-2/3 文档站）等用户活跃数据驱动。
+> - **v23 P1 follow-up（2026-05-07）：73 处**（api-tools.ts 加 import 1 处 + createApiTool fetch 前 1 处 SSRF marker；新增 §3.7 #45a/#45b。同 commit：webui/login.html placeholder + 3 个 release-notes brand 替换不计 marker——属 01-branding-spec §1 全表）。详见 [`.planning/sync-reports/REVIEW-23-DEEP-MULTI-AGENT-2026-05-07.md`](.planning/sync-reports/REVIEW-23-DEEP-MULTI-AGENT-2026-05-07.md) §2.2。
 
 **每次同步必跑 grep（覆盖全部注释格式）**：
 
@@ -288,7 +291,7 @@ grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_mod
 # 抗 build-dmg.sh 中间态把 SDK 包复制到 apps/electron/node_modules/ 让数字暂时虚高的情况
 grep -rEn --exclude-dir=node_modules "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
   | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
-# 期望：71（基线，允许 69-73）
+# 期望：73（基线，允许 71-75）
 
 # 块标记 START/END 配对（数量必须相等）
 grep -rE --exclude-dir=node_modules "/\* U-API START" packages apps --include="*.ts" --include="*.tsx" | wc -l
