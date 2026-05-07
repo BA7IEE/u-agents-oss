@@ -128,7 +128,9 @@ const FALLBACK_CONFIG_DEFAULTS: ConfigDefaults = {
     keepAwakeWhileRunning: false,
     richToolDescriptions: true,
     extendedPromptCache: false,
-    browserToolEnabled: true,
+    // U-API: browser tool 默认关闭（v24 G1.F4.1 决策；详见 04-feature-cuts.md §九类）
+    // 与 PRODUCT.md 目标用户（非技术 / 半技术）+ 默认安全原则一致；用户可在 Settings → Tools 主动开启。
+    browserToolEnabled: false,
   },
   workspaceDefaults: {
     thinkingLevel: 'medium',

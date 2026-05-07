@@ -311,6 +311,55 @@ M1 阶段不做这套基础设施，因此**必须把 UI 入口隐藏**——否
 
 ---
 
+## 第九类：Browser Tool（默认关闭，但保留 toggle）
+
+> v24 review G1.F4.1 决策（2026-05-07）：v0.9.2 上游引入 `getBrowserToolEnabled()` 完整 gate（system prompt + prerequisite + rule），但 default = `true`。U Agents 选择**默认关闭**——既不删 UI 也不删代码，仅改默认值。
+
+### 9.1 决策背景
+
+`browser_tool` 让 AI 可以打开内置浏览器、控制网页：
+- click / type / fill / scroll / screenshot
+- `javascript_exec` 可执行任意 JS
+- 配合 LLM 可做"AI 帮我搜资料 / 订外卖"等场景
+
+**对 U Agents 的安全考量**：
+- LLM 控制浏览器是非常大的攻击面（恶意页面可作为 prompt injection 入口）
+- PRODUCT.md 目标用户"非技术 / 半技术"——他们大概率不会用，但容易被攻击
+- 与 [`02-llm-gateway-spec.md`](02-llm-gateway-spec.md) "默认安全"原则一致
+
+**对 U Agents 的产品考量**：
+- browser tool 是上游差异化能力，不应粗暴删除（M3 自建 sandbox 后可重启）
+- Settings → Tools 仍保留 toggle，高级用户可主动开启
+- 与 §3.4 "代码保留 + UI 保留 + default 关闭"原则一致
+
+### 9.2 落地
+
+| 文件 | 改动 |
+|---|---|
+| [`apps/electron/resources/config-defaults.json:13`](../apps/electron/resources/config-defaults.json) | `"browserToolEnabled": true` → `false` |
+| [`packages/shared/src/config/storage.ts:131`](../packages/shared/src/config/storage.ts) | hardcoded fallback `browserToolEnabled: true` → `false`（加 `// U-API:` marker）|
+
+**保留不动**：
+- [`AppSettingsPage.tsx:233-243`](../apps/electron/src/renderer/pages/settings/AppSettingsPage.tsx) Settings → Tools section 的 `builtInBrowser` toggle（用户可主动启用）
+- 所有 browser_tool 相关代码（`browser-cdp.ts` / `browser-pane-manager.ts` / `session-scoped-tools.ts`）— 用户开启后正常工作
+- system prompt browser tools section 已被 `getBrowserToolEnabled()` 完整 gate（v0.9.2 上游 fix）— 默认 false 时不进 prompt
+
+### 9.3 验收
+
+- [ ] 首次启动 U Agents（无 `~/.u-agents/config.json`）→ `getBrowserToolEnabled()` 返回 `false`
+- [ ] 默认 system prompt 不含 `## Browser Tools` 章节
+- [ ] 默认 prerequisite-manager 的 browser tool rule 是 no-op
+- [ ] 用户在 Settings → Tools 切换 toggle 为 ON → 写入 `config.browserToolEnabled = true` → 下次启动 system prompt 含 browser tools section
+- [ ] 单元测试 `m2-security-regression.test.ts` 或类似回归测试 assert 默认值 = false
+
+### 9.4 与上游同步影响
+
+- 上游每次同步若改 `config-defaults.json` 或 `storage.ts:131` 默认值——必须保留我们的 `false`
+- 加 `// U-API:` marker 防 git auto-merge 吞掉决策（§3.7 #46 登记）
+- C10 模式不适用（browser tool 不是 connection 字段）
+
+---
+
 ## 验收：裁剪是否到位
 
 详细 grep 验证清单见 `01-branding-spec.md` §8。本文裁剪是否到位的判定：

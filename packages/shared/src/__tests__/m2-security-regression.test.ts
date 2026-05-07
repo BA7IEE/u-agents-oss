@@ -94,3 +94,26 @@ describe('M2 fix 完整性 — §3.7 marker grep', () => {
     }
   })
 })
+
+// U-API: browser tool 默认关闭防回归（v24 G1.F4.1 决策；详见 .planning/04-feature-cuts.md §九类）
+describe('browserToolEnabled 默认 false（v24 G1.F4.1 防回归）', () => {
+  it('config-defaults.json browserToolEnabled = false', () => {
+    const json = readSource('apps/electron/resources/config-defaults.json')
+    const parsed = JSON.parse(json) as { defaults?: { browserToolEnabled?: boolean } }
+    expect(parsed.defaults?.browserToolEnabled).toBe(false)
+  })
+
+  it('storage.ts FALLBACK_DEFAULTS.browserToolEnabled = false', () => {
+    const src = readSource('packages/shared/src/config/storage.ts')
+    // 匹配 defaults: { ... browserToolEnabled: false ... }（允许中间任何字段）
+    expect(src).toMatch(/browserToolEnabled:\s*false/)
+    // 反向：确保没有 browserToolEnabled: true（防止 git auto-merge 时漏盘）
+    expect(src).not.toMatch(/browserToolEnabled:\s*true/)
+  })
+
+  it('U-API: marker 在 storage.ts browserToolEnabled 附近', () => {
+    const src = readSource('packages/shared/src/config/storage.ts')
+    // marker 应当包围 browserToolEnabled: false 这一行
+    expect(src).toMatch(/U-API:\s*browser tool 默认关闭/)
+  })
+})

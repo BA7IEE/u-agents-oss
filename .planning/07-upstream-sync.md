@@ -178,7 +178,7 @@ git add apps/electron/src/renderer/pages/settings/AiSettingsPage.tsx
 # 6. 跑全仓 baseline 验证 §3.7（merge 完所有冲突后再跑）
 grep -rEn --exclude-dir=node_modules "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
   | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
-# 期望 80 ± 2（v24 SSRF 真修后基线，详见 CLAUDE.md §3.7；merge commit 当下浮动允许扩到 ±5，第一个 follow-up commit 后回到 ±2）
+# 期望 82 ± 2（v24 全 Bucket A+B+C 后基线，详见 CLAUDE.md §3.7；merge commit 当下浮动允许扩到 ±5，第一个 follow-up commit 后回到 ±2）
 
 # 7. (v0.9.1+) 验证 mid-stream 类型完整进入（08 §9 哨兵）
 grep -nE "MidStreamBehavior|defaultMidStreamBehavior|resolveMidStreamBehavior" packages/shared/src/config/llm-connections.ts | wc -l
@@ -288,7 +288,7 @@ grep -nA3 "if \(isCompatProvider" packages/server-core/src/model-fetchers/index.
 # **必须使用全格式 grep**——旧版 `// U-API:|/\* U-API (START|END)` 漏 HTML 注释（<!-- -->）+
 # JSX 行内注释（{/* */}），同步时会假报数低（v9/v10 review 期间 REVIEW-3 修正过的"基线 47 而非 44"
 # 就是这个根因）。CLAUDE.md §3.7 已改全格式，本节同步对齐。
-echo "U-API 改造标记总数（期望 80，允许 ±2 浮动；超出范围必须停下逐项核对；v24 SSRF 真修后基线，详见 CLAUDE.md §3.7 历次基线演进表）:"
+echo "U-API 改造标记总数（期望 82，允许 ±2 浮动；超出范围必须停下逐项核对；v24 全 Bucket A+B+C 后基线，详见 CLAUDE.md §3.7 历次基线演进表）:"
 grep -rEn --exclude-dir=node_modules "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
   | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
 

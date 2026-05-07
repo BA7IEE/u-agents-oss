@@ -501,7 +501,7 @@ CONFIG="$HOME/.u-agents/config.json"  # M1 改造完成后的位置（详见 01-
 - [ ] `.husky/_/` 目录由 `bun install` 自动重建，gitignored（不入版本控制）
 
 **§3.7 marker 基线 grep 必跑**（每次 sync 后 + 每次 follow-up commit 后）：
-- [ ] 主基线 = **80 ± 2**（v24 SSRF 真修落地后；详见 [`CLAUDE.md` §3.7](../CLAUDE.md)）
+- [ ] 主基线 = **82 ± 2**（v24 全 Bucket A+B+C 落地后；详见 [`CLAUDE.md` §3.7](../CLAUDE.md)）
 - [ ] `/* U-API START */` = **9** 且与 `/* U-API END */` 配对
 - [ ] Build 脚本子表 ≥ **13**（实测 20）
 - [ ] 超出 ±2 必须停下逐项核对——多半是 git 自动合并吞掉了改造，或引入未文档化的新改造（应补进 §3.7 表）
