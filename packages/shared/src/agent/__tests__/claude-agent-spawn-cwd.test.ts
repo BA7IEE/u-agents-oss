@@ -196,6 +196,15 @@ describe('extractSdkReportedBinaryPath', () => {
     );
   });
 
+  // U-API: brand — v24 G1.F3.2 P2 真修：补 U Agents.app 显式回归（防 regex 假设破裂）
+  it('captures U Agents.app bundle paths (our actual macOS bundle name)', () => {
+    const msg =
+      'Claude Code native binary not found at /Applications/U Agents.app/Contents/Resources/app/node_modules/@anthropic-ai/claude-agent-sdk-binary/claude';
+    expect(extractSdkReportedBinaryPath(msg)).toBe(
+      '/Applications/U Agents.app/Contents/Resources/app/node_modules/@anthropic-ai/claude-agent-sdk-binary/claude',
+    );
+  });
+
   it('strips a trailing sentence period without eating dots inside the path', () => {
     const msg = 'Claude Code native binary not found at /opt/0.9.1/claude.';
     expect(extractSdkReportedBinaryPath(msg)).toBe('/opt/0.9.1/claude');

@@ -1002,13 +1002,27 @@ export class SourceCredentialManager {
 
       // 3. Build body with {{token}} substitution
       const method = renewConfig.method ?? 'POST';
-      const fetchOptions: RequestInit = { method, headers };
+      const fetchOptions: RequestInit = {
+        method,
+        headers,
+        // U-API: M3 SSRF 防护 — redirect bypass 修补（v24 F1.F3 P0；与 api-tools.ts 同模式）
+        redirect: 'manual',
+      };
       if (renewConfig.body && method !== 'GET') {
         fetchOptions.body = JSON.stringify(substituteTokenInBody(renewConfig.body, currentToken));
       }
 
       // 4. Execute
       const response = await fetch(url, fetchOptions);
+
+      // U-API: M3 SSRF 防护 — 主动拒绝 30x redirect（v24 F1.F3 P0；与 api-tools.ts 同模式）
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get('location') || '(none)';
+        throw new Error(
+          `Renew endpoint returned ${response.status} redirect to ${location}; ` +
+          `redirects are blocked for SSRF prevention. Update renewEndpoint.path to the final destination.`,
+        );
+      }
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => '');

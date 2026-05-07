@@ -343,4 +343,55 @@ describe('refreshApiRenew SSRF guard', () => {
     await credManager.refresh(source);
     expect(fetchCalls).toHaveLength(1);
   });
+
+  // U-API: M3 SSRF redirect bypass 防护（v24 F1.F3 P0 真修）
+  test('passes redirect:"manual" to fetch options', async () => {
+    mockGet.mockImplementationOnce(() => Promise.resolve({
+      value: 'old-token', expiresAt: Date.now() - 60_000,
+    }));
+    mockFetch({ access_token: 'new-token', expires_in: 3600 });
+
+    const source = createRenewSource({
+      api: {
+        baseUrl: 'https://api.example.com',
+        authType: 'bearer',
+        renewEndpoint: { path: 'https://api.example.com/auth/refresh' },
+      },
+    });
+
+    await credManager.refresh(source);
+    expect(fetchCalls).toHaveLength(1);
+    expect(fetchCalls[0]?.init.redirect).toBe('manual');
+  });
+
+  test('rejects 302 redirect (would otherwise leak token to attacker → 169.254.169.254)', async () => {
+    mockGet.mockImplementationOnce(() => Promise.resolve({
+      value: 'old-token', expiresAt: Date.now() - 60_000,
+    }));
+    // attacker controls baseUrl 但 SSRF guard 通过（合法 https），fetch 后返回 302 → 云元数据
+    fetchCalls = [];
+    globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+      fetchCalls.push({ url, init: init ?? {} });
+      return new Response('', {
+        status: 302,
+        headers: { location: 'http://169.254.169.254/latest/meta-data/iam/security-credentials/' },
+      });
+    }) as typeof globalThis.fetch;
+
+    const source = createRenewSource({
+      api: {
+        baseUrl: 'https://attacker.com',
+        authType: 'bearer',
+        renewEndpoint: { path: 'https://attacker.com/refresh' },
+      },
+    });
+
+    // 30x 被主动拒绝 → throw → refresh() returns null
+    const result = await credManager.refresh(source);
+    expect(result).toBeNull();
+    // fetch 跑了 1 次（attacker.com 合法 https），但 redirect 没 follow（fetchCalls.length 仍 1）
+    expect(fetchCalls).toHaveLength(1);
+    expect(fetchCalls[0]?.init.redirect).toBe('manual');
+  });
 });

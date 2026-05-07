@@ -226,8 +226,12 @@ if (!apiKey && connection.baseUrl) {
 | 43 | `assertPublicHttpsUrl` helper（IPv4/IPv6 私网 + 云元数据域名）| `packages/shared/src/utils/url-safety.ts` | 块 `M3 SSRF 防护 — assertPublicHttpsUrl helper` | 块 | M3-REFRESH-API-SSRF-SPEC §2.1 |
 | 44a | `refreshApiRenew` 接入 SSRF guard | `packages/shared/src/sources/credential-manager.ts` | 函数 `refreshApiRenew` 内 `M3 SSRF 防护 — 阻止 credential-bearing fetch` | 单行 | M3-REFRESH-API-SSRF-SPEC §2.2 |
 | 44b | `refreshApiRenew` SSRF 回归测试（5 个）| `packages/shared/src/sources/__tests__/credential-manager-renew.test.ts` | 注释 `M3 SSRF 防护 — 拒绝 credential-bearing fetch 到云元数据/私网` | 单行 | C5 自洽（新改造点必加单测） |
-| 45a | `createApiTool` 接入 SSRF guard（v23 §5.2 follow-up 落地）| `packages/shared/src/sources/api-tools.ts` | 注释 `M3 SSRF 防护 — 拒绝云元数据/私网/非 https URL` + import 注释 | 单行（2 处）| REVIEW-23 §2.2 / M3-REFRESH-API-SSRF-SPEC §5.2 |
-| 45b | `createApiTool` SSRF 回归测试（4 个）| `packages/shared/src/sources/__tests__/api-tools-ssrf.test.ts` | describe `api-tools SSRF guard` | 单行 | C5 自洽 |
+| 44c | `refreshApiRenew` redirect bypass 防护（v24 F1.F3 P0）| `packages/shared/src/sources/credential-manager.ts` | 注释 `M3 SSRF 防护 — redirect bypass 修补` + `主动拒绝 30x redirect` | 单行（2 处）| REVIEW-24 §1.1 |
+| 44d | `refreshApiRenew` redirect bypass 单测（2 个）| `packages/shared/src/sources/__tests__/credential-manager-renew.test.ts` | 注释 `M3 SSRF redirect bypass 防护（v24 F1.F3 P0 真修）` | 单行 | C5 自洽 |
+| 45a | `createApiTool` 接入 SSRF guard + redirect:'manual'（v23 §5.2 follow-up + v24 F1.F3 真修）| `packages/shared/src/sources/api-tools.ts` | 注释 `M3 SSRF 防护 — ...`（4 处：import + redirect:'manual' 配置 + safety check + 30x reject）| 单行（4 处）| REVIEW-23 §2.2 + REVIEW-24 §1.1 |
+| 45b | `createApiTool` SSRF 运行时测试（10 个，v24 F1.F5 重写从 grep-only → runtime mock fetch）| `packages/shared/src/sources/__tests__/api-tools-ssrf.test.ts` | describe `api-tools SSRF guard` | 单行 | C5 自洽 + REVIEW-24 §1.2 |
+| 45c | `pi-agent-server` 系统 prompt 注释 brand（v0.9.2 sync 漏盘补丁）| `packages/pi-agent-server/src/index.ts:~1285` | 注释 `brand — v0.9.2 sync 漏盘 "Craft-built" → "U Agents-built"` | 单行 | REVIEW-24 §1.3 / G1.F2.1 |
+| 45d | spawn-helpers regex U Agents.app 显式回归测试（v24 G1.F3.2）| `packages/shared/src/agent/__tests__/claude-agent-spawn-cwd.test.ts` | 注释 `brand — v24 G1.F3.2 P2 真修：补 U Agents.app 显式回归` | 单行 | REVIEW-24 §3.2 |
 
 **Build 脚本 marker（M2 后期补充，不计入主基线）**：
 
@@ -255,11 +259,11 @@ grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_mod
 # scripts/typecheck-staged.sh + scripts/lint-i18n-staged.sh）
 ```
 
-**同步上游验证基线**（**v23 P1 follow-up 落地后 2026-05-07 刷新**）：
+**同步上游验证基线**（**v24 SSRF 真修落地后 2026-05-07 刷新**）：
 
-| 指标 | 基线（2026-05-07 v23 后）| 下次同步允许浮动 |
+| 指标 | 基线（2026-05-07 v24 后）| 下次同步允许浮动 |
 |---|---|---|
-| U-API 标记总数（含全部注释格式）| **73** | ±2 |
+| U-API 标记总数（含全部注释格式）| **80** | ±2 |
 | `/* U-API START */` 块数 | **9** | 必须等于 END |
 | `/* U-API END */` 块数 | **9** | 必须等于 START |
 
@@ -283,6 +287,7 @@ grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_mod
 > - **M2.5 #4 macOS x64 装包实测：deferred**（用户暂无 x64 机器；R2 上 v0.9.1 macOS x64 包已上线但未经用户实测验证）。M2 评级保持 A−（不到 A），等下次有机会实测后升 A。其它 follow-up（M3-1 OAuth relay / M3-4 GlitchTip / M3-2/3 文档站）等用户活跃数据驱动。
 > - **v23 P1 follow-up（2026-05-07）：73 处**（api-tools.ts 加 import 1 处 + createApiTool fetch 前 1 处 SSRF marker；新增 §3.7 #45a/#45b。同 commit：webui/login.html placeholder + 3 个 release-notes brand 替换不计 marker——属 01-branding-spec §1 全表）。详见 [`.planning/sync-reports/REVIEW-23-DEEP-MULTI-AGENT-2026-05-07.md`](.planning/sync-reports/REVIEW-23-DEEP-MULTI-AGENT-2026-05-07.md) §2.2。
 > - **v0.9.2 sync（2026-05-07 commit `a76e502d`）：73 处不变**（上游 +38 文件 / +1369 −304 主要是 spawn-helpers + system-prompt-override + OAuth refresh 重整；merge 干净未碰任何 §3.7 改造点；C11 触发 1 处 NPM scope rename `sendmessage-oauth-refresh.test.ts` 已修 + 6 处 brand 化 + 0 单测新增——基线维持。详见 [`.planning/sync-reports/SYNC-v0.9.2-20260507.md`](.planning/sync-reports/SYNC-v0.9.2-20260507.md)）。
+> - **v24 SSRF redirect bypass 真修 + brand 漏盘补丁（2026-05-07）：80 处**（+7 marker：api-tools.ts 加 redirect:'manual' + 30x reject 共 4 处 / credential-manager.ts 同样 +2 处 / pi-agent-server/index.ts:1285 brand 漏盘补 +1 处；新增 §3.7 #44c/#44d/#45c/#45d；#45a 升级到 4 处 marker；同 commit 重写 4 SSRF 单测从 grep-only → runtime mock fetch（v24 F1.F5）+ refreshApiRenew 加 redirect bypass 单测 + spawn-cwd 加 U Agents.app 显式回归测试。详见 [`.planning/sync-reports/REVIEW-24-POST-SYNC-2026-05-07.md`](.planning/sync-reports/REVIEW-24-POST-SYNC-2026-05-07.md)）。
 
 **每次同步必跑 grep（覆盖全部注释格式）**：
 
@@ -292,7 +297,7 @@ grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_mod
 # 抗 build-dmg.sh 中间态把 SDK 包复制到 apps/electron/node_modules/ 让数字暂时虚高的情况
 grep -rEn --exclude-dir=node_modules "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
   | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
-# 期望：73（基线，允许 71-75）
+# 期望：80（基线，允许 78-82）
 
 # 块标记 START/END 配对（数量必须相等）
 grep -rE --exclude-dir=node_modules "/\* U-API START" packages apps --include="*.ts" --include="*.tsx" | wc -l

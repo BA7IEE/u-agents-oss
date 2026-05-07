@@ -242,6 +242,10 @@ export function createApiTool(
         const fetchOptions: RequestInit = {
           method,
           headers,
+          // U-API: M3 SSRF 防护 — redirect bypass 修补（v24 F1.F3 P0）
+          // 默认 follow redirect 允许 attacker 用 https://attacker.com 302 → http://169.254.169.254/
+          // 跟随到云元数据并带着 Authorization 头泄漏凭证。改 manual 后下方主动校验 30x 响应。
+          redirect: 'manual',
         };
 
         // Add body for non-GET requests
@@ -273,6 +277,22 @@ export function createApiTool(
         }
 
         const response = await fetch(url, fetchOptions);
+
+        // U-API: M3 SSRF 防护 — 主动拒绝 30x redirect（v24 F1.F3 P0；与 redirect:'manual' 配套）
+        // 合法 API 不应返回 redirect；如果用户的 source 真的有 redirect，应当配最终 URL
+        if (response.status >= 300 && response.status < 400) {
+          const location = response.headers.get('location') || '(none)';
+          debug(`[api-tools] ${config.name} blocked ${response.status} redirect to ${location}`);
+          return {
+            content: [{
+              type: 'text' as const,
+              text: `Request blocked: API returned ${response.status} redirect to ${location}. ` +
+                    `For security (SSRF prevention) we do not follow redirects on credentialed API calls. ` +
+                    `Update the source's baseUrl to the final destination.`,
+            }],
+            isError: true,
+          };
+        }
 
         // OOM safety: reject before loading into memory
         const contentLength = response.headers.get('content-length');
