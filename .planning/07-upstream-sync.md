@@ -357,6 +357,11 @@ grep -niE "craft|lukilabs|agents\.craft" "$FILE"
 
 **历次执行**：
 - v0.9.1 sync（2026-05-06 commit `5a87e9e1` 后）：原文 56 行 → 译文 59 行；删 9 处 GitHub URL + 13 处 commit hash + 5 处 craft 字面量；语义通顺重组（如 5 行 mid-stream 段重组为 2 段 + 列表）。
+- **v0.9.2 sync（2026-05-07）：本次 sync 漏翻译，v26 review 时用户发现并要求补译。**经验教训：
+  - 漏盘根因：v0.9.2 sync commit `a76e502d` 中只对 `0.9.2.md` 做了 brand 替换（"Pi backend silently dropped the **Craft** system prompt" → "the system prompt"、`@craft-agent/core` → `@u-agents/core`），**忘了整体翻译为中文**——这是历史 release-notes 完全中文风格的硬要求，brand 替换 ≠ 翻译。
+  - 第二次错误：v26 补译时第一版机翻味重（"迟到的 refresh 恢复状态前"、"盖写**三个** SDK 私有字段"等英文句式直译），且**违反 SOP 第 2 项**保留了 5 处 `(#xxx)` issue 引用 + 7 处 commit hash + 1 处 `github.com/openclaw` URL——用户再次质疑后才完全按 SOP 重做。
+  - **本节 SOP 强化**：从此 sync 后必跑核对手段 3 组 grep（见上方代码块），**0 命中才算翻译合格**；翻译动作不能简化为"brand 替换"，必须**完整中文化**——参考既有 0.9.0 / 0.9.1 / 0.8.13 风格。
+  - 文件最终状态（2026-05-07 v26 后）：32 行；删 5 处 `(#xxx)` + 7 处 commit hash + 1 处 OpenClaw URL + 1 处 OpenClaw 完整链接（保留"社区项目 OpenClaw 同名实现"提名）；6 项缺陷修复 + 1 项改进 + 备注 2 条全部按 0.9.1 短句口语化风格重写。
 
 ### 2.6 跑构建与 typecheck
 
