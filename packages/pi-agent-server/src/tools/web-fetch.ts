@@ -363,12 +363,21 @@ export function createWebFetchTool(
             Accept:
               'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           },
-          redirect: 'follow',
+          // U-API: M3 SSRF 防护 — redirect bypass 修补（不跟随 30x，主动检查；详见 M3-SSRF-CONSOLIDATION-SPEC §2.1）
+          redirect: 'manual',
           signal: AbortSignal.timeout(30_000),
         });
       } catch (err) {
         return result(
           `Failed to fetch ${url}: ${err instanceof Error ? err.message : String(err)}`,
+          true,
+        );
+      }
+
+      // U-API: M3 SSRF 防护 — 主动拒绝 30x redirect（攻击者用公网 URL → 私网/云元数据的 redirect 跳板攻击）
+      if (response.status >= 300 && response.status < 400) {
+        return result(
+          `Refused to fetch ${url}: HTTP ${response.status} redirect blocked (SSRF protection)`,
           true,
         );
       }
@@ -380,7 +389,7 @@ export function createWebFetchTool(
         );
       }
 
-      // Use the final URL after redirects for all output messages
+      // Use the final URL (no redirect since redirect:'manual') — for messaging only
       const finalUrl = response.url || url;
 
       const contentType = (response.headers.get('content-type') || '')

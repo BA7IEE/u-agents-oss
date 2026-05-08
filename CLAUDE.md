@@ -235,6 +235,15 @@ if (!apiKey && connection.baseUrl) {
 | 46 | `browserToolEnabled` 默认改 `false`（v24 G1.F4.1 决策）| `packages/shared/src/config/storage.ts` 内 `defaults.browserToolEnabled: false` | 注释 `browser tool 默认关闭` | 单行 | REVIEW-24 §1（Bucket C）+ 04-feature-cuts §九类 |
 | 46t | `browserToolEnabled` 默认 false 防回归测试 | `packages/shared/src/__tests__/m2-security-regression.test.ts` | describe `browserToolEnabled 默认 false` | 单行 | C5 自洽 |
 
+**v27 Bucket B SSRF 横向扩展 + 漏盘补丁（2026-05-08，详见 [`M3-SSRF-CONSOLIDATION-SPEC.md`](.planning/M3-SSRF-CONSOLIDATION-SPEC.md)）**：
+
+| # | 改造类别 | 文件 | 定位（用 `grep` 找）| 标记 | 关联规格 |
+|---|---|---|---|---|---|
+| 47a | `web_fetch` redirect:'manual' + 30x reject（v27 P0-1 真修，redirect bypass 漏洞）| `packages/pi-agent-server/src/tools/web-fetch.ts:~366,377` | 注释 `M3 SSRF 防护 — redirect bypass 修补` + `主动拒绝 30x redirect` | 单行（2 处）| M3-SSRF-CONSOLIDATION-SPEC §2.1 + REVIEW-27 P0-1 |
+| 47b | `web_fetch` SSRF 运行时测试（7 个，含 marker 防回归 1 处）| `packages/pi-agent-server/src/tools/web-fetch-ssrf.test.ts` | describe `web-fetch SSRF guard` | 单行 | C5 自洽 |
+| 48a-d | `source-test.ts` 4 处 fetch SSRF guard（auth path + basic path × 3）| `packages/session-tools-core/src/handlers/source-test.ts` | 注释 `M3 SSRF 防护` × 7（import + safety check + auth redirect:'manual' + 30x reject + basic 3× redirect:'manual' + 30x reject）| 单行（8 处）| M3-SSRF-CONSOLIDATION-SPEC §2.2 + REVIEW-27 P1 |
+| 49 | `auto-update.ts` 注释 URL 与 publish.url 一致（v27 P0-5 漏盘补丁）| `apps/electron/src/main/auto-update.ts:7` | 注释 `comment URL must match electron-builder.yml publish.url exactly` | 单行 | REVIEW-27 P0-5 |
+
 **Build 脚本 marker（M2 后期补充，不计入主基线）**：
 
 主基线 grep 命令仅扫 `packages` + `apps` 下的 `.ts/.tsx`，build 脚本（`.sh` / `.ps1`）不在覆盖范围内——但仍需登记，方便上游同步时辨识改造点。
@@ -261,11 +270,11 @@ grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_mod
 # scripts/typecheck-staged.sh + scripts/lint-i18n-staged.sh）
 ```
 
-**同步上游验证基线**（**v24 全 Bucket A+B+C 落地后 2026-05-07 刷新**）：
+**同步上游验证基线**（**v27 Bucket B SSRF 横向扩展后 2026-05-08 刷新**）：
 
-| 指标 | 基线（2026-05-07 v24 完整后）| 下次同步允许浮动 |
+| 指标 | 基线（2026-05-08 v27 Bucket B 完整后）| 下次同步允许浮动 |
 |---|---|---|
-| U-API 标记总数（含全部注释格式）| **82** | ±2 |
+| U-API 标记总数（含全部注释格式）| **94** | ±2 |
 | `/* U-API START */` 块数 | **9** | 必须等于 END |
 | `/* U-API END */` 块数 | **9** | 必须等于 START |
 
@@ -291,6 +300,7 @@ grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_mod
 > - **v0.9.2 sync（2026-05-07 commit `a76e502d`）：73 处不变**（上游 +38 文件 / +1369 −304 主要是 spawn-helpers + system-prompt-override + OAuth refresh 重整；merge 干净未碰任何 §3.7 改造点；C11 触发 1 处 NPM scope rename `sendmessage-oauth-refresh.test.ts` 已修 + 6 处 brand 化 + 0 单测新增——基线维持。详见 [`.planning/sync-reports/SYNC-v0.9.2-20260507.md`](.planning/sync-reports/SYNC-v0.9.2-20260507.md)）。
 > - **v24 SSRF redirect bypass 真修 + brand 漏盘补丁（2026-05-07）：80 处**（+7 marker：api-tools.ts 加 redirect:'manual' + 30x reject 共 4 处 / credential-manager.ts 同样 +2 处 / pi-agent-server/index.ts:1285 brand 漏盘补 +1 处；新增 §3.7 #44c/#44d/#45c/#45d；#45a 升级到 4 处 marker；同 commit 重写 4 SSRF 单测从 grep-only → runtime mock fetch（v24 F1.F5）+ refreshApiRenew 加 redirect bypass 单测 + spawn-cwd 加 U Agents.app 显式回归测试。详见 [`.planning/sync-reports/REVIEW-24-POST-SYNC-2026-05-07.md`](.planning/sync-reports/REVIEW-24-POST-SYNC-2026-05-07.md)）。
 > - **v24 Bucket C browser tool 裁剪决策（2026-05-07）：82 处**（+2 marker：storage.ts browserToolEnabled 默认改 false 加 1 处 marker + m2-security-regression.test.ts 防回归测试加 1 处 marker；同 commit 改 config-defaults.json 默认值；新增 §3.7 #46/#46t；详见 [`.planning/04-feature-cuts.md`](.planning/04-feature-cuts.md) §九类）。
+> - **v27 Bucket B SSRF 横向扩展（2026-05-08）：94 处**（+12 marker：auto-update.ts 注释品牌 1 处 + web-fetch.ts redirect:'manual' + 30x reject 2 处 + web-fetch-ssrf.test.ts marker 防回归 1 处 + source-test.ts SSRF 8 处（import + safety check + auth path redirect:'manual' + 30x reject + basic path 3× redirect:'manual' + 30x reject）；新增 §3.7 #47a/#47b/#48a-d/#49；同 commit zh-Hans browser tool i18n 文案重写不计 marker（属 i18n 改动）+ Bucket A 7 文档已分别 commit。详见 [`.planning/M3-SSRF-CONSOLIDATION-SPEC.md`](.planning/M3-SSRF-CONSOLIDATION-SPEC.md) + [`.planning/sync-reports/REVIEW-27-FULL-2026-05-08.md`](.planning/sync-reports/REVIEW-27-FULL-2026-05-08.md)）。**B4 toast / B5 chat gate defer 给后续 commit，需 IPC 与 chat hook 集成**。
 
 **每次同步必跑 grep（覆盖全部注释格式）**：
 
@@ -300,7 +310,7 @@ grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_mod
 # 抗 build-dmg.sh 中间态把 SDK 包复制到 apps/electron/node_modules/ 让数字暂时虚高的情况
 grep -rEn --exclude-dir=node_modules "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
   | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
-# 期望：82（基线，允许 80-84）
+# 期望：94（基线，允许 92-96）
 
 # 块标记 START/END 配对（数量必须相等）
 grep -rE --exclude-dir=node_modules "/\* U-API START" packages apps --include="*.ts" --include="*.tsx" | wc -l

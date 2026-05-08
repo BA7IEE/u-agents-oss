@@ -20,6 +20,8 @@ import {
   getSourceGuidePath,
   getSourcePath,
 } from '../source-helpers.ts';
+// U-API: M3 SSRF 防护 — credential-bearing source test 必须挡私网/云元数据/http（详见 M3-SSRF-CONSOLIDATION-SPEC §2.2）
+import { assertPublicHttpsUrl } from '@u-agents/shared/utils/url-safety';
 
 export interface SourceTestArgs {
   sourceSlug: string;
@@ -464,6 +466,13 @@ async function testApiConnection(
     ? `${source.api.baseUrl}${source.api.testEndpoint.path}`
     : source.api.baseUrl;
 
+  // U-API: M3 SSRF 防护 — 阻止 source test 调用打到私网/云元数据/非 https URL
+  const safetyCheck = assertPublicHttpsUrl(testUrl);
+  if (!safetyCheck.ok) {
+    lines.push(`✗ Refused to test: ${safetyCheck.reason}`);
+    return { lines, success: false, hasError: true, error: `SSRF guard: ${safetyCheck.reason}` };
+  }
+
   // Try authenticated request if credentials available
   if (source.isAuthenticated && ctx.credentialManager && source.api.authType !== 'none') {
     const authResult = await testApiConnectionWithAuth(ctx, source, sourceSlug, testUrl);
@@ -579,7 +588,8 @@ async function testApiConnectionWithAuth(
       }
     }
 
-    const init: RequestInit = { method, headers, signal: controller.signal };
+    // U-API: M3 SSRF 防护 — credential-bearing fetch 不跟随 30x（防 redirect bypass）
+    const init: RequestInit = { method, headers, signal: controller.signal, redirect: 'manual' };
     if (body !== undefined && method !== 'GET') {
       init.body = typeof body === 'string' ? body : JSON.stringify(body);
       // Default to JSON only if no Content-Type was provided by testEndpoint.headers.
@@ -590,6 +600,12 @@ async function testApiConnectionWithAuth(
     const response = await fetch(urlWithAuth, init);
 
     clearTimeout(timeoutId);
+
+    // U-API: M3 SSRF 防护 — 主动拒绝 30x redirect
+    if (response.status >= 300 && response.status < 400) {
+      lines.push(`✗ Refused: HTTP ${response.status} redirect blocked (SSRF protection)`);
+      return { lines, success: false, hasError: true, error: `SSRF: 30x redirect blocked`, attempted: true };
+    }
 
     if (response.ok) {
       lines.push(`✓ API connection successful (authenticated)`);
@@ -648,12 +664,16 @@ async function testApiConnectionBasic(
       response = await fetch(testUrl, {
         method: configuredMethod,
         signal: controller.signal,
+        // U-API: M3 SSRF 防护 — 不跟随 30x（防 redirect bypass）
+        redirect: 'manual',
       }).catch(() => null);
     } else {
       // Try HEAD first
       response = await fetch(testUrl, {
         method: 'HEAD',
         signal: controller.signal,
+        // U-API: M3 SSRF 防护
+        redirect: 'manual',
       }).catch(() => null);
 
       // If HEAD returns 405, try GET
@@ -661,11 +681,19 @@ async function testApiConnectionBasic(
         response = await fetch(testUrl, {
           method: 'GET',
           signal: controller.signal,
+          // U-API: M3 SSRF 防护
+          redirect: 'manual',
         }).catch(() => null);
       }
     }
 
     clearTimeout(timeoutId);
+
+    // U-API: M3 SSRF 防护 — 主动拒绝 30x redirect（basic test 无 creds，但仍防内网探测）
+    if (response && response.status >= 300 && response.status < 400) {
+      lines.push(`✗ Refused: HTTP ${response.status} redirect blocked (SSRF protection)`);
+      return { lines, success: false, hasError: true, error: `SSRF: 30x redirect blocked` };
+    }
 
     if (response) {
       if (response.ok) {
