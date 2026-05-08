@@ -419,7 +419,7 @@ CONFIG="$HOME/.u-agents/config.json"  # M1 改造完成后的位置（详见 01-
 
 ### 13.3.1 FEATURE_FLAGS 默认值锁定（v21 P2 补遗）
 
-> 验证 `packages/shared/src/feature-flags.ts` 中的 `FEATURE_FLAGS.craftAgentsCli` 默认值在 M1/M2 发版包内确实为 `false`——否则 `prompts/system.ts:533` 等 craft 字面量分支会被注入用户可见 system prompt（`AGENTS.md` §3.7 C6 模式）。
+> 验证 `packages/shared/src/feature-flags.ts` 中的 `FEATURE_FLAGS.craftAgentsCli` 默认值在 M1/M2 发版包内确实为 `false`——否则 `prompts/system.ts:533` 等 craft 字面量分支会被注入用户可见 system prompt（`CLAUDE.md` §3.7 C6 模式）。
 
 - [ ] 启动 M1/M2 包，**不**设置 `U_AGENTS_FEATURE_CRAFT_AGENTS_CLI` 环境变量
 - [ ] DevTools / agent 真实 system prompt 中**不出现** `craft-agent`、`craft-cli`、`Craft CLI` 字面量（grep `prompts/system.ts:533` 附近 `${FEATURE_FLAGS.craftAgentsCli ? ...}` 三元的 truthy 分支）
@@ -427,7 +427,7 @@ CONFIG="$HOME/.u-agents/config.json"  # M1 改造完成后的位置（详见 01-
 - [ ] 反向验证：手动 `U_AGENTS_FEATURE_CRAFT_AGENTS_CLI=1 bun run start`（仅本机测试，不进发版）→ system prompt 才出现 craft 字段；确认 flag 真生效
 - [ ] 发版打包时 grep 构建产物 `apps/electron/release/.../app/dist/main.cjs`：含 `craftAgentsCli` 标识符（说明 flag 编进去了）+ 但默认 `false` 值不触发字面量注入
 
-> 详见 `04-feature-cuts.md` "代码可保留，UI 必须隐藏" 原则 + `AGENTS.md` §3.7 C6（system prompt craft 字面量未门控）。
+> 详见 `04-feature-cuts.md` "代码可保留，UI 必须隐藏" 原则 + `CLAUDE.md` §3.7 C6（system prompt craft 字面量未门控）。
 
 ### 13.4 Sentry / 遥测隐私验证（Round 42 补遗）
 
@@ -516,7 +516,7 @@ CONFIG="$HOME/.u-agents/config.json"  # M1 改造完成后的位置（详见 01-
 ```bash
 ## §5 验证结果（v24 后强制贴片）
 
-### §5.1 主基线 grep（§3.7 期望 73/9/9）
+### §5.1 主基线 grep（§3.7 期望 82/9/9 — v24 全 Bucket A+B+C 落地后基线，详见 CLAUDE.md §3.7 历次演进表）
 $ grep -rEn --exclude-dir=node_modules "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
     | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
 [实际数字]

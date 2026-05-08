@@ -344,6 +344,31 @@ M1 阶段不做这套基础设施，因此**必须把 UI 入口隐藏**——否
 - 所有 browser_tool 相关代码（`browser-cdp.ts` / `browser-pane-manager.ts` / `session-scoped-tools.ts`）— 用户开启后正常工作
 - system prompt browser tools section 已被 `getBrowserToolEnabled()` 完整 gate（v0.9.2 上游 fix）— 默认 false 时不进 prompt
 
+#### 9.2.1 i18n 文案重写（**v27 review O1 P0**）
+
+**问题**：v0.9.2 上游 i18n 描述文案为「**禁用** if 使用外部浏览器工具」——这是上游默认 `true` 的语境下写的（"已开启状态下你想关掉吗？"）。U Agents 改默认为 `false` 后，这句话变成**逆逻辑**：用户看到 toggle 是关的，描述却说"禁用 if..."——**用户搞不清楚这个 toggle 当前是开还是关、要不要点**。
+
+**P0 要求 — 重写 zh-Hans 文案 + 加风险提示**：
+
+| i18n key | 当前（上游 v0.9.2 直译）| **U Agents 重写后** |
+|---|---|---|
+| `settings.tools.builtInBrowser` | `内置浏览器` | `内置浏览器（实验功能）` |
+| `settings.tools.builtInBrowserDesc` | `如果使用外部浏览器工具 (如 Playwright、Puppeteer 或浏览器 MCP 服务器) 则禁用。` | `**默认关闭。**开启后 AI 可以打开内置浏览器、点击网页、填表单、执行 JavaScript。⚠️ 这是一个高权限工具——恶意网页可能通过 prompt injection 操纵 AI 做你不想做的事。仅在你明确知道在做什么、且信任当前会话上下文时启用。` |
+
+**修改文件**：[`packages/shared/src/i18n/locales/zh-Hans.json:1028-1029`](../packages/shared/src/i18n/locales/zh-Hans.json)
+
+**为什么不改 en.json**：
+- 上游同步会持续更新 en.json，我们改 en 等于每次同步都要 conflict resolve
+- 中文用户是 U Agents 主要受众（PRODUCT.md），en 用户多半是开发者，能看懂上游原始文案
+- 风险提示在 zh-Hans 里足够保护非技术中文用户
+
+**与 §3.7 marker 的关系**：i18n value 改动**不加 marker**——i18n 改动通过 `01-branding-spec.md` § i18n 全表登记，不计入 §3.7 baseline。但每次同步上游必须确认 zh-Hans.json 我们的重写未被覆盖（grep `内置浏览器（实验功能）`，应找到 1 处）。
+
+**验收**（加进 09-test-checklist §13.x）：
+1. 中文 UI 进 Settings → Tools → 看 builtInBrowser toggle
+2. 应显示「内置浏览器（实验功能）」+ 描述含 ⚠️ 警告 + "默认关闭" 字样
+3. 描述应**正向描述**（"开启后 AI 可以..."）而非"禁用 if..."逆逻辑
+
 ### 9.3 验收
 
 - [ ] 首次启动 U Agents（无 `~/.u-agents/config.json`）→ `getBrowserToolEnabled()` 返回 `false`

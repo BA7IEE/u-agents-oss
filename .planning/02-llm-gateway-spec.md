@@ -74,11 +74,75 @@
   - 用户首次添加模型并发现协议不匹配（如选了 GPT 模型但协议是 anthropic-messages）时，可在设置页**手动**切换协议
   - **不**做"添加模型时根据 model ID 自动改协议"的隐式行为——这种隐式行为会在用户跨模型切换时让协议莫名变动，是体验隐患
 
-### 3.3 模型清单（**onboarding 阶段强制至少 1 个**）
+### 3.3 模型清单（**onboarding 阶段强制至少 1 个 + 全程不允许空——P0**）
 
 ⚠️ **设计约束（来自上游代码事实）**：上游 `setupLlmConnection` IPC handler 在 `pi_compat` 模式下**必须**有 `defaultModel`，否则返回 `error: "Default model is required for compatible endpoints."` —— 见 `packages/server-core/src/handlers/rpc/llm-connections.ts:213-215`。
 
 因此 onboarding 期间用户**必须**至少添加 1 个模型，且 `defaultModel` 必须有值，否则 setup 失败、整个 onboarding 卡死。
+
+#### 3.3.1 P0：发送消息前的模型清单前置校验（**v27 review O1 升级**）
+
+**问题背景**：onboarding 校验只挡住了"首次配置"路径，但用户进入主界面后可以：
+1. 进设置页 → "AI Connections" → 编辑 U-API 连接 → 删光所有模型
+2. 直接编辑 `~/.u-agents/config.json` 把 `models` 数组清空
+3. 然后回到主聊天界面发对话
+
+当前行为（**未实现前置校验**）：用户发对话 → 后端 IPC handler 返回 `Default model is required` → UI 显示英文错误，用户看不懂、也不知道去哪修。
+
+**P0 要求 — 发送前必须前置校验**（实现位置：renderer 层 `useChat` / `sendMessage` hook 入口，**在调用 IPC 前**）：
+
+```typescript
+// 伪代码 — 发消息前的前置 gate
+function canSendMessage(state: ChatState): { ok: boolean; reason?: BlockReason } {
+  const conn = state.activeLlmConnection;
+  if (!conn) return { ok: false, reason: 'no_connection' };
+
+  const models = conn.models ?? [];
+  if (models.length === 0) {
+    return { ok: false, reason: 'no_models' };
+  }
+  if (!conn.defaultModel) {
+    return { ok: false, reason: 'no_default_model' };
+  }
+
+  return { ok: true };
+}
+
+// 在 sendMessage 入口
+const gate = canSendMessage(state);
+if (!gate.ok) {
+  showBlockingDialog({
+    titleKey: 'chat.cannot_send.title',
+    messageKey: `chat.cannot_send.${gate.reason}`,
+    primaryAction: {
+      labelKey: 'chat.cannot_send.go_to_settings',
+      onClick: () => navigate('/settings/ai-connections'),
+    },
+  });
+  return; // 不调 IPC
+}
+```
+
+**i18n keys（待 03-ui-lockdown-spec § i18n 表新增）**：
+- `chat.cannot_send.title` → `无法发送消息`
+- `chat.cannot_send.no_models` → `当前 U-API 连接没有可用模型，请到「AI 连接」设置中添加至少 1 个模型 ID`
+- `chat.cannot_send.no_default_model` → `当前 U-API 连接没有设置默认模型，请到「AI 连接」设置中选择一个默认模型`
+- `chat.cannot_send.no_connection` → `没有可用的 LLM 连接，请重启应用让 U-API 默认连接自动恢复`
+- `chat.cannot_send.go_to_settings` → `去设置页修改`
+
+**为什么是 P0 而不是 P1**：
+1. **用户感知**：英文 `Default model is required` 对中文用户是黑话——前置校验把错误时机从"发完看 ERROR"提前到"按发送按钮立即给中文引导"
+2. **首次启动覆盖盲区**：onboarding 校验只挡 setup 路径；但用户在 onboarding 完成后可以进设置页删光、或直接改 config.json，绕过 onboarding 的所有 guard
+3. **支撑 §4.4 toast 自愈**：即使 enforceUApiBaseUrl 注入了空骨架（无 models），用户立即发消息会被本 P0 gate 挡住，引导他完成"补 model" 流程
+
+**与现有 onboarding `models.length >= 1` 校验的关系**：本节是"运行时持续校验"，onboarding 校验是"首次设置时一次性校验"——**两个都要**，前置校验不能替代 onboarding 校验（onboarding 阶段还没进 chat 界面，没法触发 sendMessage）。
+
+**验收（加进 09-test-checklist §13.x）**：
+1. 完成 onboarding 后进入主界面 → 进设置页 → 删光所有模型 → 回主界面发消息 → 应弹出阻塞对话框「当前 U-API 连接没有可用模型，请到「AI 连接」设置中添加至少 1 个模型 ID」+ "去设置页修改"按钮
+2. 点 "去设置页修改" → 自动跳转到 `/settings/ai-connections`
+3. 添加 1 个模型 → 回主界面 → 可以正常发消息
+
+#### 3.3.2 字段说明（原 3.3 内容继承）
 
 **字段**：`models: Array<string | ModelDefinition>`（上游 schema 兼容两种形态，详见 `packages/shared/src/config/validators.ts:89`）
 
@@ -463,6 +527,80 @@ const setupValidation = validateSetupTestInput({ provider, baseUrl, piAuthProvid
 > ⚠️ 这张表**不是**"M1 不需要做的事"——是"M1 不需要主动改、但必须每次同步审查"的事。`07-upstream-sync.md` §2.5 步骤 4-8 已包含这些审查命令的 grep 模板。
 
 **注意**：协议字段 `customEndpoint.api` 和 `models` 不重置，让用户保留自己的选择。
+
+### 4.4 用户感知 SOP — `enforceUApiBaseUrl` 触发时必须 toast 提示（**P0 必加**）
+
+**问题背景（v27 review O1 用户视角发现）**：
+
+当前 `enforceUApiBaseUrl` 是"静默"重置——用户手动篡改 `~/.u-agents/config.json` 把 baseUrl 改成 `https://api.openai.com`，**重启后**配置被悄悄重置回 `https://token.u-studio.cn/v1`，但 UI 不给任何反馈。这有两个用户感知问题：
+
+1. **用户不知道改动被还原**：以为 baseUrl 已生效，发对话 401 后困惑（"我明明改了 config.json 啊"）
+2. **没有合规 paper trail**：合规审查中"用户尝试篡改 → 系统拦截"是关键证据，静默还原等于无证据
+
+**SOP 要求**：
+
+`enforceUApiBaseUrl` 检测到任一以下情况之一时，**必须**通过 IPC（main → renderer）发一个 toast 通知：
+
+| 触发场景 | toast 文案（中文） | 严重程度 |
+|---|---|---|
+| 检测到非 `u-api-default` 的 LLM 连接被加进 config.json | `检测到非授权的 LLM 连接已被自动移除（U-API 中转站锁定）` | warning |
+| `baseUrl` 字段被改 → 被重置 | `检测到 baseUrl 被篡改，已自动恢复为官方中转站地址` | warning |
+| `providerType` 被改 → 被重置 | `检测到 providerType 被篡改，已自动恢复` | warning |
+| 全部连接被删 → 注入空骨架 | （不 toast——这是首次启动正常流程，详见 §4 第 3 步说明） | — |
+
+**实现指引**（参考 — 实施 AI 真改时按当时上游 IPC 模式调整）：
+
+```typescript
+// packages/shared/src/config/storage.ts: enforceUApiBaseUrl 内
+function enforceUApiBaseUrl(config: StoredConfig): { changed: boolean; reasons: string[] } {
+  const reasons: string[] = [];
+  const beforeCount = config.llmConnections?.length ?? 0;
+
+  // ... existing filter / reset logic ...
+
+  if (filtered.length < beforeCount) {
+    reasons.push('unauthorized_connection_removed');
+  }
+  if (baseUrlReset) {
+    reasons.push('base_url_reset');
+  }
+  if (providerTypeReset) {
+    reasons.push('provider_type_reset');
+  }
+
+  return { changed: reasons.length > 0, reasons };
+}
+
+// 调用方（migrateLegacyLlmConnectionsConfig 内部，启动后期）
+const { changed, reasons } = enforceUApiBaseUrl(config);
+if (changed) {
+  needsSave = true;
+  // 通过现有 main → renderer toast IPC 通道（如 mainWindow.webContents.send('toast', {...})）
+  // 把 reasons 传给 renderer，renderer i18n 翻译为对应中文文案
+  enqueueStartupToast({
+    severity: 'warning',
+    i18nKey: 'llm.enforce_reset',
+    metadata: { reasons },
+  });
+}
+```
+
+**为什么不直接 alert 阻塞**：
+- 启动期 main 进程还没准备好 modal——会卡死流程
+- toast 是"事后告知"模式，符合"系统已自愈"的语义
+- 用户若没看 toast，不影响应用使用——只是少一次知情
+
+**i18n key（待 03-ui-lockdown-spec § i18n 表新增）**：
+- `llm.enforce_reset.unauthorized_connection_removed` → `检测到非授权的 LLM 连接已被自动移除（U-API 中转站锁定）`
+- `llm.enforce_reset.base_url_reset` → `检测到 baseUrl 被篡改，已自动恢复为官方中转站地址`
+- `llm.enforce_reset.provider_type_reset` → `检测到 providerType 被篡改，已自动恢复`
+
+**验收（加进 09-test-checklist §13.x）**：
+1. 关闭应用 → 编辑 `~/.u-agents/config.json` 把 `llmConnections[0].baseUrl` 改成 `https://api.openai.com` → 启动应用
+2. 应看到 warning toast「检测到 baseUrl 被篡改，已自动恢复为官方中转站地址」
+3. config.json 实际内容已被改回 `https://token.u-studio.cn/v1`
+
+**与 §3.1 LLM 入口锁定的关系**：本 SOP 是 §3.1 锁定的"用户感知层"——锁定不仅"代码层硬重置"，UI 层也要让用户知道发生了什么。
 
 ---
 

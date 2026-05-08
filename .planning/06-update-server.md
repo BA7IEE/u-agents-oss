@@ -405,6 +405,59 @@ releaseDate: '2026-05-15T12:00:00.000Z'
 
 > M2 阶段再考虑做得花哨。M1 阶段一个 `index.html` 就行。
 
+### 6.1 必须有的"风险与兼容性"声明（**v27 review O1 P0**）
+
+**问题背景**：v0.9.2 发布走的 D-β 策略——arm64-only macOS（vendor/bun 是 arm64，跑 x64 进程会 crash），但 release-notes / 下载页都没说清这一点，Intel Mac 用户下载 arm64 包会启动崩溃但拿不到任何"为什么"的解释。
+
+**P0 要求 — 下载页/release notes 必须显眼包含**：
+
+```markdown
+## 系统要求
+
+| 平台 | 支持架构 | 状态 |
+|---|---|---|
+| macOS | **Apple Silicon (M1/M2/M3/M4)** | ✅ 推荐使用 |
+| macOS | Intel (x86_64) | ⚠️ v0.9.2 暂不提供，v0.9.3 计划补齐（无 Intel Mac 实测设备）|
+| Windows | x64 (Win10+) | ✅ 推荐使用 |
+| Linux | x64 (Ubuntu 20.04+) | ⚠️ 实验性，未做完整回归 |
+
+⚠️ **Intel Mac 用户请勿下载 arm64 包**——下载后双击会立即崩溃。
+```
+
+**HTML 实现要点**：
+1. User-Agent 检测 macOS 时，再检测 `navigator.userAgent` 是否含 `Intel Mac OS X`
+2. 命中 Intel 时**不**自动推荐 dmg 下载，改为显示「暂不支持你的 Mac，请等 v0.9.3」+ 收集邮件订阅
+3. 顶栏 banner 永久显示一句"⚠️ Intel Mac 暂不支持，详见系统要求"
+
+**为什么是 P0**：
+- 用户下载后崩溃 → 卸载 → 流失，且没有 telemetry 看到这个流失漏斗（M3-4 GlitchTip 上线前都是黑盒）
+- "下载页诚实声明 + Intel UA 拦截" 是零成本零风险的"用户体感"补救
+
+### 6.2 推动 Intel Mac 实测的 SOP（**v27 review O1 P0**）
+
+**当前阻塞**：用户没有 Intel Mac 实测设备 →macOS x64 build 一直处于"打了包没人验"状态 → R2 上传后无法保证能用。
+
+**SOP — 推动节奏**（实施 AI 在每次 sync 后跑这套）：
+
+1. **每次 sync 后检查清单**：
+   - [ ] vendor/bun 的架构（用户机器是 arm64？x64？兼容包？）
+   - [ ] electron-builder 的 `mac.arch` 设置（`['arm64']` / `['x64']` / `['arm64','x64']`）
+   - [ ] dist:mac 默认产出包数（如同时产 arm64 + x64，但 vendor/bun 是 arm64-only，**x64 包必崩**）
+2. **若用户机器是 arm64-only（当前情况）**：
+   - 默认 dist:mac 仅产 arm64 包
+   - latest-mac.yml 仅含 arm64 entry（D-β 策略）
+   - 下载页 §6.1 显示 Intel "暂不支持"
+3. **触发"补 x64"的条件**：
+   - 用户买了 Intel Mac → 在用户机器上跑 `dist:mac --arch x64`
+   - **OR** GitHub Actions 上跑 macOS-13 runner（Intel）跑 build → 上传产物
+   - **OR** 第三方众包测试（找一个有 Intel Mac 的朋友帮跑一次实测）
+4. **永远不接受**："本机 cross-compile x64 包但没在 Intel 机器上验过就发布"——vendor/bun 等原生模块在 cross-compile 后大概率运行时崩溃
+5. **每次实施 AI 跑 sync 完，必须在 sync 报告里回答**：
+   - "Intel Mac x64 当前状态？"（已发布 / 暂不支持 / 待实测）
+   - "下次目标？"（按用户当前数据决定，不强行排进 M3）
+
+**长期解法**：M3 阶段计划接入 GitHub Actions / 自建 CI，cross-platform build 就不再依赖用户本机机器（详见 [`05-build-release.md`](./05-build-release.md) §未来 CI/CD）。
+
 ---
 
 ## 7. 高级话题（M2/M3 再做）

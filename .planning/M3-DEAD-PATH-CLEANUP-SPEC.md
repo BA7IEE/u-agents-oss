@@ -64,7 +64,7 @@ grep -rn "CRAFT_COMMANDS_ENTRY\|CRAFT_CLI_ENTRY\|CRAFT_COMMANDS_DOC_PATH\|CRAFT_
 | 752 | `\`craft-clipboard-script-${Date.now()}.js\`` | `\`u-agents-clipboard-script-${Date.now()}.js\`` |
 
 > **影响域**：纯本地 tmpdir 临时文件名，无跨进程协议依赖——`replace_all` 安全。
-> **C2 防护**（[AGENTS.md §3.7 C2](../AGENTS.md)）：用 Edit 工具不要 sed，规避 object key 引号问题（这里 5 处都是模板字符串，不是 object key，但保持习惯）。
+> **C2 防护**（[CLAUDE.md §3.7 C2](../CLAUDE.md)）：用 Edit 工具不要 sed，规避 object key 引号问题（这里 5 处都是模板字符串，不是 object key，但保持习惯）。
 
 ### 1.3 `packages/shared/src/prompts/system.ts:533-540` — `Craft CLI` 三元分支
 
@@ -192,7 +192,9 @@ grep -rn "craft-clipboard\|CRAFT_COMMANDS_ENTRY\|CRAFT_CLI_ENTRY\|CRAFT_COMMANDS
   packages apps --include="*.ts" --include="*.tsx" 2>/dev/null
 ```
 
-### 步骤 6：[AGENTS.md §3.7](../AGENTS.md) marker 增量
+### 步骤 6：[CLAUDE.md §3.7](../CLAUDE.md) marker 增量
+
+> ⚠️ **本 spec 编写于 v22 时点（基线 67），后续实施分散到 v24 多个 Bucket**。当前实际基线已演进到 **82**（v24 全 Bucket A+B+C 落地后；详见 CLAUDE.md §3.7 历次演进表）。下面"67 → 73"是 spec 原计划记录，实施时已被合并到 v24 链路；本 spec 不再独立刷基线（M3-DEAD-PATH 部分已由 v24 commit `a983c5ba` ship，0 marker 净增）。
 
 主表加 #43-#48（M3-1 OAuth relay 3 项 + M3 cleanup 3 项）。基线行：67 → 73（允许 71-75）。历次演进末行加：
 
@@ -208,7 +210,7 @@ grep -rn "craft-clipboard\|CRAFT_COMMANDS_ENTRY\|CRAFT_CLI_ENTRY\|CRAFT_COMMANDS
 - [ ] grep `CRAFT_DEBUG` `CRAFT_SCRIPTS` `CRAFT_AGENT_VERSION` 全仓 = 0（消费方全改 `U_AGENTS_*`）
 - [ ] grep `craft-clipboard` 全仓 = 0
 - [ ] 单测覆盖（C5 自洽）
-- [ ] [AGENTS.md §3.7](../AGENTS.md) #43-#48 + 基线 67 → 73
+- [ ] [CLAUDE.md §3.7](../CLAUDE.md) #43-#48 + 基线 67 → 73
 - [ ] [09-test-checklist.md §13.3.1](09-test-checklist.md) verify 跑通
 - [ ] **与 [M3-OAUTH-RELAY-SPEC.md](M3-OAUTH-RELAY-SPEC.md) 同 commit**
 
@@ -219,5 +221,5 @@ grep -rn "craft-clipboard\|CRAFT_COMMANDS_ENTRY\|CRAFT_CLI_ENTRY\|CRAFT_COMMANDS
 - [REVIEW-21-FULL-2026-05-07.md §2.4 #2](sync-reports/REVIEW-21-FULL-2026-05-07.md)（强制同 commit 来源）
 - [M3-OAUTH-RELAY-SPEC.md](M3-OAUTH-RELAY-SPEC.md)（必须同 commit）
 - [04-feature-cuts.md](04-feature-cuts.md)（craft-cli / craft-agents-commands 已裁剪依据）
-- [AGENTS.md §3.7](../AGENTS.md) C5（新改造点必加单测） + C6（system prompt craft 字面量门控）
+- [CLAUDE.md §3.7](../CLAUDE.md) C5（新改造点必加单测） + C6（system prompt craft 字面量门控）
 - [09-test-checklist.md §13.3.1](09-test-checklist.md)（craftAgentsCli=false verify）

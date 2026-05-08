@@ -150,7 +150,9 @@ if (!safety.ok) {
 | 50 | `packages/shared/src/utils/url-safety.ts` | `M3 SSRF 防护 — assertPublicHttpsUrl helper` | 块（含 PRIVATE_HOST_RANGES + PRIVATE_HOST_NAMES + assertPublicHttpsUrl）|
 | 51 | `packages/shared/src/sources/credential-manager.ts:~982` | `M3 SSRF 防护 — 校验 renewEndpoint 是公网 https` | 单行 |
 
-> 改造完成后 [AGENTS.md §3.7](../AGENTS.md) 加 #50-#51（基线 67 + M3-1/cleanup 6 项 + 此 2 项 = 75）。
+> ✅ **已 ship（v23 P1 + v24 Bucket B）**：v23 P1 commit `7c9cce68` 加 createApiTool SSRF 接入；v24 Bucket B `943a40be` 加 redirect:'manual' + 30x 拒绝。当前实际基线 **82**（不是 spec 原写的 75）；详见 CLAUDE.md §3.7 #43/#44a-d/#45a-b 实际登记。
+>
+> （历史记录）改造完成后 [CLAUDE.md §3.7](../CLAUDE.md) 加 #50-#51（spec 原计划"基线 67 + M3-1/cleanup 6 项 + 此 2 项 = 75"，实施时编号合并到 #44/#45 系列）。
 
 ---
 
@@ -264,7 +266,7 @@ test('refreshApiRenew rejects SSRF target (cloud metadata)', async () => {
 - [ ] `credential-manager.ts:refreshApiRenew` 接入 helper
 - [ ] 单测覆盖 ≥ 20 条（OK + SSRF + protocol + edge）
 - [ ] 集成测试覆盖 `refreshApiRenew` rejection
-- [ ] [AGENTS.md §3.7](../AGENTS.md) 加 #50-#51
+- [ ] [CLAUDE.md §3.7](../CLAUDE.md) 加 #50-#51
 - [ ] grep `fetch(url` `fetch(\`http` 全仓——其他可能 SSRF 的点列出来作为后续 follow-up（不在本 spec 范围）
 
 ---
@@ -273,7 +275,7 @@ test('refreshApiRenew rejects SSRF target (cloud metadata)', async () => {
 
 - [REVIEW-21-FULL-2026-05-07.md §2.4 #4](sync-reports/REVIEW-21-FULL-2026-05-07.md)（finding 来源）
 - [`packages/shared/src/utils/url-safety.ts`](../packages/shared/src/utils/url-safety.ts)（现有 scheme 防 XSS，本 spec 加 SSRF 防护）
-- [AGENTS.md §3.7](../AGENTS.md) C5（C5 自洽——新改造点必加单测）
+- [CLAUDE.md §3.7](../CLAUDE.md) C5（C5 自洽——新改造点必加单测）
 
 ### 5.1 本 spec 不防的攻击
 

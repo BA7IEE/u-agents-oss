@@ -142,7 +142,9 @@ bun run scripts/electron-build-main.ts --packaging
 | B5 | `apps/electron/scripts/build-dmg.sh` | `# U-API: M3-Sentry — 加 --packaging flag 触发 build-time DSN assertion` | 单行 |
 | B6 | `apps/electron/scripts/build-win.ps1` | 同上 | 单行 |
 
-> 主基线 grep 仅扫 `.ts/.tsx`，#49 计入主基线（67 → 加 1）；B5/B6 仅在 build 脚本子表里登记。
+> ✅ **已 ship（v24 Bucket A）**：v24 commit `e91bb1e0` 落地 build-time DSN warn assertion；M2 过渡期不 fail，M3-4 GlitchTip 上线时切 fail。当前实际基线 **82**（不是 spec 原写的 68）；B5/B6/B7 已在 §3.7 Build 脚本子表登记。
+>
+> （历史记录）主基线 grep 仅扫 `.ts/.tsx`，#49 计入主基线（spec 原写"67 → 加 1"，实际未独立计 #49，assertion 在 scripts/electron-build-main.ts 不入主基线）；B5/B6/B7 仅在 build 脚本子表里登记。
 
 ---
 
@@ -222,7 +224,7 @@ describe('build-time DSN assertion', () => {
 - [ ] `build-dmg.sh` + `build-win.ps1` 调用时显式 `--packaging`
 - [ ] CI workflow secret 注入（M3-4 启动同 commit 加 fail 阻断）
 - [ ] 单测 3 条覆盖（dev 通过 / prod 无 DSN fail / prod 有 DSN 通过）
-- [ ] [AGENTS.md §3.7](../AGENTS.md) 加 #49 + B5/B6（基线 67 → 68 + Build 脚本子表 4 → 6）
+- [ ] [CLAUDE.md §3.7](../CLAUDE.md) 加 #49 + B5/B6（基线 67 → 68 + Build 脚本子表 4 → 6）
 - [ ] [09-test-checklist.md §13.4](09-test-checklist.md) 加"M3 prod build 必须带 DSN"verify
 
 ---
@@ -233,7 +235,7 @@ describe('build-time DSN assertion', () => {
 - [M3-OAUTH-RELAY-SPEC.md](M3-OAUTH-RELAY-SPEC.md) §2.3（同 esbuild --define 注入模式）
 - [11-roadmap.md M3-4](11-roadmap.md)（自建 Sentry/GlitchTip）
 - [12-subprocess-build-pipeline.md](12-subprocess-build-pipeline.md) §0（事故 #3-#5，main bundle pipeline）—— 本 spec 同样在 main bundle 阶段插入 assertion
-- [AGENTS.md §3.7](../AGENTS.md) C5（新改造点必加单测）
+- [CLAUDE.md §3.7](../CLAUDE.md) C5（新改造点必加单测）
 
 ---
 

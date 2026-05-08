@@ -154,7 +154,7 @@ import { SLACK_OAUTH_RELAY_BASE } from './oauth-relay';
 const redirectUri = `${SLACK_OAUTH_RELAY_BASE}/auth/slack/callback?port=${port}`;
 ```
 
-#### 2.3 §3.7 改造点 marker（必加，[AGENTS.md §3.7](../AGENTS.md)）
+#### 2.3 §3.7 改造点 marker（必加，[CLAUDE.md §3.7](../CLAUDE.md)）
 
 | # | 文件 | 注释（grep 关键字）| 标记 |
 |---|---|---|---|
@@ -162,7 +162,9 @@ const redirectUri = `${SLACK_OAUTH_RELAY_BASE}/auth/slack/callback?port=${port}`
 | 44 | `packages/shared/src/auth/slack-oauth.ts:269` | `M3-1 OAuth relay 域名切换` | 单行 |
 | 45 | `packages/shared/src/auth/slack-oauth.ts:360` | 同上 | 单行 |
 
-> 改造完成后 [AGENTS.md §3.7](../AGENTS.md) 主表新增 #43-#45 行（基线 67 → 70）。
+> ⚠️ **本 spec 编写于 v22 时点（基线 67），未实施**。当前实际基线 **82**（v24 全 Bucket A+B+C 后），4 处 craft.do 残留仍在；M3-1 启动时再次更新本节实际数字。
+>
+> 改造完成后 [CLAUDE.md §3.7](../CLAUDE.md) 主表新增 #43-#45 行（spec 原计划"基线 67 → 70"作历史记录；实际实施时按当时基线推算）。
 
 ### 步骤 3：单测（外部 AI，0.5 天）
 
@@ -196,7 +198,7 @@ describe('OAUTH_RELAY_CALLBACK_URL', () => {
 });
 ```
 
-> **C5 自洽**（[AGENTS.md §3.7 C5](../AGENTS.md)：新改造点必须同时加单测）。
+> **C5 自洽**（[CLAUDE.md §3.7 C5](../CLAUDE.md)：新改造点必须同时加单测）。
 
 ### 步骤 4：grep 全仓 craft.do（外部 AI 跑）
 
@@ -225,7 +227,7 @@ grep -rn "agents.craft.do\|craft.do/auth" packages apps \
 - [ ] `oauth-relay.ts` + `slack-oauth.ts` 改造 + 单测通过
 - [ ] grep `agents.craft.do` 全仓 = 0（LEGAL.md 历史叙述除外）
 - [ ] 端到端 4 个 provider OAuth 授权流程实测通过（浏览器地址栏看到 `auth.u-studio.cn`）
-- [ ] [AGENTS.md §3.7](../AGENTS.md) 加 #43-#45（基线 67 → 70）
+- [ ] [CLAUDE.md §3.7](../CLAUDE.md) 加 #43-#45（基线 67 → 70）
 - [ ] [LEGAL.md §5.1](../LEGAL.md) 已知瑕疵段落改写为"M3-1 后已消除"
 - [ ] [`11-roadmap.md`](11-roadmap.md) §M3-1 标记完成
 
@@ -236,5 +238,5 @@ grep -rn "agents.craft.do\|craft.do/auth" packages apps \
 - [REVIEW-21-FULL-2026-05-07.md §2.1 + §2.4](sync-reports/REVIEW-21-FULL-2026-05-07.md)（finding 来源）
 - [LEGAL.md §5.1](../LEGAL.md)（消除目标）
 - [M3-DEAD-PATH-CLEANUP-SPEC.md](M3-DEAD-PATH-CLEANUP-SPEC.md)（同 commit 清理）
-- [AGENTS.md §3.7](../AGENTS.md)（marker 增量）
+- [CLAUDE.md §3.7](../CLAUDE.md)（marker 增量）
 - [`07-upstream-sync.md` §2.7c](07-upstream-sync.md) C1（slug helper 模式）类比可借鉴
