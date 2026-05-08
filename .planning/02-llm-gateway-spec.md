@@ -80,7 +80,16 @@
 
 因此 onboarding 期间用户**必须**至少添加 1 个模型，且 `defaultModel` 必须有值，否则 setup 失败、整个 onboarding 卡死。
 
-#### 3.3.1 P0：发送消息前的模型清单前置校验（**v27 review O1 升级**）
+#### 3.3.1 P0：发送消息前的模型清单前置校验（**v27 review O1 升级，待实施触发条件**）
+
+> **实施触发条件**（满足任一即升级为"立即做"）：
+> 1. **真实用户反馈**：3 个以上用户报告"发消息直接 fail，错误是英文 'Default model is required'"
+> 2. **支持成本**：你/客服收到此类问题超过 1 次/周
+> 3. **下次 sync 顺手做**：上游若改 chat 入口，借力做
+>
+> **触发前的兜底**：onboarding 阶段的校验依然在；用户**主动**删光模型才会触发——非默认路径；后端报错信息至少能引导（虽是英文）。
+> **预估实施成本**：~2-3 小时（chat hook + 阻塞对话框 + 7 locale × 5 keys）。
+> **触发记录**：v27 review O1 提出（[`REVIEW-27-FULL-2026-05-08.md`](sync-reports/REVIEW-27-FULL-2026-05-08.md) P0-3）；闭环延后（[`REVIEW-27-EXECUTION-COMPLETE-2026-05-08.md`](sync-reports/REVIEW-27-EXECUTION-COMPLETE-2026-05-08.md) §2）。
 
 **问题背景**：onboarding 校验只挡住了"首次配置"路径，但用户进入主界面后可以：
 1. 进设置页 → "AI Connections" → 编辑 U-API 连接 → 删光所有模型
@@ -528,7 +537,16 @@ const setupValidation = validateSetupTestInput({ provider, baseUrl, piAuthProvid
 
 **注意**：协议字段 `customEndpoint.api` 和 `models` 不重置，让用户保留自己的选择。
 
-### 4.4 用户感知 SOP — `enforceUApiBaseUrl` 触发时必须 toast 提示（**P0 必加**）
+### 4.4 用户感知 SOP — `enforceUApiBaseUrl` 触发时必须 toast 提示（**P0 待实施，等触发条件**）
+
+> **实施触发条件**（满足任一即升级为"立即做"）：
+> 1. **真实用户反馈**：3 个以上用户报告"我改了 baseUrl 配置怎么没生效" / "config.json 自动改了"
+> 2. **合规审查**：法务/安全审查要求"用户篡改防护必须有用户感知证据"
+> 3. **下次 sync 顺手做**：上游若引入 toast/通知系统升级，借力顺道做掉
+>
+> **触发前的兜底**：main 进程已 log（mainLog.warn），运维可查；用户感知缺失但不无证据。
+> **预估实施成本**：~2-3 小时（IPC 通道 + 7 locale × 4 keys + toast 组件）。
+> **触发记录**：v27 review O1 提出（[`REVIEW-27-FULL-2026-05-08.md`](sync-reports/REVIEW-27-FULL-2026-05-08.md) P0-6）；闭环延后（[`REVIEW-27-EXECUTION-COMPLETE-2026-05-08.md`](sync-reports/REVIEW-27-EXECUTION-COMPLETE-2026-05-08.md) §2）。
 
 **问题背景（v27 review O1 用户视角发现）**：
 
