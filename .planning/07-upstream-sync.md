@@ -363,6 +363,8 @@ grep -niE "craft|lukilabs|agents\.craft" "$FILE"
   - **本节 SOP 强化**：从此 sync 后必跑核对手段 3 组 grep（见上方代码块），**0 命中才算翻译合格**；翻译动作不能简化为"brand 替换"，必须**完整中文化**——参考既有 0.9.0 / 0.9.1 / 0.8.13 风格。
   - 文件最终状态（2026-05-07 v26 后）：32 行；删 5 处 `(#xxx)` + 7 处 commit hash + 1 处 OpenClaw URL + 1 处 OpenClaw 完整链接（保留"社区项目 OpenClaw 同名实现"提名）；6 项缺陷修复 + 1 项改进 + 备注 2 条全部按 0.9.1 短句口语化风格重写。
 
+> **release-notes 翻译完后的下一步**：跑 `bun run electron:build` 让中文版进 `dist/resources/release-notes/` → 跑 `dist:mac` / `dist:win` 让 .app 内含中文版 → 上传 R2 时按 [`06-update-server.md` §4.2](06-update-server.md) 完整流程（D-β + 4 项防错 + 验证 grep）。
+
 ### 2.6 跑构建与 typecheck
 
 ```bash

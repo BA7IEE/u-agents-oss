@@ -215,6 +215,162 @@ R2 默认按文件扩展名给 Content-Type：
 
 如果发现 yml 被当成 `text/plain` 而 electron-updater 解析失败，在 R2 的 Object 元数据里手动改。
 
+### 4.2 v0.9.2 实战 SOP（D-β 方案 + 4 个常见错误防范）
+
+> **背景**：v0.9.2 重打 + R2 上线时**实战暴露 4 处坑**（v25/v26 review 抓到 + 用户实操踩到）。本节把每个坑机制化为防错命令，下次发版照做不重蹈覆辙。
+
+#### 4.2.1 D-β 方案：仅 arm64 上 R2，x64 deferred
+
+**问题**：`dist:mac` 默认在 Apple Silicon 上同时打 arm64 + x64 DMG（因 `electron-builder.yml:mac.target.arch` 含 x64）。但 x64 DMG 里 `vendor/bun` 是**主机架构 = arm64** —— Intel Mac 装上 spawn bun 立即闪退。详见 [`12-subprocess-build-pipeline.md`](12-subprocess-build-pipeline.md) §6 TODO #4。
+
+**解决方案 D-β**（v25 review 决策，v0.9.2 落地）：
+1. 重打时让 dist:mac 默认产出 arm64 + x64 DMG（不阻止）
+2. **只把 arm64 上 R2**：`x64.dmg` / `x64.zip` 不上传 R2 任何路径
+3. **手编 latest-mac.yml**：删掉 electron-builder 自动生成的 yml 中 4 entries 里的 x64.zip + x64.dmg，仅保留 arm64 两项
+
+**手编 D-β yml 的标准做法**：
+
+```bash
+RELEASE=apps/electron/release
+
+# 1. electron-builder 自动生成的（含 x64 entries，不能直接上传）
+cat $RELEASE/latest-mac.yml
+# version / files: 4 entries / path / releaseDate
+
+# 2. 拷出 sha512 + size，手编一份 arm64-only 版
+cat > $RELEASE/latest-mac-arm64-only.yml <<EOF
+version: 0.9.2
+files:
+  - url: U-Agents-arm64.zip
+    sha512: <从原 yml 拷>
+    size: <从原 yml 拷>
+  - url: U-Agents-arm64.dmg
+    sha512: <从原 yml 拷>
+    size: <从原 yml 拷>
+path: U-Agents-arm64.zip
+sha512: <U-Agents-arm64.zip 的 sha512>
+releaseDate: '<原 yml 的 releaseDate>'
+EOF
+```
+
+**Intel Mac 用户的体验**：electron-updater 拉到只含 arm64 的 yml → 找不到匹配 entry → "无可用更新"提示（不报错）→ 继续用 v0.9.1。**比装上 x64 闪退好得多**。
+
+#### 4.2.2 错误防范 #1：`rclone copyto` vs `copy`
+
+**坑**：用户首次上传 D-β yml 时跑 `rclone copy /...latest-mac-arm64-only.yml r2:.../latest/` —— 结果 R2 上**并存两个文件**：
+```
+r2:u-agents-update/latest/latest-mac.yml             ← 仍是旧 4 entries 版（自动更新读这个）
+r2:u-agents-update/latest/latest-mac-arm64-only.yml  ← D-β 版（多余的独立文件）
+```
+
+electron-updater 客户端只读 `latest-mac.yml`，所以**用户体验完全没改**，Intel Mac 仍会闪退。
+
+**正解**：用 `rclone copyto`（带重命名 = 覆盖目标）：
+
+```bash
+# ✅ 正确：copyto 重命名上传 → 覆盖 latest-mac.yml
+rclone copyto $RELEASE/latest-mac-arm64-only.yml r2:u-agents-update/latest/latest-mac.yml
+
+# ❌ 错误：copy 保留原文件名 → 留多余文件
+# rclone copy $RELEASE/latest-mac-arm64-only.yml r2:u-agents-update/latest/
+
+# 顺手清多余文件（如果之前误用 copy 留下的）
+rclone delete r2:u-agents-update/latest/latest-mac-arm64-only.yml || true
+```
+
+#### 4.2.3 错误防范 #2：上传清单不能漏 EXE / blockmap / 归档
+
+**坑**：用户首次上传时漏了 `U-Agents-x64.exe` 进 `/latest/`（误删后没补） + 漏了 `/v0.9.2/` 整个归档目录。导致 Windows 自动更新拉到 yml 后下载 EXE 时 404 + 无版本回滚能力。
+
+**完整上传清单（每次发版必跑）**：
+
+```bash
+RELEASE=/Users/dengwang/Documents/u-agents-oss/u-agents/apps/electron/release
+WIN=~/win-release   # Windows 端打的产物（你拷回来的位置）
+VERSION=v0.9.2
+
+# === Step 1: 归档版本目录（永久保留，回滚 / 审计 / 历史下载用）===
+rclone copy "$RELEASE/U-Agents-arm64.dmg"          r2:u-agents-update/$VERSION/
+rclone copy "$RELEASE/U-Agents-arm64.dmg.blockmap" r2:u-agents-update/$VERSION/
+rclone copy "$RELEASE/U-Agents-arm64.zip"          r2:u-agents-update/$VERSION/
+rclone copy "$WIN/U-Agents-x64.exe"                r2:u-agents-update/$VERSION/
+rclone copy "$WIN/U-Agents-x64.exe.blockmap"       r2:u-agents-update/$VERSION/
+
+# === Step 2: 切 latest 指针（自动更新读这里）===
+# 2a. 复制产物（COS 内部复制免流量费——也可用 COS 控制台"批量复制"功能从 $VERSION/ 复制）
+rclone copy "$RELEASE/U-Agents-arm64.dmg"          r2:u-agents-update/latest/
+rclone copy "$RELEASE/U-Agents-arm64.dmg.blockmap" r2:u-agents-update/latest/
+rclone copy "$RELEASE/U-Agents-arm64.zip"          r2:u-agents-update/latest/
+rclone copy "$WIN/U-Agents-x64.exe"                r2:u-agents-update/latest/
+rclone copy "$WIN/U-Agents-x64.exe.blockmap"       r2:u-agents-update/latest/
+
+# 2b. yml 用 copyto（D-β：mac yml 用手编版覆盖原版）
+rclone copyto "$RELEASE/latest-mac-arm64-only.yml" r2:u-agents-update/latest/latest-mac.yml
+rclone copyto "$WIN/latest.yml"                    r2:u-agents-update/latest/latest.yml
+```
+
+**`/v{version}/` 归档目录的 4 个用途**：
+1. **回滚**：v0.9.3 出问题时一键改 latest yml 指向 `/v0.9.2/...` 恢复用户体验
+2. **历史下载**：种子用户报老版本 bug 时给链接 `https://update.u-agents.u-studio.cn/v0.9.2/U-Agents-arm64.dmg`
+3. **审计 / 合规**：每个版本的 sha512 + 文件留存证据
+4. **第三方镜像**：未来做镜像加速（多 CDN）拷整个 `/v0.9.2/` 路径
+
+**没有归档的代价**：v0.9.3 上线后 `/latest/` 被覆盖，v0.9.2 的文件就**永久消失**。
+
+#### 4.2.4 错误防范 #3：CDN 缓存必刷
+
+**坑**：上传完 yml 后立即 curl，**仍拿到旧版**——CDN 边缘节点缓存。M2-REBUILD-HOTFIX §5 已记录此教训。
+
+**正解**：
+
+```bash
+# 腾讯云 COS 控制台 → 域名管理 → CDN 加速域名 → "刷新预热" → 输入 URL：
+# https://update.u-agents.u-studio.cn/latest/latest-mac.yml
+# https://update.u-agents.u-studio.cn/latest/latest.yml
+# 如果 yml 文件刷新不够，所有 latest/ 路径都刷一下：https://update.u-agents.u-studio.cn/latest/*
+```
+
+或用 `tccli`（腾讯云 CLI）：
+
+```bash
+tccli cdn PurgeUrlsCache --Urls '["https://update.u-agents.u-studio.cn/latest/latest-mac.yml","https://update.u-agents.u-studio.cn/latest/latest.yml"]'
+```
+
+#### 4.2.5 错误防范 #4：上传后必跑验证 grep
+
+**坑**：用户首次说"R2 已上传并刷新"，实际 latest-mac.yml 仍是旧 4 entries 版（rclone copy 误用） + EXE 404 + 归档全 404。**不验证 = 不算上传完成**。
+
+**正解 — 发版后必跑这套验证**：
+
+```bash
+DOMAIN=https://update.u-agents.u-studio.cn
+VERSION=v0.9.2
+
+echo "=== latest-mac.yml entries 数（D-β 应 = 2）==="
+curl -s "$DOMAIN/latest/latest-mac.yml?_=$(date +%s)" | grep -cE "^  - url:"
+
+echo "=== 多余的 latest-mac-arm64-only.yml 应已清（404）==="
+curl -sI "$DOMAIN/latest/latest-mac-arm64-only.yml" | grep -E "^HTTP/"
+
+echo "=== latest/ 下 5 + 2 文件全部 200 OK ==="
+for f in U-Agents-arm64.dmg U-Agents-arm64.zip U-Agents-arm64.dmg.blockmap \
+         U-Agents-x64.exe U-Agents-x64.exe.blockmap latest-mac.yml latest.yml; do
+  curl -sI "$DOMAIN/latest/${f}?_=$(date +%s)" | grep -E "^HTTP/" | head -1 | sed "s|^|$f: |"
+done
+
+echo "=== /\$VERSION/ 归档 5 个文件全部 200 OK（用于回滚 / 审计）==="
+for f in U-Agents-arm64.dmg U-Agents-arm64.zip U-Agents-arm64.dmg.blockmap \
+         U-Agents-x64.exe U-Agents-x64.exe.blockmap; do
+  curl -sI "$DOMAIN/$VERSION/${f}?_=$(date +%s)" | grep -E "^HTTP/" | head -1 | sed "s|^|$f: |"
+done
+
+echo "=== Content-Length 与本地产物一致 ==="
+echo "本地 arm64.dmg：$(stat -f%z $RELEASE/U-Agents-arm64.dmg)"
+echo "R2   arm64.dmg：$(curl -sI "$DOMAIN/latest/U-Agents-arm64.dmg" | grep -i content-length | awk '{print $2}' | tr -d '\r')"
+```
+
+**全部 200 OK + entries=2 + Content-Length 一致 = 发版完成**。任何一项不匹配就停下排查。
+
 ---
 
 ## 5. `latest-mac.yml` 文件示例
@@ -222,7 +378,7 @@ R2 默认按文件扩展名给 Content-Type：
 `electron-builder` 会在打包时自动生成。**结构供参考**：
 
 ```yaml
-version: 0.9.0
+version: 0.9.2
 files:
   - url: U-Agents-arm64.zip
     sha512: <sha512 hash>
@@ -235,7 +391,9 @@ sha512: <sha512 hash>
 releaseDate: '2026-05-15T12:00:00.000Z'
 ```
 
-⚠️ **不要手工编辑**这个文件——`electron-builder` 用 sha512 校验，手工改会让自动更新失败。
+⚠️ **正常情况下不要手工编辑**这个文件——`electron-builder` 用 sha512 校验，手工改会让自动更新失败。
+
+⚠️ **但 D-β 例外**（v0.9.2 实战）：当 dist:mac 同时打 arm64 + x64 但 x64 包 vendor/bun 错架构（详见 §4.2.1），**必须手编** latest-mac.yml 只保留 arm64 entries。手编时 sha512 / size 必须从 electron-builder 自动生成的原版 yml **逐字符复制**（不能自己重算，那样会和实际产物字节流不匹配）。详见 §4.2.1 操作步骤。
 
 ---
 
