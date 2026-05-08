@@ -405,33 +405,26 @@ releaseDate: '2026-05-15T12:00:00.000Z'
 
 > M2 阶段再考虑做得花哨。M1 阶段一个 `index.html` 就行。
 
-### 6.1 必须有的"风险与兼容性"声明（**v27 review O1 P0**）
+### 6.1 必须有的"风险与兼容性"声明（**v27 review O1 P0 — 已落地**）
 
 **问题背景**：v0.9.2 发布走的 D-β 策略——arm64-only macOS（vendor/bun 是 arm64，跑 x64 进程会 crash），但 release-notes / 下载页都没说清这一点，Intel Mac 用户下载 arm64 包会启动崩溃但拿不到任何"为什么"的解释。
 
-**P0 要求 — 下载页/release notes 必须显眼包含**：
+**已落地实现**：[`web/download-page/index.html`](../web/download-page/index.html)（v27 后跟手做了，2026-05-08 commit）
 
-```markdown
-## 系统要求
+实现要点（与 README 联动）：
+- ✅ 单文件 HTML，所有 CSS + JS 内嵌（COS 友好）
+- ✅ UA 检测：macOS Apple Silicon / macOS Intel / Windows / Linux / 移动端 5 路径
+- ✅ Intel Mac 三层检测（UA arm 关键字 + maxTouchPoints + WebGL renderer）—— 三层都命中才标 Intel，宁可漏不可误
+- ✅ Intel Mac 用户：隐藏推荐卡 + 顶栏 ⚠️ 警告 + 备用 Windows 下载卡 + 默认展开"所有平台"
+- ✅ 自动深色模式（跟随系统）
+- ✅ 移动端：提示"在桌面访问"
+- ✅ 历史版本归档说明（引导用户去 `/v0.9.2/` 等归档目录）
 
-| 平台 | 支持架构 | 状态 |
-|---|---|---|
-| macOS | **Apple Silicon (M1/M2/M3/M4)** | ✅ 推荐使用 |
-| macOS | Intel (x86_64) | ⚠️ v0.9.2 暂不提供，v0.9.3 计划补齐（无 Intel Mac 实测设备）|
-| Windows | x64 (Win10+) | ✅ 推荐使用 |
-| Linux | x64 (Ubuntu 20.04+) | ⚠️ 实验性，未做完整回归 |
+**部署到 COS 的步骤**：[`web/download-page/README.md`](../web/download-page/README.md) §3 — 含 rclone copyto 命令 + CDN 刷新 SOP（同 06 §4.2 教训）
 
-⚠️ **Intel Mac 用户请勿下载 arm64 包**——下载后双击会立即崩溃。
-```
+**验收清单**：[`web/download-page/README.md`](../web/download-page/README.md) §4 — 4 大类 14 项检查（浏览器 / Intel Mac 模拟 / 链接 / SEO）
 
-**HTML 实现要点**：
-1. User-Agent 检测 macOS 时，再检测 `navigator.userAgent` 是否含 `Intel Mac OS X`
-2. 命中 Intel 时**不**自动推荐 dmg 下载，改为显示「暂不支持你的 Mac，请等 v0.9.3」+ 收集邮件订阅
-3. 顶栏 banner 永久显示一句"⚠️ Intel Mac 暂不支持，详见系统要求"
-
-**为什么是 P0**：
-- 用户下载后崩溃 → 卸载 → 流失，且没有 telemetry 看到这个流失漏斗（M3-4 GlitchTip 上线前都是黑盒）
-- "下载页诚实声明 + Intel UA 拦截" 是零成本零风险的"用户体感"补救
+**维护节奏**：每次发新版必更新 3 处版本号 + 重传 + 刷 CDN，详见 [`web/download-page/README.md`](../web/download-page/README.md) §5
 
 ### 6.2 推动 Intel Mac 实测的 SOP（**v27 review O1 P0**）
 
