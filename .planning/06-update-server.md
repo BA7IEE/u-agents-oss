@@ -405,26 +405,29 @@ releaseDate: '2026-05-15T12:00:00.000Z'
 
 > M2 阶段再考虑做得花哨。M1 阶段一个 `index.html` 就行。
 
-### 6.1 必须有的"风险与兼容性"声明（**v27 review O1 P0 — 已落地**）
+### 6.1 风险与兼容性声明（**v27 review O1 P0 — backlog，等用户决策**）
 
-**问题背景**：v0.9.2 发布走的 D-β 策略——arm64-only macOS（vendor/bun 是 arm64，跑 x64 进程会 crash），但 release-notes / 下载页都没说清这一点，Intel Mac 用户下载 arm64 包会启动崩溃但拿不到任何"为什么"的解释。
+**问题背景**：v0.9.2 发布走的 D-β 策略——arm64-only macOS（vendor/bun 是 arm64，跑 x64 进程会 crash），但下载页（`https://agents.u-studio.cn/`）当前**仍展示 Intel Mac 下载按钮**，且该按钮指向的 `update.u-agents.u-studio.cn/latest/U-Agents-x64.dmg` 是 **404 Not Found**——Intel Mac 用户体验：点了按钮 → 拿到 COS XML 错误响应。
 
-**已落地实现**：[`web/download-page/index.html`](../web/download-page/index.html)（v27 后跟手做了，2026-05-08 commit）
+> ⚠️ **改下载页前必须先做的事**（避免本节作者已踩的坑）：
+> 1. **确认主域**：`curl -sI https://agents.u-studio.cn/` —— 当前主域是 `agents.u-studio.cn`，**不是** `u-agents.u-studio.cn`（后者是更新服务器）
+> 2. **确认链接状态**：`for f in U-Agents-arm64.dmg U-Agents-x64.dmg U-Agents-x64.exe; do curl -sI "https://update.u-agents.u-studio.cn/latest/$f" | head -1; done`
+> 3. **确认现有页面结构**：`WebFetch https://agents.u-studio.cn/` 看清现有布局再设计 patch；不要重做整个页面
+> 4. **不要把"下载页 HTML"放到本仓库**：当前主域下载页是用户独立维护的资产（COS 静态托管或外部服务），改它需要在那边改，不在 `u-agents/` 仓库
 
-实现要点（与 README 联动）：
-- ✅ 单文件 HTML，所有 CSS + JS 内嵌（COS 友好）
-- ✅ UA 检测：macOS Apple Silicon / macOS Intel / Windows / Linux / 移动端 5 路径
-- ✅ Intel Mac 三层检测（UA arm 关键字 + maxTouchPoints + WebGL renderer）—— 三层都命中才标 Intel，宁可漏不可误
-- ✅ Intel Mac 用户：隐藏推荐卡 + 顶栏 ⚠️ 警告 + 备用 Windows 下载卡 + 默认展开"所有平台"
-- ✅ 自动深色模式（跟随系统）
-- ✅ 移动端：提示"在桌面访问"
-- ✅ 历史版本归档说明（引导用户去 `/v0.9.2/` 等归档目录）
+**当前 backlog（等用户决策**——v27 闭环时用户表示"先不管 Intel Mac 用户问题"，**P0 转 backlog**）：
 
-**部署到 COS 的步骤**：[`web/download-page/README.md`](../web/download-page/README.md) §3 — 含 rclone copyto 命令 + CDN 刷新 SOP（同 06 §4.2 教训）
+| 选项 | 改动 | 适用场景 |
+|---|---|---|
+| **A** 删 Intel Mac 按钮 | 改主域下载页 HTML，移除「下载 macOSIntel」按钮 | v0.9.3 不打 Intel Mac 包时 |
+| **B** disable + 提示 | 按钮置灰 + tooltip「v0.9.3 计划补齐」 | 想保留视觉占位 |
+| **C** 浏览器端 UA 拦截 | JS 检测 Intel Mac → 隐藏按钮 + ⚠️ banner | 想让 Intel Mac 用户主动看到说明 |
+| **D** 真发 Intel Mac 包 | dist:mac --arch x64 + Intel 机器实测 + 上传 | 拿到 Intel 设备时（详见 §6.2）|
 
-**验收清单**：[`web/download-page/README.md`](../web/download-page/README.md) §4 — 4 大类 14 项检查（浏览器 / Intel Mac 模拟 / 链接 / SEO）
-
-**维护节奏**：每次发新版必更新 3 处版本号 + 重传 + 刷 CDN，详见 [`web/download-page/README.md`](../web/download-page/README.md) §5
+**触发条件**（v27 review O1 闭环延后给 backlog）：
+- 真实用户反馈 ≥ 3 次「Intel Mac 下载链接 404 / 装了崩」
+- 用户拿到 Intel Mac 实测设备
+- 下次发版顺手处理
 
 ### 6.2 推动 Intel Mac 实测的 SOP（**v27 review O1 P0**）
 
