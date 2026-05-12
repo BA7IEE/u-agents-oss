@@ -207,7 +207,7 @@ if (!apiKey && connection.baseUrl) {
 
 | # | 改造类别 | 文件 | 定位（用 `grep` 找）| 标记 | 关联规格 |
 |---|---|---|---|---|---|
-| 37 | v0.9.1 routing.ts 漏分类 9 channel 修复 | `packages/shared/src/protocol/routing.ts` | 注释 `classify v0.9.1 access-control channels missed by upstream's routing.ts` | 单行 | SYNC-v0.9.1-20260506 §6.3（C13 上游 release 自身 test fail） |
+| ~~37~~ | ~~v0.9.1 routing.ts 漏分类 9 channel 修复~~ | ~~`packages/shared/src/protocol/routing.ts`~~ | **已过期（v0.9.3 sync 删除）**：上游 v0.9.3 自己补了 9 channel 进 `REMOTE_ELIGIBLE_CHANNELS`（与我们 patch 等价），SYNC-v0.9.3 merge 时全盘接受 theirs + 删 marker | —— | SYNC-v0.9.3-20260512 自动过期 |
 | 38 | 上游 v0.9.1 ESLint 违规 disable（color-mix annotation） | `packages/ui/src/components/annotations/block-markers.ts` | 注释 `dynamic color-mix annotation; cannot be expressed as a static utility class` | 单行 | SYNC-v0.9.1-20260506 §6.2（C12 上游 lint 违规） |
 | 39 | 上游 v0.9.1 ESLint 违规 disable（test 直读 isAuthenticated） | `packages/shared/src/resources/__tests__/resource-bundle.test.ts` | 注释 `test asserts the field directly to verify reset semantics, not gating logic` | 单行 | SYNC-v0.9.1-20260506 §6.2（C12 上游 lint 违规） |
 
@@ -244,6 +244,13 @@ if (!apiKey && connection.baseUrl) {
 | 48a-d | `source-test.ts` 4 处 fetch SSRF guard（auth path + basic path × 3）| `packages/session-tools-core/src/handlers/source-test.ts` | 注释 `M3 SSRF 防护` × 7（import + safety check + auth redirect:'manual' + 30x reject + basic 3× redirect:'manual' + 30x reject）| 单行（8 处）| M3-SSRF-CONSOLIDATION-SPEC §2.2 + REVIEW-27 P1 |
 | 49 | `auto-update.ts` 注释 URL 与 publish.url 一致（v27 P0-5 漏盘补丁）| `apps/electron/src/main/auto-update.ts:7` | 注释 `comment URL must match electron-builder.yml publish.url exactly` | 单行 | REVIEW-27 P0-5 |
 
+**v0.9.3 sync 期间新增改造点（2026-05-12，详见 [`.planning/sync-reports/UPSTREAM-PREVIEW-v0.9.3-2026-05-12.md`](.planning/sync-reports/UPSTREAM-PREVIEW-v0.9.3-2026-05-12.md)）**：
+
+| # | 改造类别 | 文件 | 定位（用 `grep` 找）| 标记 | 关联规格 |
+|---|---|---|---|---|---|
+| 50 | 上游 v0.9.3 ESLint 违规 disable（FabNewChat base shadow）| `apps/electron/src/renderer/components/app-shell/FabNewChat.tsx` | 注释 `继承上游 v0.9.3 FAB 视觉设计；改 shadow class 会破坏设计` | 单行（含 `eslint-disable-next-line craft-styles/no-nonstandard-shadows`）| SYNC-v0.9.3-20260512（C12 上游 lint 违规）|
+| 51 | 上游 v0.9.3 ESLint 违规 disable（FabNewChat hover shadow）| 同上 | 注释 `同上 — 继承上游 hover 视觉效果，豁免 lint` | 单行（含 `eslint-disable-next-line craft-styles/no-nonstandard-shadows`）| 同 #50 |
+
 **Build 脚本 marker（M2 后期补充，不计入主基线）**：
 
 主基线 grep 命令仅扫 `packages` + `apps` 下的 `.ts/.tsx`，build 脚本（`.sh` / `.ps1`）不在覆盖范围内——但仍需登记，方便上游同步时辨识改造点。
@@ -270,11 +277,11 @@ grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_mod
 # scripts/typecheck-staged.sh + scripts/lint-i18n-staged.sh）
 ```
 
-**同步上游验证基线**（**v27 Bucket B SSRF 横向扩展后 2026-05-08 刷新**）：
+**同步上游验证基线**（**v0.9.3 sync 后 2026-05-12 刷新**）：
 
-| 指标 | 基线（2026-05-08 v27 Bucket B 完整后）| 下次同步允许浮动 |
+| 指标 | 基线（2026-05-12 v0.9.3 sync 后）| 下次同步允许浮动 |
 |---|---|---|
-| U-API 标记总数（含全部注释格式）| **94** | ±2 |
+| U-API 标记总数（含全部注释格式）| **95** | ±2 |
 | `/* U-API START */` 块数 | **9** | 必须等于 END |
 | `/* U-API END */` 块数 | **9** | 必须等于 START |
 
@@ -301,6 +308,7 @@ grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_mod
 > - **v24 SSRF redirect bypass 真修 + brand 漏盘补丁（2026-05-07）：80 处**（+7 marker：api-tools.ts 加 redirect:'manual' + 30x reject 共 4 处 / credential-manager.ts 同样 +2 处 / pi-agent-server/index.ts:1285 brand 漏盘补 +1 处；新增 §3.7 #44c/#44d/#45c/#45d；#45a 升级到 4 处 marker；同 commit 重写 4 SSRF 单测从 grep-only → runtime mock fetch（v24 F1.F5）+ refreshApiRenew 加 redirect bypass 单测 + spawn-cwd 加 U Agents.app 显式回归测试。详见 [`.planning/sync-reports/REVIEW-24-POST-SYNC-2026-05-07.md`](.planning/sync-reports/REVIEW-24-POST-SYNC-2026-05-07.md)）。
 > - **v24 Bucket C browser tool 裁剪决策（2026-05-07）：82 处**（+2 marker：storage.ts browserToolEnabled 默认改 false 加 1 处 marker + m2-security-regression.test.ts 防回归测试加 1 处 marker；同 commit 改 config-defaults.json 默认值；新增 §3.7 #46/#46t；详见 [`.planning/04-feature-cuts.md`](.planning/04-feature-cuts.md) §九类）。
 > - **v27 Bucket B SSRF 横向扩展（2026-05-08）：94 处**（+12 marker：auto-update.ts 注释品牌 1 处 + web-fetch.ts redirect:'manual' + 30x reject 2 处 + web-fetch-ssrf.test.ts marker 防回归 1 处 + source-test.ts SSRF 8 处（import + safety check + auth path redirect:'manual' + 30x reject + basic path 3× redirect:'manual' + 30x reject）；新增 §3.7 #47a/#47b/#48a-d/#49；同 commit zh-Hans browser tool i18n 文案重写不计 marker（属 i18n 改动）+ Bucket A 7 文档已分别 commit。详见 [`.planning/M3-SSRF-CONSOLIDATION-SPEC.md`](.planning/M3-SSRF-CONSOLIDATION-SPEC.md) + [`.planning/sync-reports/REVIEW-27-FULL-2026-05-08.md`](.planning/sync-reports/REVIEW-27-FULL-2026-05-08.md)）。**B4 toast / B5 chat gate defer 给后续 commit，需 IPC 与 chat hook 集成**。
+> - **v0.9.3 sync（2026-05-12 合并 upstream `c310624f`）：95 处**（净变化 +1：删 #37（上游 v0.9.3 自己修了 v0.9.1 routing 漏分类，自动过期）−1，加 #50/#51（FabNewChat 两处 shadow ESLint 违规 disable）+2。上游 134 文件 / 31 新增 + 103 修改；25 个 unmerged 冲突（14 package.json + routing.ts + AiSettingsPage.tsx + 2 html + README + bug_report.yml + D 组 4 文件 AppMenu/TopBar/SessionMenu/SessionMenuParts）；架构层面接受上游 TopBar → AppMenu wrapper → DesktopAppMenu/MobileAppMenu 重构（替代我们 fork 把 menu rendering 搬到 TopBar 的方向）；C11 触发 6 文件 9 处 NPM scope rename（mobile UI 新建 5 文件 + messaging test 1）；C12 触发 2 处 ESLint 违规 disable（FabNewChat shadow，对应 #50/#51）；C13 未触发（上游反而修了 v0.9.1 routing 自身 bug）；上游新文件 brand patch 3 个（DesktopAppMenu/MobileAppMenu CraftAgentsSymbol → UAgentsSymbol + menu-schema.ts quitUAgents key + u-agents docs URL + HELP_LINKS 加 Automations 入口）。验证：typecheck 全绿 / lint:i18n:parity OK（6 locales × 1448 keys）/ lint:electron 仅剩 FabNewChat 2 处 disable 之外的 110 个 pre-existing warnings / bun test 4 fail 全部来自 stale `apps/electron/release/*.app` bundle 副本（与 sync 无关）。详见 [`.planning/sync-reports/UPSTREAM-PREVIEW-v0.9.3-2026-05-12.md`](.planning/sync-reports/UPSTREAM-PREVIEW-v0.9.3-2026-05-12.md)）。
 
 **每次同步必跑 grep（覆盖全部注释格式）**：
 
@@ -310,7 +318,7 @@ grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_mod
 # 抗 build-dmg.sh 中间态把 SDK 包复制到 apps/electron/node_modules/ 让数字暂时虚高的情况
 grep -rEn --exclude-dir=node_modules "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
   | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
-# 期望：94（基线，允许 92-96）
+# 期望：95（基线，允许 93-97）
 
 # 块标记 START/END 配对（数量必须相等）
 grep -rE --exclude-dir=node_modules "/\* U-API START" packages apps --include="*.ts" --include="*.tsx" | wc -l

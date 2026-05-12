@@ -240,7 +240,11 @@ function ConnectionRow({ connection, isLastConnection, onRenameClick, onDelete, 
         parts.push(piLabel ?? 'U-API')
         break
       }
-      case 'pi_compat': parts.push('U-API'); break
+      case 'pi_compat':
+        parts.push(connection.baseUrl?.toLowerCase().includes('manifest.build')
+          ? 'Manifest'
+          : 'U-API')
+        break
       default: parts.push(provider || 'Unknown')
     }
 
