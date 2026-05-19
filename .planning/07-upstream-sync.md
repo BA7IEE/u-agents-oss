@@ -939,21 +939,32 @@ bun run server:build:subprocess
 2. `claude/event-adapter.ts` —— ours 改注释 "Craft Agent's" → "U Agents's" vs theirs 重写 docblock 同段 —— **同一注释段** → git 标 conflict
 3. **15 个 package.json** —— ours 改 `@craft-agent/X` → `@u-agents/X` + version 0.9.3 vs theirs 改 version 0.9.4 —— **name 和 version 相邻同 hunk** → 全部 conflict
 
-**处理（新 SOP）**：
+**处理（新 SOP，**REVIEW-7 修正**：原 SOP 写错——`--no-messages` 不输出 conflict markers，输出的是 stage SHA 列表）**：
 
 ```bash
-# 预测阶段（PREVIEW 报告时）：用 git merge-tree 拿真实冲突清单
-git merge-tree --no-messages --merge-base=$(git merge-base main upstream/main) main upstream/main \
-  | grep -A 3 "^<<<<<<<" | head -50
-# 此命令输出**会冲突的 hunk**——比 marker × upstream 文件交集精确得多
+# 方案 1（推荐，干净 dry-run）：实际跑 merge 然后 abort
+git merge --no-commit --no-ff upstream/main 2>&1 | grep -E "CONFLICT|conflict" > /tmp/conflicts.txt
+git status > /tmp/sync-dry-run-status.txt   # 完整冲突清单
+git merge --abort                            # 回滚到 merge 前
 
-# 也可以用 dry-run：
-git merge --no-commit --no-ff upstream/main
-git status   # 看真实冲突
-git merge --abort   # 回滚
+# 方案 2（轻量，仅拿冲突文件清单不实际 merge）：用 git merge-tree
+BASE=$(git merge-base main upstream/main)
+git merge-tree --no-messages --merge-base=$BASE main upstream/main \
+  | awk '/^[0-9]+/{print $4}' | sort -u > /tmp/conflict-files.txt
+# 输出：会冲突的文件清单（每个文件含 stage 1/2/3 三行 SHA，awk 提文件名）
+
+# 方案 3（看具体 hunk 内容）：拿 stage 2/3 SHA 后 git cat-file
+# git cat-file -p <stage2-sha> > /tmp/ours-side.txt
+# git cat-file -p <stage3-sha> > /tmp/theirs-side.txt
+# diff /tmp/ours-side.txt /tmp/theirs-side.txt
 ```
 
-**v0.9.4 教训**：PREVIEW 不能只看行号交集，必须用 `git merge-tree` 做 dry-run。已在 PREVIEW v0.9.4 报告附录 B19/B20 沉淀（不在 SOP 主文，因为这是 PREVIEW 方法学改进而非 sync 操作）。
+**实测验证**（v0.9.4 sync 跑过）：
+- 方案 1：merge → 19 文件 CONFLICT → `git merge --abort` 干净回滚 ✅
+- 方案 2：返回 19 个冲突文件清单（与方案 1 一致）✅
+- 方案 3：可用但需要逐个文件 cat-file，适合精细 review
+
+**v0.9.4 教训**：PREVIEW 不能只看行号交集，必须用上述任一方案做 dry-run。方案 1 最简单也最准确（git 真实 merge 逻辑），推荐为 PREVIEW 标准动作。
 
 ### 4.8 (v0.9.4+) C13 上游漏分类不只 routing.ts 一处
 
@@ -961,24 +972,32 @@ git merge --abort   # 回滚
 
 **根因**：channel 分类有**多个 exhaustiveness check**——routing.ts 是一个、`packages/server-core/src/handlers/rpc/<module>.ts` 的 `HANDLED_CHANNELS` 数组导出又是另一个。上游 v0.9.1 漏分类 routing.ts（我们 patch 修了 #37）；上游 v0.9.4 漏分类 HANDLED_CHANNELS（我们 patch 修了 #52）。
 
-**新 SOP**（PREVIEW 阶段必跑）：
+**新 SOP**（PREVIEW 阶段必跑，**REVIEW-7 修正**：原命令 `grep -c "RPC_CHANNELS\."` 会数到 import + 注释 + 数组 + server.handle 内部全部引用，每 channel 至少 2 次 → 误报率 100%。改用 routing.test.ts + registration.test.ts 实测 + 单独命令）：
 
 ```bash
 # 1. 核 routing.ts 双集合（v0.9.1 教训）
-# 见 §2.7c "C13 routing.ts exhaustiveness"
+# 见 §2.7c "C13 routing.ts exhaustiveness" — 通过跑 bun test 验证
+bun test packages/shared/src/protocol/__tests__/routing.test.ts
 
-# 2. 核 server-core 所有 RPC handler 的 HANDLED_CHANNELS 是否覆盖该模块所有 server.handle(...)
-#    upstream 改了哪个 module 的 RPC（看 diff），就核该 module 的 HANDLED_CHANNELS
-for f in packages/server-core/src/handlers/rpc/*.ts; do
-  handled=$(grep -c "RPC_CHANNELS\." "$f" || true)
-  registered=$(grep -c "server\.handle(" "$f" || true)
-  if [ "$handled" != "0" ] && [ "$registered" != "0" ] && [ "$handled" != "$registered" ]; then
-    echo "WARN: $f handled=$handled registered=$registered"
-  fi
-done
+# 2. 核 server-core 所有 RPC handler 的 HANDLED_CHANNELS 数组是否覆盖该模块所有 server.handle(...)
+#    通过跑 registration test 实测——比 grep 准确，因 test 实际 import + 跑代码
+bun test apps/electron/src/main/handlers/__tests__/registration.test.ts \
+         apps/electron/src/main/handlers/__tests__/registration-profiles.test.ts
+
+# 3. 若 #2 fail，按错误消息找具体 module
+#    错误格式："unexpected: [<channel-name>, ...]" 说明 server.handle 注册了但 HANDLED_CHANNELS 漏含
+#    "missing: [...]" 则相反（少见，通常是 channel 被 mid-refactor 删了一半）
+
+# 4. 精细 review（仅当 PREVIEW 阶段需要预判某个 module 是否漏分类）：
+#    分别数 HANDLED_CHANNELS 数组成员 vs server.handle 调用次数
+F=packages/server-core/src/handlers/rpc/settings.ts
+echo "Array entries:"; grep -cE "^\s*RPC_CHANNELS\." "$F"
+echo "server.handle calls:"; grep -c "server\.handle(" "$F"
+# 注：array entries 用 `^\s*RPC_CHANNELS\.` 匹配缩进开头的 `RPC_CHANNELS.X`，
+# 排除 import / server.handle(RPC_CHANNELS.X, ...) 内部引用
 ```
 
-**v0.9.4 教训**：上游 v0.9.4 `packages/server-core/src/handlers/rpc/settings.ts` 注册 4 个 RTK channel（L321-340）但 HANDLED_CHANNELS 数组（L14-）漏含——属 C13 漏分类。我们 patch 加进 §3.7 #52 marker。
+**v0.9.4 教训**：上游 v0.9.4 `packages/server-core/src/handlers/rpc/settings.ts` 注册 4 个 RTK channel（L321-340）但 HANDLED_CHANNELS 数组（L14-）漏含——属 C13 漏分类。我们 patch 加进 §3.7 #52 marker。**预判方式**：sync PREVIEW 阶段就跑 #2 实测，能直接预测 C13 触发（而不是等 merge 后才发现 test fail）。
 
 ---
 

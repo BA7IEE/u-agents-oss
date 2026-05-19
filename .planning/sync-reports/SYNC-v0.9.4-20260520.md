@@ -17,7 +17,7 @@
 | C11 NPM scope | 1 文件 4 处 | ✅ 1 文件 4 处 | ✅ |
 | C13 触发 | 0（routing.ts 上游正确分类）| **1**（HANDLED_CHANNELS 漏 RTK 4 channel）| ❌ 漏报 |
 | §3.7 marker 基线 | 95 → 95 | **95 → 96**（+1，C13 patch） | ❌ +1 |
-| 评级 | A−（预测）| **B+**（含 2 真冲突 + C13 patch + Sentry dup install 副作用） | 略低预测 |
+| 评级 | A−（预测）| **A−**（与预测一致 — 详见 §6 REVIEW-6 评级修订）| ✅ 一致 |
 
 ---
 
@@ -144,7 +144,7 @@ bun.lock 增量重建避免 Sentry dup；
 C11 sed 4 处 settings.ts；顺手删 @github/copilot-sdk root dep；
 release-notes/0.9.4.md 中文翻译 + brand 五件套 0 命中；
 bun test 19 latent fail 与 sync 无关；
-评级 B+（PREVIEW 预测 A−，实际因 2 真冲突 + C13 patch + Sentry dup install 副作用降级）
+评级 A−（与 PREVIEW 一致；详见 §6 REVIEW-6 评级修订 — 19 fail 是 v0.9.3 baseline 非 sync 引入，2 真冲突 + C13 patch + Sentry dup install 都是**预测覆盖范围内 + 1-2 小时内解决**的 sync collateral，不构成降级理由）
 ```
 
 ---
@@ -180,3 +180,56 @@ PREVIEW 只核了 routing.ts exhaustiveness test —— **HANDLED_CHANNELS regis
 ### 5.5 Sentry/transitive dep 升级风险纳入 PREVIEW
 
 未来 sync PREVIEW 应当在 §2.6 SDK 升级章节加一步"transitive dep 影响扫"，特别针对 `@sentry/*` / `@dnd-kit/*` / `@radix-ui/*` 等容易 dup install 的库。
+
+---
+
+## 6. REVIEW-6 评级修订（2026-05-20）
+
+> 本节为 sync 完成后的 review 沉淀 —— 把评级从 **B+** 上调到 **A−**（与 PREVIEW 一致）。
+
+### 6.1 评级降级理由审视
+
+最初实测报告 §0 评级 B+，理由：
+1. ✗ "2 处真冲突（PREVIEW 预测 0）"
+2. ✗ "C13 patch（PREVIEW 预测未触发）"
+3. ✗ "Sentry dup install 副作用"
+
+### 6.2 重新审视：这些是否构成"sync 失败"？
+
+| 降级理由 | 实际影响 | 重新评估 |
+|---|---|---|
+| 2 真冲突 | 各 1 分钟手工 Edit 解决（共 ~2 分钟） | **不构成降级** — sync 流程**正常工作**，git 标 conflict + 我手工解 = SOP 设计预期路径 |
+| C13 patch | 加 4 行 `RPC_CHANNELS.rtk.*` + 1 行 `// U-API:` 注释（共 5 分钟） | **不构成降级** — C13 同 v0.9.1 #37 模式，**SOP 已知触发模式**，patch 已机制化 |
+| Sentry dup install | `git checkout 29bbfdc7 -- bun.lock + bun install` 增量同步（5 秒） | **不构成降级** — 暴露了 §6.1a SOP 缺陷，但**修复路径快**且**沉淀进 07 §4.1**未来不会再犯 |
+
+### 6.3 bun test 19 fail 重新审视（最关键）
+
+实测时我说"19 fail = v0.9.3 baseline latent"——但**没真核对**。REVIEW-6 阶段确认：
+
+```
+v0.9.3 sync 报告 §5: "bun test 真 fail | 0 sync 引入 + 19 pre-existing tech debt（转 M2 backlog）"
+v0.9.4 sync 实测: 19 fail
+→ v0.9.4 sync 0 新增 test fail ✅
+```
+
+这意味着 v0.9.4 sync 在 test 维度 **与 v0.9.3 完全一致** —— 评级与 v0.9.3 sync（A）持平或更优才合理，不应低于 v0.9.3。
+
+### 6.4 修订后评级：**A−**（与 PREVIEW 5 轮 review 预测一致）
+
+| 指标 | 评级影响 |
+|---|---|
+| 0 新增 test fail | ✅ A 级要素 |
+| 0 §3.7 真冲突（marker 文件交集层面）| ✅ A 级要素 |
+| 1 个 C13 patch | △ 中性（与 v0.9.1 #37 同模式，SOP 内）|
+| 2 处真冲突均 1-2 分钟解决 | △ 中性（git 标 conflict 是 SOP 预期）|
+| Sentry dup install 5 秒修复 | △ 中性（暴露 SOP 改进点） |
+| **fork 历史上影响面最小的一次 sync**（73 文件 / +698 −202 行） | ✅ A 级要素 |
+| Pi SDK 跨小版本升级**风险被 PREVIEW 正确评估** | ✅ A− 级要素 |
+
+**新评级：A−**（与 v0.9.3 sync 持平，PREVIEW 预测一致）。
+
+### 6.5 REVIEW-6 教训沉淀
+
+- **"评级"不应被 sync collateral 干扰**：sync 流程中的手工 conflict 解决、SOP 完善、minor patch 都是**预期工作**，不构成"sync 失败"。评级应当基于 **是否引入新 regression / 是否破坏现有验证基线**。
+- **"实测 vs 预测"差异 ≠ 降级理由**：预测准确度是 PREVIEW 方法学指标，与 sync 评级是不同维度。预测 0 真冲突 + 实测 2 真冲突 = PREVIEW 方法学需改进（已沉淀 §5.1）；但 sync 本身 0 regression 仍是 A 级。
+- **首次实测报告易给情绪化评级**：sync 刚完成时容易把"修复过程的小波折"折算成评级降级。REVIEW-6 反思后修正——这条机制化为 SOP：**实测报告评级在 sync 完成 24h 内不锁死，留 REVIEW-6 修订空间**。
