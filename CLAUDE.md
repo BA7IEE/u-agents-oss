@@ -251,6 +251,12 @@ if (!apiKey && connection.baseUrl) {
 | 50 | 上游 v0.9.3 ESLint 违规 disable（FabNewChat base shadow）| `apps/electron/src/renderer/components/app-shell/FabNewChat.tsx` | 注释 `继承上游 v0.9.3 FAB 视觉设计；改 shadow class 会破坏设计` | 单行（含 `eslint-disable-next-line craft-styles/no-nonstandard-shadows`）| SYNC-v0.9.3-20260512（C12 上游 lint 违规）|
 | 51 | 上游 v0.9.3 ESLint 违规 disable（FabNewChat hover shadow）| 同上 | 注释 `同上 — 继承上游 hover 视觉效果，豁免 lint` | 单行（含 `eslint-disable-next-line craft-styles/no-nonstandard-shadows`）| 同 #50 |
 
+**v0.9.4 sync 期间新增改造点（2026-05-20，详见 [`.planning/sync-reports/SYNC-v0.9.4-20260520.md`](.planning/sync-reports/SYNC-v0.9.4-20260520.md)）**：
+
+| # | 改造类别 | 文件 | 定位（用 `grep` 找）| 标记 | 关联规格 |
+|---|---|---|---|---|---|
+| 52 | C13 patch — RPC handler HANDLED_CHANNELS 加 RTK 4 channel（上游 v0.9.4 漏分类）| `packages/server-core/src/handlers/rpc/settings.ts` | 注释 `classify v0.9.4 RTK channels missed by upstream's HANDLED_CHANNELS` | 单行 | SYNC-v0.9.4-20260520 §1.3（C13 同 v0.9.1 #37 模式）|
+
 **Build 脚本 marker（M2 后期补充，不计入主基线）**：
 
 主基线 grep 命令仅扫 `packages` + `apps` 下的 `.ts/.tsx`，build 脚本（`.sh` / `.ps1`）不在覆盖范围内——但仍需登记，方便上游同步时辨识改造点。
@@ -277,11 +283,11 @@ grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_mod
 # scripts/typecheck-staged.sh + scripts/lint-i18n-staged.sh）
 ```
 
-**同步上游验证基线**（**v0.9.3 sync 后 2026-05-12 刷新**）：
+**同步上游验证基线**（**v0.9.4 sync 后 2026-05-20 刷新**）：
 
-| 指标 | 基线（2026-05-12 v0.9.3 sync 后）| 下次同步允许浮动 |
+| 指标 | 基线（2026-05-20 v0.9.4 sync 后）| 下次同步允许浮动 |
 |---|---|---|
-| U-API 标记总数（含全部注释格式）| **95** | ±2 |
+| U-API 标记总数（含全部注释格式）| **96** | ±2 |
 | `/* U-API START */` 块数 | **9** | 必须等于 END |
 | `/* U-API END */` 块数 | **9** | 必须等于 START |
 
@@ -309,6 +315,7 @@ grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_mod
 > - **v24 Bucket C browser tool 裁剪决策（2026-05-07）：82 处**（+2 marker：storage.ts browserToolEnabled 默认改 false 加 1 处 marker + m2-security-regression.test.ts 防回归测试加 1 处 marker；同 commit 改 config-defaults.json 默认值；新增 §3.7 #46/#46t；详见 [`.planning/04-feature-cuts.md`](.planning/04-feature-cuts.md) §九类）。
 > - **v27 Bucket B SSRF 横向扩展（2026-05-08）：94 处**（+12 marker：auto-update.ts 注释品牌 1 处 + web-fetch.ts redirect:'manual' + 30x reject 2 处 + web-fetch-ssrf.test.ts marker 防回归 1 处 + source-test.ts SSRF 8 处（import + safety check + auth path redirect:'manual' + 30x reject + basic path 3× redirect:'manual' + 30x reject）；新增 §3.7 #47a/#47b/#48a-d/#49；同 commit zh-Hans browser tool i18n 文案重写不计 marker（属 i18n 改动）+ Bucket A 7 文档已分别 commit。详见 [`.planning/M3-SSRF-CONSOLIDATION-SPEC.md`](.planning/M3-SSRF-CONSOLIDATION-SPEC.md) + [`.planning/sync-reports/REVIEW-27-FULL-2026-05-08.md`](.planning/sync-reports/REVIEW-27-FULL-2026-05-08.md)）。**B4 toast / B5 chat gate defer 给后续 commit，需 IPC 与 chat hook 集成**。
 > - **v0.9.3 sync（2026-05-12 合并 upstream `c310624f`）：95 处**（净变化 +1：删 #37（上游 v0.9.3 自己修了 v0.9.1 routing 漏分类，自动过期）−1，加 #50/#51（FabNewChat 两处 shadow ESLint 违规 disable）+2。上游 134 文件 / 31 新增 + 103 修改；25 个 unmerged 冲突（14 package.json + routing.ts + AiSettingsPage.tsx + 2 html + README + bug_report.yml + D 组 4 文件 AppMenu/TopBar/SessionMenu/SessionMenuParts）；架构层面接受上游 TopBar → AppMenu wrapper → DesktopAppMenu/MobileAppMenu 重构（替代我们 fork 把 menu rendering 搬到 TopBar 的方向）；C11 触发 6 文件 9 处 NPM scope rename（mobile UI 新建 5 文件 + messaging test 1）；C12 触发 2 处 ESLint 违规 disable（FabNewChat shadow，对应 #50/#51）；C13 未触发（上游反而修了 v0.9.1 routing 自身 bug）；上游新文件 brand patch 3 个（DesktopAppMenu/MobileAppMenu CraftAgentsSymbol → UAgentsSymbol + menu-schema.ts quitUAgents key + u-agents docs URL + HELP_LINKS 加 Automations 入口）。验证：typecheck 全绿 / lint:i18n:parity OK（6 locales × 1448 keys）/ lint:electron 仅剩 FabNewChat 2 处 disable 之外的 110 个 pre-existing warnings / bun test 4 fail 全部来自 stale `apps/electron/release/*.app` bundle 副本（与 sync 无关）。详见 [`.planning/sync-reports/UPSTREAM-PREVIEW-v0.9.3-2026-05-12.md`](.planning/sync-reports/UPSTREAM-PREVIEW-v0.9.3-2026-05-12.md)）。
+> - **v0.9.4 sync（2026-05-20 合并 upstream `4144f795` → commit `0a49a089`）：96 处**（净变化 +1：加 #52 C13 patch HANDLED_CHANNELS 加 RTK 4 channel）。上游 73 文件 / +698 −202 行（fork 历史上影响面最小的一次）；主题 = RTK Bash token 压缩 opt-in + Pi SDK 0.72.1→0.73.1 + Codex/Copilot 死代码清理（与 04-feature-cuts 同向）；冲突总数 19 处：2 处真代码冲突（SkillsListPanel uagents:// deep link + claude/event-adapter.ts brand 注释 vs 上游 docblock 重写）、15 处 package.json（NPM scope @u-agents/ vs 上游 SDK 版本号）、eslint.config.mjs（顺势删 codex-agent / copilot-agent / @github/copilot-sdk 3 条死规则）、bun.lock（不可手工合并，改用 `git checkout 29bbfdc7 -- bun.lock && bun install` 增量同步避免 Sentry dup install）；C11 触发 1 文件 4 处（settings.ts RTK RPC handler dynamic import）；C13 触发：HANDLED_CHANNELS 漏 RTK 4 channel patch（#52，与 v0.9.1 routing.ts #37 同模式）；顺手 follow-up 删 root package.json `@github/copilot-sdk` dep（REVIEW-3 backlog）；release-notes/0.9.4.md 中文翻译 + brand 五件套（Craft/craft.do/lukilabs/Codex/Copilot）0 命中。验证：typecheck 0 errors / i18n parity OK（6 locales × 1455 keys，+7 RTK key）/ lint:electron 110 warnings 0 errors / bun test 19 latent fail（全 v0.9.3 baseline 已存在，与 sync 无关）。PREVIEW 5 轮 review 后预测评级 A−，实际 B+（因 2 真代码冲突 + C13 patch + bun.lock 副作用，比预测多 3 处隐患）。详见 [`.planning/sync-reports/SYNC-v0.9.4-20260520.md`](.planning/sync-reports/SYNC-v0.9.4-20260520.md) + 5 轮预测 [`UPSTREAM-PREVIEW-v0.9.4-2026-05-20.md`](.planning/sync-reports/UPSTREAM-PREVIEW-v0.9.4-2026-05-20.md)。
 
 **每次同步必跑 grep（覆盖全部注释格式）**：
 
