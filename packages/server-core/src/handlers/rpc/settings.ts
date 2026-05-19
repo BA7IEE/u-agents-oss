@@ -33,6 +33,11 @@ export const HANDLED_CHANNELS = [
   RPC_CHANNELS.caching.SET_EXTENDED_PROMPT_CACHE,
   RPC_CHANNELS.caching.GET_ENABLE_1M_CONTEXT,
   RPC_CHANNELS.caching.SET_ENABLE_1M_CONTEXT,
+  // U-API: classify v0.9.4 RTK channels missed by upstream's HANDLED_CHANNELS (C13 pattern, mirrors routing.ts #37 fix from v0.9.1)
+  RPC_CHANNELS.rtk.GET_ENABLED,
+  RPC_CHANNELS.rtk.SET_ENABLED,
+  RPC_CHANNELS.rtk.GET_STATUS,
+  RPC_CHANNELS.rtk.GET_GAIN,
   RPC_CHANNELS.sessions.GET_MODEL,
   RPC_CHANNELS.sessions.SET_MODEL,
   RPC_CHANNELS.settings.GET_DEFAULT_THINKING_LEVEL,
@@ -311,6 +316,34 @@ export function registerSettingsHandlers(server: RpcServer, deps: HandlerDeps): 
   server.handle(RPC_CHANNELS.caching.SET_ENABLE_1M_CONTEXT, async (_ctx, enabled: boolean) => {
     const { setEnable1MContext } = await import('@u-agents/shared/config/storage')
     setEnable1MContext(enabled)
+  })
+
+  // ============================================================
+  // RTK Token-Optimization Settings
+  // ============================================================
+
+  // Get rtk Bash-output compression setting
+  server.handle(RPC_CHANNELS.rtk.GET_ENABLED, async () => {
+    const { getRtkEnabled } = await import('@u-agents/shared/config/storage')
+    return getRtkEnabled()
+  })
+
+  // Set rtk Bash-output compression setting
+  server.handle(RPC_CHANNELS.rtk.SET_ENABLED, async (_ctx, enabled: boolean) => {
+    const { setRtkEnabled } = await import('@u-agents/shared/config/storage')
+    setRtkEnabled(enabled)
+  })
+
+  // Detect rtk installation (used by Settings UI to swap install prompt ↔ toggle)
+  server.handle(RPC_CHANNELS.rtk.GET_STATUS, async (_ctx, opts?: { forceRecheck?: boolean }) => {
+    const { getRtkStatus } = await import('@u-agents/shared/agent')
+    return getRtkStatus(opts)
+  })
+
+  // Token-savings summary from `rtk gain --format json` (efficiency meter)
+  server.handle(RPC_CHANNELS.rtk.GET_GAIN, async () => {
+    const { getRtkGain } = await import('@u-agents/shared/agent')
+    return getRtkGain()
   })
 
   // ============================================================
