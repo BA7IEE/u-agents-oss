@@ -18,7 +18,8 @@
 | C13 触发 | 0（routing.ts 上游正确分类）| **1**（HANDLED_CHANNELS 漏 RTK 4 channel）| ❌ 漏报 |
 | §3.7 marker 基线 | 95 → 95 | **95 → 96**（+1，C13 patch） | ❌ +1 |
 | 评级 | A−（预测）| **A−**（与预测一致 — 详见 §6 REVIEW-6 评级修订）| ✅ 一致 |
-| macOS arm64 D-β 实测 | 待实测 | **✅ 通过**（2026-05-20 02:05 build / 02:10 装包测试正常）| ✅ |
+| macOS arm64 D-β 实测 | 待实测 | **✅ 通过**（2026-05-20 02:05 build / 02:10 装包测试正常；实测过程发现"403 status code (no body)"误报 30 分钟，最终定位 = newapi 渠道余额不足，与 sync 无关；教训沉淀进 07 SOP §4.9）| ✅ |
+| Windows x64 D-β 实测 | 待实测 | **✅ 通过**（源码 zip 7.4MB 发到 Windows VM 手动 build → 装包测试正常）| ✅ |
 
 ---
 
