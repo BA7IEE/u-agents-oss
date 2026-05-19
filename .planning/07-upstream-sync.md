@@ -999,6 +999,27 @@ echo "server.handle calls:"; grep -c "server\.handle(" "$F"
 
 **v0.9.4 教训**：上游 v0.9.4 `packages/server-core/src/handlers/rpc/settings.ts` 注册 4 个 RTK channel（L321-340）但 HANDLED_CHANNELS 数组（L14-）漏含——属 C13 漏分类。我们 patch 加进 §3.7 #52 marker。**预判方式**：sync PREVIEW 阶段就跑 #2 实测，能直接预测 C13 触发（而不是等 merge 后才发现 test fail）。
 
+### 4.9 (v0.9.4+) sync 后实测报 LLM 错误时——先核 newapi 渠道余额，再怀疑 sync
+
+**症状**：sync 完成 + 装包后，发消息触发 `403 status code (no body)` 或类似 status code 错误，疑似 sync regression。
+
+**v0.9.4 实测案例**：
+- 用户 macOS arm64 D-β 实测时报 "最近两个会话都报 403 status code (no body)"
+- 初步怀疑 Pi SDK 0.72.1 → 0.73.1 transport 升级引入 regression
+- 排查 30 分钟后定位真因：**token.u-studio.cn 后台某 newapi 渠道余额不足**——与 sync 完全无关
+
+**根因识别清单**（按"最便宜先排"顺序）：
+
+| # | 检查项 | 命令 / 操作 | 信号 |
+|---|---|---|---|
+| 1 | **newapi 渠道余额**（5 秒）| 登录 [token.u-studio.cn](https://token.u-studio.cn) 后台 → 渠道 / 余额 | 余额不足 / 渠道 deactivate → **真因** |
+| 2 | session 内有无成功 turn | grep session.jsonl 看 input>0 的 message | 有 → 不是 SDK / config 问题 |
+| 3 | 失败 turn 的 input/output | grep `.pi-sessions/*.jsonl` 看 `usage` | input=0/output=0 → 请求**没真到 OpenAI**，是网关层 reject |
+| 4 | 错误间隔（rate limit?）| 看 errorMessage timestamps | 间隔 > 1 分钟 → 不是 rate limit |
+| 5 | 用 curl 直接打 endpoint | `curl -X POST $BASE/v1/chat/completions -H "Authorization: Bearer $KEY" -d '...'` | 同样 403 → 网关层 / curl 也 200 → SDK regression |
+
+**经验**：sync 实测出错时**不要先怀疑 sync**。本次 sync 0 真冲突 / 0 regression（v0.9.3 baseline 19 fail 全沿用），统计上 sync 引入 LLM 错误概率 < newapi 渠道运维出错概率。**优先核运维侧**（步骤 1）。
+
 ---
 
 ## 5. 何时拒绝同步上游变更
