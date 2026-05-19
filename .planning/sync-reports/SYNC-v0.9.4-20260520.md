@@ -34,9 +34,19 @@ PREVIEW 5 轮 review 都说"§3.7 改造点 0 真冲突"——基于"行号不�
 | 1 | `apps/electron/src/renderer/components/app-shell/SkillsListPanel.tsx` | ours 改 `craftagents://` → `uagents://` deep link（§3.5 brand 替换） vs theirs 改 onShowInFinder 整段逻辑 —— 同一 hunk 内有不同 commits 触发 git 标记 conflict（即便逻辑上不重叠）| 手工保 ours `uagents://` + 接 theirs `async/try/catch/toast` 结构 |
 | 2 | `packages/shared/src/agent/backend/claude/event-adapter.ts` | ours 改注释 "Craft Agent's" → "U Agents's" vs theirs 改注释 "Codex/Copilot adapter pattern" → "PiEventAdapter via BaseEventAdapter" —— 同一 hunk 内 brand patch 与 docblock 清理冲突 | 手工保 ours "U Agents's" + 接 theirs "PiEventAdapter via BaseEventAdapter" |
 
-**PREVIEW 预测错的根因**：5 轮 review 都假设"行号不重叠 = git auto-merge 通过"。实际 git 3-way merge 用 **hunk context**（行号附近 3 行）判断冲突 —— 我们 brand patch 与上游 docblock/code 改动**在同一 hunk** 即触发 conflict，即使逻辑上不重叠。
+**PREVIEW 预测错的双层根因**（REVIEW-8 完整化）：
 
-**教训**：未来 PREVIEW 需要核 hunk 边界（用 `git merge-tree --conflict-only` 或 `git merge-base` 做 dry-run），不能只看行号交集。
+**根因 1：统计口径漏算非 marker brand patch**
+- PREVIEW 的"§3.7 改造点交集"统计 = **marker 文件**（注释 `// U-API:` + 字面量 `'U-API'`）× upstream 改文件
+- SkillsListPanel.tsx 的 `craftagents://` → `uagents://` deep link 改造**不加 marker**（资源类 brand patch，不计基线）
+- claude/event-adapter.ts 的 "Craft Agent's" → "U Agents's" 注释 brand 替换**也不加 marker**
+- 这两个文件在 PREVIEW 看来"不在 §3.7 交集表"，但 git 视角它们**有 ours 改动**
+
+**根因 2：行号不重叠不等于 hunk context 不重叠**
+- git 3-way merge 用 **hunk context**（修改行附近 3 行）判断冲突
+- 即使逻辑上 ours/theirs 改的是不同语义，**同一 hunk 内** 即触发 conflict
+
+**教训**：未来 PREVIEW 必须用 `git merge --no-commit --no-ff upstream/main` dry-run 拿真实冲突清单（不能只看 marker 交集 + 行号）。已沉淀到 [`07-upstream-sync.md` §4.7](../07-upstream-sync.md)。
 
 ### 1.2 漏报：**15 个 package.json 全部 conflict**（不只 C11 1 个文件）
 
