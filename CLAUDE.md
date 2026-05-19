@@ -255,7 +255,7 @@ if (!apiKey && connection.baseUrl) {
 
 | # | 改造类别 | 文件 | 定位（用 `grep` 找）| 标记 | 关联规格 |
 |---|---|---|---|---|---|
-| 52 | C13 patch — RPC handler HANDLED_CHANNELS 加 RTK 4 channel（上游 v0.9.4 漏分类）| `packages/server-core/src/handlers/rpc/settings.ts` | 注释 `classify v0.9.4 RTK channels missed by upstream's HANDLED_CHANNELS` | 单行 | SYNC-v0.9.4-20260520 §1.3（C13 同 v0.9.1 #37 模式）|
+| 52 | C13 patch — RPC handler HANDLED_CHANNELS 加 RTK 4 channel（上游 v0.9.4 漏分类）| `packages/server-core/src/handlers/rpc/settings.ts` | 注释 `classify v0.9.4 RTK channels missed by upstream's HANDLED_CHANNELS` | 单行 | SYNC-v0.9.4-20260520 §1.3（C13 pattern；与 v0.9.1 上游 routing.ts 漏分类同模式，曾有 `#37` marker 但 v0.9.3 sync 时上游自修后被删——本次 #52 是同模式新触发）|
 
 **Build 脚本 marker（M2 后期补充，不计入主基线）**：
 

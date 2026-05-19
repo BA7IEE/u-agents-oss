@@ -837,22 +837,31 @@ git commit -m "hotfix: cherry-pick security fixes from upstream vX.Y.Z"
 # 步骤 1：先确保 git 状态干净（防止误删未提交修改）
 git status
 
-# 步骤 2：只删 node_modules 重装（最安全，95% 情况下能解决）
+# 步骤 2：最安全做法——拿回上次 sync 后的 bun.lock，再增量 install
+#         （v0.9.4 sync 教训：rm bun.lock 会让 bun 重新解析所有 deps 拉 transitive
+#          最新版本，可能引入 dup install——如 Sentry @sentry/core 10.50 + 10.53
+#          两版本共存导致 typecheck TS2322。增量同步避免此问题）
+git checkout <prev-sync-commit> -- bun.lock
+bun install   # bun 按 lockfile 已锁版本；仅升 package.json 改的 deps
+# 例：v0.9.4 sync 时跑 `git checkout 29bbfdc7 -- bun.lock && bun install`
+
+# 步骤 3（仍失败时）：只删 node_modules 重装（保 bun.lock）
 rm -rf node_modules
 bun install
 
-# 仍失败 → 步骤 3：确认 bun.lock 是合并冲突产物，且没有手动重要修改
-# 看一下 bun.lock 的 git diff，确认没有我们手动调过的版本固定
+# 步骤 4：确认 bun.lock 是合并冲突产物，且没有手动重要修改
 git log --oneline -5 bun.lock
 git diff HEAD~5 -- bun.lock | head -50
 
-# 步骤 4：如果确认 bun.lock 安全可重建，再删它
+# 步骤 5（最后手段）：bun.lock 安全可重建，再删它
 rm bun.lock
 bun install
 git add bun.lock && git commit -m "chore: regenerate bun.lock after upstream merge"
 ```
 
-⚠️ **绝不**一上来就 `rm bun.lock node_modules -rf` —— 这会丢掉我们可能在 `bun.lock` 中固定的特定版本（如安全考虑、兼容性补丁等）。先删 `node_modules` 90% 能解决问题。
+⚠️ **绝不**一上来就 `rm bun.lock node_modules -rf` —— 这会丢掉我们可能在 `bun.lock` 中固定的特定版本（如安全考虑、兼容性补丁等）。先做步骤 2（增量同步）90% 能解决，且避免 dup install。
+
+⚠️ **v0.9.4 sync 真实事故**：bun.lock 出现 merge conflict 时直接跑 `rm bun.lock && bun install` 让 bun 选了 `@sentry/react@10.53.1` + `@sentry/core@10.50.0` 两个不兼容版本（nested install），导致 typecheck TS2322。正确处理：`git checkout 29bbfdc7 -- bun.lock && bun install` 增量同步，5 秒解决。
 
 ### 4.2 i18n 文件 grep 不到 key 但应用启动报错"Missing translation"
 
@@ -918,6 +927,58 @@ bun run server:build:subprocess
 ```
 
 事故 #1（M1 期 commit `8ebe8c0`）/ #3（M2 期 commit `8cc943e6`）的同根模式——helper 函数定义但漏接到链路，详见 [`12-subprocess-build-pipeline.md`](12-subprocess-build-pipeline.md) §0。
+
+### 4.7 (v0.9.4+) PREVIEW 报告"行号不重叠"假设 → 实际 git 3-way merge 触发 conflict
+
+**症状**：sync 预测报告 5 轮 review 都说"§3.7 改造点 0 真冲突"（基于 marker 文件 × upstream 改文件交集 + 行号判断），但实际 `git merge upstream/main` 报真冲突。
+
+**根因**：git 3-way merge 用 **hunk context**（修改行附近 3 行）判断冲突，**同一 hunk 内任何 ours/theirs 改动都会触发 conflict**——即使逻辑上不重叠。
+
+**v0.9.4 实测案例**：
+1. `SkillsListPanel.tsx` —— ours 改 `craftagents://` → `uagents://` deep link（§3.5 brand 替换） vs theirs 改 onShowInFinder 整段逻辑（Show in Finder 修复） —— **同一 JSX prop 块** → git 标 conflict
+2. `claude/event-adapter.ts` —— ours 改注释 "Craft Agent's" → "U Agents's" vs theirs 重写 docblock 同段 —— **同一注释段** → git 标 conflict
+3. **15 个 package.json** —— ours 改 `@craft-agent/X` → `@u-agents/X` + version 0.9.3 vs theirs 改 version 0.9.4 —— **name 和 version 相邻同 hunk** → 全部 conflict
+
+**处理（新 SOP）**：
+
+```bash
+# 预测阶段（PREVIEW 报告时）：用 git merge-tree 拿真实冲突清单
+git merge-tree --no-messages --merge-base=$(git merge-base main upstream/main) main upstream/main \
+  | grep -A 3 "^<<<<<<<" | head -50
+# 此命令输出**会冲突的 hunk**——比 marker × upstream 文件交集精确得多
+
+# 也可以用 dry-run：
+git merge --no-commit --no-ff upstream/main
+git status   # 看真实冲突
+git merge --abort   # 回滚
+```
+
+**v0.9.4 教训**：PREVIEW 不能只看行号交集，必须用 `git merge-tree` 做 dry-run。已在 PREVIEW v0.9.4 报告附录 B19/B20 沉淀（不在 SOP 主文，因为这是 PREVIEW 方法学改进而非 sync 操作）。
+
+### 4.8 (v0.9.4+) C13 上游漏分类不只 routing.ts 一处
+
+**症状**：sync 报告 PREVIEW 阶段核了 routing.ts 的 `LOCAL_ONLY_CHANNELS` / `REMOTE_ELIGIBLE_CHANNELS` 分类——通过；merge 后跑 `bun test` 仍报 RPC handler exhaustiveness test fail。
+
+**根因**：channel 分类有**多个 exhaustiveness check**——routing.ts 是一个、`packages/server-core/src/handlers/rpc/<module>.ts` 的 `HANDLED_CHANNELS` 数组导出又是另一个。上游 v0.9.1 漏分类 routing.ts（我们 patch 修了 #37）；上游 v0.9.4 漏分类 HANDLED_CHANNELS（我们 patch 修了 #52）。
+
+**新 SOP**（PREVIEW 阶段必跑）：
+
+```bash
+# 1. 核 routing.ts 双集合（v0.9.1 教训）
+# 见 §2.7c "C13 routing.ts exhaustiveness"
+
+# 2. 核 server-core 所有 RPC handler 的 HANDLED_CHANNELS 是否覆盖该模块所有 server.handle(...)
+#    upstream 改了哪个 module 的 RPC（看 diff），就核该 module 的 HANDLED_CHANNELS
+for f in packages/server-core/src/handlers/rpc/*.ts; do
+  handled=$(grep -c "RPC_CHANNELS\." "$f" || true)
+  registered=$(grep -c "server\.handle(" "$f" || true)
+  if [ "$handled" != "0" ] && [ "$registered" != "0" ] && [ "$handled" != "$registered" ]; then
+    echo "WARN: $f handled=$handled registered=$registered"
+  fi
+done
+```
+
+**v0.9.4 教训**：上游 v0.9.4 `packages/server-core/src/handlers/rpc/settings.ts` 注册 4 个 RTK channel（L321-340）但 HANDLED_CHANNELS 数组（L14-）漏含——属 C13 漏分类。我们 patch 加进 §3.7 #52 marker。
 
 ---
 
