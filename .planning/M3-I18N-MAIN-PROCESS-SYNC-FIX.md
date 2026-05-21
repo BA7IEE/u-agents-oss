@@ -426,8 +426,8 @@ ls packages/server-core/node_modules/i18next 2>/dev/null && echo "⚠️ DUPLICA
 
 ```bash
 # Step 1: 改代码（按 §4.1）但不 commit
-# Step 2: dev 模式起 App
-cd apps/electron && bun run electron
+# Step 2: dev 模式起 App（从 repo root 跑 — 不是 cd apps/electron && bun run electron）
+bun run electron:dev
 
 # Step 3: 跑完 §5.1 + §6.4 所有 11 步实测
 # Step 4a: 全过 → commit

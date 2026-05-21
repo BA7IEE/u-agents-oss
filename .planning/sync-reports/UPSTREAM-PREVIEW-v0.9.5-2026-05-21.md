@@ -396,16 +396,58 @@ git add apps/electron/src/renderer/components/app-shell/input/FreeFormInput.tsx
 # 把 4 处 'Craft Agents Backend' 字面量 → 'U-API'
 ```
 
-**b. 15 个 package.json**（§4.1 C11）：
+**b. 15 个 package.json**（§4.1 C11）—— ⚠️ **不能用简单 `--theirs + sed scope`，必须 3-way merge**：
+
+> **教训 (REVIEW-4 / 2026-05-21 sync 实测发现)**：初版 SOP 写的"`--theirs` 后 sed `@craft-agent/` → `@u-agents/`"会**静默丢失** ours 的 brand 字段：
+> - `"private": true`（所有内部包应有）
+> - `description` 里的"U Agents"（被 theirs "Craft Agents" 覆盖）
+> - `author`（被 theirs "Craft Docs Ltd. / support@craft.do" 覆盖；ours 是 "U Studio / support@u-studio.cn"）
+> - `homepage`（被 theirs "https://agents.craft.do" 覆盖；ours 是 "https://u-agents.u-studio.cn"）
+> - `bin`（apps/cli 的 ours 是 `u-agents-cli`，被 theirs `craft-cli` 覆盖）
+>
+> **正确做法是 3-way merge**：theirs 的 version / dependencies / exports / scripts 是 v0.9.5 真增量，要保；ours 的 description / author / homepage / private / bin 是 fork brand，要保。用以下 Python 脚本自动跑：
 
 ```bash
-# 全部接受 theirs（拿到 v0.9.5 版本号 + dep 变化），然后 batch sed 把 name 改回 @u-agents
+# Step 1: --theirs 接受 v0.9.5 整体（拿到 version + dep 变化）
 git checkout --theirs $(git status -s | grep "package.json" | awk '{print $NF}')
 
-# Batch sed：
-find packages apps -name "package.json" -not -path "*/node_modules/*" 2>/dev/null \
-  | xargs sed -i '' "s|\"@craft-agent/|\"@u-agents/|g"
+# Step 2: Batch sed NPM scope（仍要做）
+find packages apps -maxdepth 3 -name "package.json" -not -path "*/node_modules/*" 2>/dev/null \
+  | xargs sed -i '' 's|"@craft-agent/|"@u-agents/|g'
 
+# Step 3: ⭐ 3-way merge 还原 brand 字段（关键步骤）
+python3 <<'PYEOF'
+import json, subprocess, glob, os
+os.chdir('.')  # 必须在 repo root
+BRAND_FIELDS = ['description', 'author', 'homepage', 'private', 'bin']
+for p in sorted(glob.glob('packages/*/package.json') + glob.glob('apps/*/package.json') + ['package.json']):
+    if 'node_modules' in p:
+        continue
+    with open(p) as f: cur = json.load(f)
+    result = subprocess.run(['git', 'show', f'main:{p}'], capture_output=True, text=True)
+    if result.returncode != 0: continue
+    ours = json.loads(result.stdout)
+    changed = False
+    for field in BRAND_FIELDS:
+        if field in ours and cur.get(field) != ours[field]:
+            cur[field] = ours[field]
+            changed = True
+        elif field == 'private' and field not in ours and field in cur:
+            del cur[field]
+            changed = True
+    if changed:
+        with open(p, 'w') as f:
+            json.dump(cur, f, indent=2, ensure_ascii=False)
+            f.write('\n')
+        print(f'PATCHED {p}')
+PYEOF
+
+# Step 4: 验证 0 Craft 残留
+grep -rEn --exclude-dir=node_modules "Craft Agent|craft\.do|Craft Docs" packages apps . --include="package.json" 2>/dev/null \
+  | grep -v "craft-server\|sync:craft-agent-bash" | head -5
+# 期望：空（craft-server bin / sync:craft-agent-bash dev script 是 fork main 也保留的，例外）
+
+# Step 5: git add 所有 package.json
 git add $(git status -s | grep "package.json" | awk '{print $NF}')
 ```
 
@@ -577,6 +619,72 @@ EOF
 
 ---
 
+## 13. 长期反思：紧凑模式断点错位（REVIEW-5 发现）
+
+### 13.1 现象
+
+v0.9.5 上游加了 5 个紧凑模式（compact）feature：
+- A1 紧凑模式会话行菜单 drawer
+- A2 紧凑模式工作目录选择器 drawer
+- A3 紧凑模式 AcceptPlan 选择器 drawer
+- A4 紧凑模式输入框 tap-to-expand
+- A5（web UI）紧凑模式 model selector
+
+桌面 Electron 实测时**全部触发不到**。
+
+### 13.2 根因
+
+| 配置 | 位置 | 值 |
+|---|---|---|
+| BrowserWindow minWidth | `apps/electron/src/main/window-manager.ts:139` | `800` |
+| isAutoCompact 触发阈值 | `apps/electron/src/renderer/components/app-shell/AppShell.tsx:557` | `MOBILE_THRESHOLD = 768` |
+
+**用户的窗口最小宽度（800）> 紧凑触发阈值（768）**，差 32px。无论怎么拖窗口都无法触发 `isAutoCompact = true`。
+
+### 13.3 这不是 v0.9.5 sync 引入
+
+| 版本 | minWidth | MOBILE_THRESHOLD |
+|---|---|---|
+| fork main (v0.9.4 sync 后) | 800 | 768 |
+| v0.9.4 upstream | 800 | 768 |
+| v0.9.5 upstream | 800 | 768 |
+
+**长期存在 → fork 设计与上游 v0.9.5 紧凑模式 feature 路线不一致**。
+
+### 13.4 桌面 Electron 用户实际触达紧凑模式的路径
+
+理论上还有 2 条路径可以触发紧凑模式：
+
+1. **多 panel 布局**：开 2-3 列 panel，单个 panel 宽度 < 448px → 触发 `@container/panel (max-width: 448px)` 紧凑（**只是 panel 级 CSS 触发，不切 vaul drawer**）
+2. **webui playground mobile preview**：开发用，不在用户路径
+
+也就是说**实际用户场景下，v0.9.5 紧凑模式 drawer feature（A1/A2/A3/A4）在桌面 Electron 是死路径**——上游 UX polish 不达。
+
+### 13.5 选项
+
+| 方案 | 操作 | 后果 |
+|---|---|---|
+| **方案 P1**：把 BrowserWindow minWidth 改成 ≤ 768（如 600 或 500）| 改 `window-manager.ts:139` | 用户能把窗口拖到触发紧凑模式；但拖太窄时部分桌面布局可能挤压（需测）|
+| **方案 P2**：把 MOBILE_THRESHOLD 改大（如 900）| 改 `AppShell.tsx:557` | 紧凑模式提前触发；可能误触干扰常规视图（需测）|
+| **方案 P3**：保持现状，紧凑模式只服务 webui mobile / 内嵌 panel | 不改 | 桌面 Electron 用户永远不见 v0.9.5 紧凑 drawer 改进；但不会有现状的 regression |
+| **方案 P4**：双重触发——保留 768 阈值 + 加 panel-level 紧凑切换到 drawer | 复杂改造 | 工作量大但 UX 最佳，留 M4+ |
+
+### 13.6 不阻塞本次 sync
+
+v0.9.5 sync 的核心目标 = **吸收上游 73 文件变更 + 修复 §3.7 #53 model-picker brand 漏盘 + 集成 5 个稳定性 bug fix**。紧凑模式 UX 改进**不可达**但不引入 regression（功能上等同于 v0.9.4 状态）。
+
+**决策**：本次 sync **不**改 minWidth 也不改 MOBILE_THRESHOLD——把这个错位作为 follow-up backlog，由用户决定优先级。
+
+### 13.7 给用户的问句
+
+> "你接受桌面 Electron 用户永远不见 v0.9.5 紧凑 drawer 改进吗？还是想顺手改 minWidth 让紧凑模式可达？"
+
+**默认建议**：本次 sync 不动（保持稳定优先），等用户主动反馈"想测紧凑模式 / 想给小屏笔记本用户支持紧凑布局"再决定方案 P1/P2/P4。
+
+---
+
+---
+
 ## 11. M3-I18N-FIX 搭车评估（用户问"能不能加进去"）
 
 > 关联规格：[`M3-I18N-MAIN-PROCESS-SYNC-FIX.md`](../M3-I18N-MAIN-PROCESS-SYNC-FIX.md) + [`M3-I18N-FIX-CLAIM-AUDIT.md`](../M3-I18N-FIX-CLAIM-AUDIT.md)
@@ -743,7 +851,7 @@ sync: upstream v0.9.5 merge + fix(i18n): main process startup sync
 | **R5** | §11.7 编号撞车的同步修改面**漏列 AUDIT 文档** | 不只 [`M3-I18N-MAIN-PROCESS-SYNC-FIX.md §7`](../M3-I18N-MAIN-PROCESS-SYNC-FIX.md) 要把 #53 改 #54，[`M3-I18N-FIX-CLAIM-AUDIT.md §7`](../M3-I18N-FIX-CLAIM-AUDIT.md) 也引用了"96 → 97"基线断言，需要同步刷成"96 → 98"。共 **3 处文档**需修改（M3 spec §7 + AUDIT §7 + CLAUDE.md §3.7 表落地后追加）|
 | **R6** | bun.lock 重装的微妙交互 | v0.9.5 sync SOP `git checkout v0.9.5 -- bun.lock && bun install` 会重装 `i18next-browser-languagedetector`。极小概率 detector 包内部行为变化（如 patch 版本升级 affecting `detect()` 同步性）影响 AUDIT ⚠️2 的同步性断言。merge 后跑 `cat node_modules/i18next-browser-languagedetector/package.json \| grep version` 核版本未跨大版本 |
 | **R7** | 回滚粒度声明不准确 | 初版说"`git restore apps/electron/src/renderer/main.tsx` 单独回滚"——只在**未 commit 的 working tree**有效。已 commit 的搭车 commit 想单独 revert i18n fix 部分要用 `git revert <commit>` 再 cherry-pick 回 sync 部分，或 `git reset HEAD~1` 重新 commit。方案 X 的回滚成本 > 方案 Y |
-| **R8** | dev vs 装包模式实测差异 | M3 fix §5.1 实测要求 dev 模式（`bun run electron`），v0.9.5 双平台 D-β 是装包模式跑安装包。IPC handler 注册时序理论一致，但**跨模式实测从未核过**。方案 X 实测合并时建议分两批：dev 模式跑 M3 fix §5.1 + §6.4 共 11 步，装包模式只跑 v0.9.5 D-β 主线 + M3 fix §5.1 的步骤 4/6 抽测 |
+| **R8** | dev vs 装包模式实测差异 | M3 fix §5.1 实测要求 dev 模式（`bun run electron:dev` 从 repo root 跑，**不是** `bun run electron`——后者会调 PATH 里的 electron binary 启动默认欢迎页），v0.9.5 双平台 D-β 是装包模式跑安装包。IPC handler 注册时序理论一致，但**跨模式实测从未核过**。方案 X 实测合并时建议分两批：dev 模式跑 M3 fix §5.1 + §6.4 共 11 步，装包模式只跑 v0.9.5 D-β 主线 + M3 fix §5.1 的步骤 4/6 抽测 |
 | **R9** | commit message 规范 | 初版 `sync: upstream v0.9.5 merge + fix(i18n): main process startup sync` 把两个 conventional commit type 拼在 title 里不规范。推荐：title 用 `chore(sync): upstream v0.9.5 + i18n startup fix`，body 详述两类变更 |
 
 #### 11.9.3 1 个长期规划反思
@@ -971,7 +1079,7 @@ i18n fix commit 落地但**不 push 不打包不发版**。dev 模式日常使�
 
 | 子步 | 操作 | 验收 |
 |---|---|---|
-| 4-1 | macOS arm64：`cd apps/electron && bun run dist:mac` | 装 .dmg → 跑 sync 主线 D-β + M3 §5.1 步骤 3-4 抽测 |
+| 4-1 | macOS arm64：从 repo root 跑 `bun run electron:dist:mac`（**不是** `cd apps/electron && bun run dist:mac`——electron-builder 入口在 root scripts）| 装 .dmg → 跑 sync 主线 D-β + M3 §5.1 步骤 3-4 抽测 |
 | 4-2 | Windows x64：按 v0.9.4 双平台节奏 | 装 .exe → sync 主线 D-β + i18n 步骤 3-4 抽测 |
 
 **踩刹车点 🚦4**：装包模式实测发现 dev 模式没暴露的问题 → `git revert` 对应 commit + 重新打包
@@ -1037,6 +1145,8 @@ i18n fix commit 落地但**不 push 不打包不发版**。dev 模式日常使�
 | REVIEW-2 | 2026-05-21 同日 | 新增 §11.9 方案 X 反思 + 推荐力度下调 | 用户："review一轮方案 X" — 对 §11.5 初版"⭐ 强推荐方案 X"的批判性复核 |
 | REVIEW-3 | 2026-05-21 同日 | 新增 §11.10 方案 Y 反思 + 推荐改为"取决于发版节奏" + 决策树 | 用户："那再 review 一轮方案 Y" — 对 §11.9 REVIEW-2"温和倾向方案 Y"的批判性复核 |
 | DECISION-1 | 2026-05-21 同日 | 新增 §11.11 用户选定方案 Y++（增稳版）完整 SOP — 4 阶段 + 5 个踩刹车点 + 决策预设清单 | 用户："我要的是稳 麻烦一点都不怕的" — 命中决策树 §11.10.6 "sync 落地先静置 1-2 天 + 不怕麻烦" |
+| REVIEW-4 | 2026-05-21 同日 | 改 §6.2 b 步 package.json 处理为 3-way merge + 加 Python 脚本；改 §11.10 R8 / §11.11.7 4-1 / M3 spec §9.1 笔误命令为 `bun run electron:dev` from repo root；§packages/shared/package.json exports 加 `./utils/files` 修 M2 #32c 漏盘 | sync 实测踩坑：(a) `bun run electron` 起默认欢迎页 — 命令错误；(b) `@u-agents/shared/utils/files` 解析失败 — M2 #32c 落地时漏注册 export；(c) `--theirs + sed scope` 把 14 个 package.json 的 brand 字段静默丢失（description / author / homepage / private / bin）|
+| REVIEW-5 | 2026-05-21 同日 | §11.11.2 Phase 1-6 实测清单：A1-A4 紧凑 drawer 类标记"桌面 Electron 不可达，跳过实测"，集中验证 B1 model picker brand（§3.7 #53 唯一真冲突修复点）+ C1 branching + A5 MCP source_test。新增 §11.12 紧凑模式断点错位长期反思 | sync 实测发现：BrowserWindow minWidth=800 > MOBILE_THRESHOLD=768，桌面 Electron 永远进不了 shell 紧凑布局 → 上游 v0.9.5 加的 4 个紧凑 drawer feature 在桌面 dev 模式无法触发实测。fork main / v0.9.4 / v0.9.5 都是这个状态，非 sync 引入，是 fork 长期设计错位 |
 
 **REVIEW-1 修正的事实错误**：
 
