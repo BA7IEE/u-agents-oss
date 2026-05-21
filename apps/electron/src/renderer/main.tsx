@@ -8,13 +8,20 @@ import App from './App'
 import { ThemeProvider } from './context/ThemeContext'
 import { windowWorkspaceIdAtom } from './atoms/sessions'
 import { Toaster } from '@/components/ui/sonner'
-import { setupI18n } from '@u-agents/shared/i18n'
+import { setupI18n, i18n } from '@u-agents/shared/i18n'
 import { initReactI18next } from 'react-i18next'
 import LanguageDetector from 'i18next-browser-languagedetector'
 import './index.css'
 
 // Initialize i18n before any React rendering
 setupI18n([LanguageDetector, initReactI18next])
+
+// U-API: 把 detector 解析到的语言立即推给主进程，修复"重启后必须手切语言标题才中文"的 bug。
+// setupI18n 用 initImmediate:false（同步 init），此时 resolvedLanguage 已可用。
+// 主进程 handler 内部会调 rebuildMenu()，理论上可能抛——用 .catch 兜底而非 void。
+// 详见 .planning/M3-I18N-MAIN-PROCESS-SYNC-FIX.md
+window.electronAPI?.changeLanguage?.(i18n.resolvedLanguage ?? 'en')
+  ?.catch((err) => console.warn('[i18n] startup sync to main failed:', err))
 
 // Known-harmless console messages that should NOT be sent to Sentry.
 // These are dev-mode noise or expected warnings that aren't actionable.
