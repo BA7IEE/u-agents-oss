@@ -580,6 +580,7 @@ EOF
 | F4 | C13 `scripts/check-task-tool-checks.sh` stub 写完后跑 `chmod +x` 保证脚本可执行 | P0 | sync 同 commit |
 | F5 | 检查上游 v0.9.5 release notes 是否在 GitHub Release 页发了 changelog 链接（有时上游一周后才发）；如果发了，更新本报告 §1 元数据的 release 时间 | P3 | 后续 commit |
 | F6 | 跑完 sync 后写正式 `SYNC-v0.9.5-20260521.md` 报告（沿 SYNC-v0.9.4-20260520 模板）| P1 | sync 后另开 commit |
+| F7 | **`call_llm` + `multi_tool_use.parallel` + `outputSchema` 组合参数错位** — Phase 2 实测期间模型自跑工具调用回归冒烟测试发现：单独调用 `call_llm` 正常返回；并行调用中带 `outputSchema` 时 schema 校验报错 `prompt: must have required properties prompt` + `outputSchema: must not have additional properties`，参数里 `prompt`/`temperature` 被嵌入 `outputSchema` 内部。**根因路径分析**：与 v0.9.5 sync 无关（v0.9.5 一行没改 `llm-tool.ts` / parallel 序列化 / outputSchema 处理），属 Pi SDK 或 Claude Agent SDK 自身的 parallel wrapper 在序列化嵌套 schema 时的 bug，或者上游 craft-agents-oss 已知 issue。**优先级**：P3（不阻塞 sync，不影响日常使用——只在"call_llm 工具同时进 parallel 调用 + 用 outputSchema"这一窄场景触发；单独调用任一项都正常）。**追查建议**：(a) `gh issue list -R lukilabs/craft-agents-oss --search "call_llm parallel outputSchema"` 看上游是否已知；(b) 若未知 → 提 issue 给上游；(c) 等 Pi SDK 升级看是否修。**不在本次 sync 范围处理。** | P3 | 后续 commit / 上报 upstream |
 
 ---
 
