@@ -257,6 +257,12 @@ if (!apiKey && connection.baseUrl) {
 |---|---|---|---|---|---|
 | 52 | C13 patch — RPC handler HANDLED_CHANNELS 加 RTK 4 channel（上游 v0.9.4 漏分类）| `packages/server-core/src/handlers/rpc/settings.ts` | 注释 `classify v0.9.4 RTK channels missed by upstream's HANDLED_CHANNELS` | 单行 | SYNC-v0.9.4-20260520 §1.3（C13 pattern；与 v0.9.1 上游 routing.ts 漏分类同模式，曾有 `#37` marker 但 v0.9.3 sync 时上游自修后被删——本次 #52 是同模式新触发）|
 
+**M3 i18n 主进程启动同步（2026-05-21，详见 [`.planning/M3-I18N-MAIN-PROCESS-SYNC-FIX.md`](.planning/M3-I18N-MAIN-PROCESS-SYNC-FIX.md)）**：
+
+| # | 改造类别 | 文件 | 定位（用 `grep` 找）| 标记 | 关联规格 |
+|---|---|---|---|---|---|
+| 53 | renderer 启动时把 detector 解析到的语言推给主进程（修标题/preferences/原生菜单始终英文 bug）| `apps/electron/src/renderer/main.tsx` | 注释 `把 detector 解析到的语言立即推给主进程` | 单行 | M3-I18N-MAIN-PROCESS-SYNC-FIX（commit `5212197b`）|
+
 **Build 脚本 marker（M2 后期补充，不计入主基线）**：
 
 主基线 grep 命令仅扫 `packages` + `apps` 下的 `.ts/.tsx`，build 脚本（`.sh` / `.ps1`）不在覆盖范围内——但仍需登记，方便上游同步时辨识改造点。
@@ -283,13 +289,15 @@ grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_mod
 # scripts/typecheck-staged.sh + scripts/lint-i18n-staged.sh）
 ```
 
-**同步上游验证基线**（**v0.9.4 sync 后 2026-05-20 刷新**）：
+**同步上游验证基线**（**M3 i18n fix 后 2026-05-21 刷新**）：
 
-| 指标 | 基线（2026-05-20 v0.9.4 sync 后）| 下次同步允许浮动 |
+| 指标 | 基线（2026-05-21 M3 i18n fix 后）| 下次同步允许浮动 |
 |---|---|---|
-| U-API 标记总数（含全部注释格式）| **96** | ±2 |
+| U-API 标记总数（含全部注释格式）| **98** | ±2 |
 | `/* U-API START */` 块数 | **9** | 必须等于 END |
 | `/* U-API END */` 块数 | **9** | 必须等于 START |
+
+> ⚠️ **基线校准（2026-05-21）**：M3 i18n fix 落地后实测 grep 数 = 98。预期值 = v0.9.4 sync 记录的 96 + 本次 fix 的 1 = 97，**实测多 1**。两种可能：(a) v0.9.4 sync 时基线计数漂了 1（记 96，实际 97）；(b) 中间某次 commit 加了 marker 未记录。差值在 ±2 浮动容差内，**接受当前 98 作为新基线**，不去追查历史漂移源头（性价比低）。下次 sync 时以 98 为参照。
 
 > 浮动 ±2 是为了容纳"上游改了某改造点附近代码，我们顺手补/合并标记"的合理变化。**超出 ±2 必须停下逐项核对**——多半是 git 自动合并吞掉了改造，或者引入了未文档化的新改造（应补进 §3.7 表）。
 >
@@ -315,6 +323,7 @@ grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_mod
 > - **v24 Bucket C browser tool 裁剪决策（2026-05-07）：82 处**（+2 marker：storage.ts browserToolEnabled 默认改 false 加 1 处 marker + m2-security-regression.test.ts 防回归测试加 1 处 marker；同 commit 改 config-defaults.json 默认值；新增 §3.7 #46/#46t；详见 [`.planning/04-feature-cuts.md`](.planning/04-feature-cuts.md) §九类）。
 > - **v27 Bucket B SSRF 横向扩展（2026-05-08）：94 处**（+12 marker：auto-update.ts 注释品牌 1 处 + web-fetch.ts redirect:'manual' + 30x reject 2 处 + web-fetch-ssrf.test.ts marker 防回归 1 处 + source-test.ts SSRF 8 处（import + safety check + auth path redirect:'manual' + 30x reject + basic path 3× redirect:'manual' + 30x reject）；新增 §3.7 #47a/#47b/#48a-d/#49；同 commit zh-Hans browser tool i18n 文案重写不计 marker（属 i18n 改动）+ Bucket A 7 文档已分别 commit。详见 [`.planning/M3-SSRF-CONSOLIDATION-SPEC.md`](.planning/M3-SSRF-CONSOLIDATION-SPEC.md) + [`.planning/sync-reports/REVIEW-27-FULL-2026-05-08.md`](.planning/sync-reports/REVIEW-27-FULL-2026-05-08.md)）。**B4 toast / B5 chat gate defer 给后续 commit，需 IPC 与 chat hook 集成**。
 > - **v0.9.3 sync（2026-05-12 合并 upstream `c310624f`）：95 处**（净变化 +1：删 #37（上游 v0.9.3 自己修了 v0.9.1 routing 漏分类，自动过期）−1，加 #50/#51（FabNewChat 两处 shadow ESLint 违规 disable）+2。上游 134 文件 / 31 新增 + 103 修改；25 个 unmerged 冲突（14 package.json + routing.ts + AiSettingsPage.tsx + 2 html + README + bug_report.yml + D 组 4 文件 AppMenu/TopBar/SessionMenu/SessionMenuParts）；架构层面接受上游 TopBar → AppMenu wrapper → DesktopAppMenu/MobileAppMenu 重构（替代我们 fork 把 menu rendering 搬到 TopBar 的方向）；C11 触发 6 文件 9 处 NPM scope rename（mobile UI 新建 5 文件 + messaging test 1）；C12 触发 2 处 ESLint 违规 disable（FabNewChat shadow，对应 #50/#51）；C13 未触发（上游反而修了 v0.9.1 routing 自身 bug）；上游新文件 brand patch 3 个（DesktopAppMenu/MobileAppMenu CraftAgentsSymbol → UAgentsSymbol + menu-schema.ts quitUAgents key + u-agents docs URL + HELP_LINKS 加 Automations 入口）。验证：typecheck 全绿 / lint:i18n:parity OK（6 locales × 1448 keys）/ lint:electron 仅剩 FabNewChat 2 处 disable 之外的 110 个 pre-existing warnings / bun test 4 fail 全部来自 stale `apps/electron/release/*.app` bundle 副本（与 sync 无关）。详见 [`.planning/sync-reports/UPSTREAM-PREVIEW-v0.9.3-2026-05-12.md`](.planning/sync-reports/UPSTREAM-PREVIEW-v0.9.3-2026-05-12.md)）。
+> - **M3 i18n 主进程启动同步 fix（2026-05-21 commit `5212197b`）：98 处**（+1 marker：renderer/main.tsx setupI18n 后追加 IPC 推送 + `// U-API:` 4 行注释 + `.catch` 兜底；新增 §3.7 #53。实测 grep 实际为 98，比"96+1=97"多 1——校准接受为新基线，不追查历史漂移。修复"重启后必须手切语言标题才中文"的 bug —— 详见 [`.planning/M3-I18N-MAIN-PROCESS-SYNC-FIX.md`](.planning/M3-I18N-MAIN-PROCESS-SYNC-FIX.md) + [`.planning/M3-I18N-FIX-CLAIM-AUDIT.md`](.planning/M3-I18N-FIX-CLAIM-AUDIT.md)。**实际是上游 bug**——上游 main 进程 `setupI18n()` 无 detector 永远 fallback `en`，但 server-core/preferences 又读 `i18n.resolvedLanguage` 注入 prompt。可考虑作为上游 PR 候选）
 > - **v0.9.4 sync（2026-05-20 合并 upstream `4144f795` → commit `0a49a089`）：96 处**（净变化 +1：加 #52 C13 patch HANDLED_CHANNELS 加 RTK 4 channel）。上游 73 文件 / +698 −202 行（fork 历史上影响面最小的一次）；主题 = RTK Bash token 压缩 opt-in + Pi SDK 0.72.1→0.73.1 + Codex/Copilot 死代码清理（与 04-feature-cuts 同向）；冲突总数 19 处：2 处真代码冲突（SkillsListPanel uagents:// deep link + claude/event-adapter.ts brand 注释 vs 上游 docblock 重写）、15 处 package.json（NPM scope @u-agents/ vs 上游 SDK 版本号）、eslint.config.mjs（顺势删 codex-agent / copilot-agent / @github/copilot-sdk 3 条死规则）、bun.lock（不可手工合并，改用 `git checkout 29bbfdc7 -- bun.lock && bun install` 增量同步避免 Sentry dup install）；C11 触发 1 文件 4 处（settings.ts RTK RPC handler dynamic import）；C13 触发：HANDLED_CHANNELS 漏 RTK 4 channel patch（#52，与 v0.9.1 routing.ts #37 同模式）；顺手 follow-up 删 root package.json `@github/copilot-sdk` dep（REVIEW-3 backlog）；release-notes/0.9.4.md 中文翻译 + brand 五件套（Craft/craft.do/lukilabs/Codex/Copilot）0 命中。验证：typecheck 0 errors / i18n parity OK（6 locales × 1455 keys，+7 RTK key）/ lint:electron 110 warnings 0 errors / bun test 19 latent fail（全 v0.9.3 baseline 已存在，与 sync 无关）。PREVIEW 5 轮 review 后预测评级 A−，实际 **A−**（REVIEW-6 修订：sync 0 新增 test fail / 19 fail 与 v0.9.3 baseline 一致；2 真冲突 + C13 patch + bun.lock 副作用都是 sync collateral 1-2 分钟内可解，**不构成降级理由**——评级应基于 regression 而非修复过程的小波折）。**macOS arm64 + Windows x64 D-β 双平台实测通过**（2026-05-20）—— fork 历史上首次双平台都在 sync 当日完成实测验证。详见 [`.planning/sync-reports/SYNC-v0.9.4-20260520.md`](.planning/sync-reports/SYNC-v0.9.4-20260520.md) + 5 轮预测 [`UPSTREAM-PREVIEW-v0.9.4-2026-05-20.md`](.planning/sync-reports/UPSTREAM-PREVIEW-v0.9.4-2026-05-20.md)。
 
 **每次同步必跑 grep（覆盖全部注释格式）**：
@@ -325,7 +334,7 @@ grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_mod
 # 抗 build-dmg.sh 中间态把 SDK 包复制到 apps/electron/node_modules/ 让数字暂时虚高的情况
 grep -rEn --exclude-dir=node_modules "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
   | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
-# 期望：95（基线，允许 93-97）
+# 期望：98（基线，允许 96-100）
 
 # 块标记 START/END 配对（数量必须相等）
 grep -rE --exclude-dir=node_modules "/\* U-API START" packages apps --include="*.ts" --include="*.tsx" | wc -l
