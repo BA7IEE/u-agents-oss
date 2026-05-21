@@ -1,7 +1,6 @@
 {
   "name": "@u-agents/server-core",
-  "version": "0.9.4",
-  "private": true,
+  "version": "0.9.5",
   "license": "Apache-2.0",
   "description": "Reusable headless server infrastructure for U Agents",
   "type": "module",
@@ -35,5 +34,6 @@
   "devDependencies": {
     "typescript": "^5.8.2",
     "@types/node": "^22.0.0"
-  }
+  },
+  "private": true
 }

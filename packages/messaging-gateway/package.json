@@ -1,7 +1,6 @@
 {
   "name": "@u-agents/messaging-gateway",
-  "version": "0.9.4",
-  "private": true,
+  "version": "0.9.5",
   "license": "Apache-2.0",
   "description": "Messaging gateway for U Agents — Telegram & WhatsApp",
   "type": "module",
@@ -24,5 +23,6 @@
   "devDependencies": {
     "typescript": "^5.8.2",
     "@types/node": "^22.0.0"
-  }
+  },
+  "private": true
 }

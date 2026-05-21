@@ -1,7 +1,6 @@
 {
   "name": "@u-agents/session-mcp-server",
-  "version": "0.9.4",
-  "private": true,
+  "version": "0.9.5",
   "license": "Apache-2.0",
   "description": "MCP server that provides session-scoped tools (SubmitPlan, config_validate, etc.) to Codex via stdio transport",
   "type": "commonjs",
@@ -21,5 +20,6 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0"
-  }
+  },
+  "private": true
 }

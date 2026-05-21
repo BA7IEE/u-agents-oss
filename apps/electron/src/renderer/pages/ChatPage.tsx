@@ -630,6 +630,7 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
                 onMatchInfoChange={onChatMatchInfoChange}
                 connectionUnavailable={connectionUnavailable}
                 compactMode={!!isCompactMode}
+                enableCompactModelPicker={!!isCompactMode}
               />
             </div>
           </div>
@@ -709,6 +710,7 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
             onMatchInfoChange={onChatMatchInfoChange}
             connectionUnavailable={connectionUnavailable}
             compactMode={!!isCompactMode}
+            enableCompactModelPicker={!!isCompactMode}
           />
         </div>
       </div>

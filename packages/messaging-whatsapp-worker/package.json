@@ -1,7 +1,6 @@
 {
   "name": "@u-agents/messaging-whatsapp-worker",
-  "version": "0.9.4",
-  "private": true,
+  "version": "0.9.5",
   "license": "Apache-2.0",
   "description": "WhatsApp worker subprocess for U Agents (Baileys-based, unofficial API)",
   "type": "module",
@@ -19,5 +18,6 @@
   "devDependencies": {
     "typescript": "^5.8.2",
     "@types/node": "^22.0.0"
-  }
+  },
+  "private": true
 }

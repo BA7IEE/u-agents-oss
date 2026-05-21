@@ -1,0 +1,59 @@
+import {
+  isLocalConnection,
+  type LlmConnection,
+} from '@config/llm-connections'
+
+/**
+ * Format token count for display (e.g., 1500 -> "1.5k", 200000 -> "200k").
+ * Shared by the desktop model dropdown and the compact (drawer) model picker.
+ */
+export function formatTokenCount(tokens: number): string {
+  if (tokens >= 1000000) {
+    return `${(tokens / 1000000).toFixed(1)}M`
+  }
+  if (tokens >= 1000) {
+    return `${(tokens / 1000).toFixed(tokens >= 10000 ? 0 : 1)}k`
+  }
+  return tokens.toString()
+}
+
+/**
+ * Strip the "pi/" prefix from model IDs/display names so the user sees a
+ * provider-agnostic label in the picker (e.g., "pi/claude-opus" → "claude-opus").
+ */
+export function stripPiPrefixForDisplay(value: string): string {
+  return value.startsWith('pi/') ? value.slice(3) : value
+}
+
+export type ConnectionGroup = [groupName: string, connections: LlmConnection[]]
+
+/**
+ * Group connections by provider type for hierarchical picker rendering.
+ * Each provider section can contain multiple connections (API Key, OAuth, …).
+ * Order is significant for UI: Anthropic, Local, U-API.
+ * Empty groups are dropped.
+ */
+// U-API: brand — v0.9.5 上游把 FreeFormInput.tsx 内联 grouping 抽到本 helper，
+// 'Craft Agents Backend' 字面量需要在新位置重新 patch 成 'U-API'。
+// 同步改单测断言：__tests__/model-picker-helpers.test.ts 内 4 处 'Craft Agents Backend' → 'U-API'。
+// 关联：M3-I18N-MAIN-PROCESS-SYNC-FIX 之 §3.7 #53（v0.9.5 sync 期间新增改造点）。
+export function groupConnectionsByProvider<T extends LlmConnection>(
+  connections: readonly T[],
+): Array<[string, T[]]> {
+  const groups: Record<string, T[]> = {
+    'Anthropic': [],
+    'Local': [],
+    'U-API': [],
+  }
+  for (const conn of connections) {
+    const provider = conn.providerType || 'anthropic'
+    if (provider === 'anthropic') {
+      groups['Anthropic'].push(conn)
+    } else if (provider === 'pi_compat' && isLocalConnection(conn)) {
+      groups['Local'].push(conn)
+    } else if (provider === 'pi' || provider === 'pi_compat') {
+      groups['U-API'].push(conn)
+    }
+  }
+  return Object.entries(groups).filter(([, conns]) => conns.length > 0)
+}

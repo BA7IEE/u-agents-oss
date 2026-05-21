@@ -1,7 +1,6 @@
 {
   "name": "@u-agents/cli",
-  "version": "0.9.4",
-  "private": true,
+  "version": "0.9.5",
   "license": "Apache-2.0",
   "description": "Terminal client for U Agents server",
   "type": "module",
@@ -22,5 +21,6 @@
     "typescript": "^5.8.2",
     "@types/node": "^22.0.0",
     "@types/bun": "latest"
-  }
+  },
+  "private": true
 }
