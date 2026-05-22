@@ -622,6 +622,87 @@ EOF
 
 ---
 
+## 14. AI 给打包指令前的强制核查清单（REVIEW-7 反思机制化）
+
+> v0.9.5 sync 期间 AI 连续 2 次给错打包指令（macOS dev + Windows dist）。本节把教训机制化为 AI 下次 sync 前**必走的核查清单**，挂在 PREVIEW + CLAUDE.md。
+
+### 14.1 错误模式记录
+
+| 次序 | 错误指令 | 现象 | 正确指令（05-build-release.md 已写）|
+|---|---|---|---|
+| 1 | `cd apps/electron && bun run electron` | 启动 Electron 默认欢迎页（没传 path）| `bun run electron:dev`（**from repo root**，调 `scripts/electron-dev.ts`）|
+| 2 | `bun run electron:dist:win`（root scripts）| .exe 出来但缺 5 个 extraResources（SDK / bun.exe / ripgrep / uv）→ 装好运行时 broken | `cd apps/electron && bun run dist:win`（调 `build-win.ps1` 含完整 bootstrap）|
+
+### 14.2 根因 — fork 有"两层打包入口"
+
+| 层 | 路径 | 含 bootstrap | 何时适用 |
+|---|---|---|---|
+| **root scripts**（`package.json` 的 `electron:dist:*` / `electron:dev`）| 直接 electron-builder 或 electron-dev.ts | ❌（电子开发者机器 walk-up 模式，依赖之前 dev 模式留下的 vendor / node_modules 副作用）| dev 机器调试 |
+| **app scripts**（`apps/electron/package.json` 的 `dist:*`）| 调 `apps/electron/scripts/build-{dmg,win,linux}.{sh,ps1}` | ✅（下载 bun / 复制 SDK / ripgrep / SDK binary alias / 设 packaging signal env）| **真正发版** |
+
+**05-build-release.md §3.2.0** 已经用对照表明确写了——但 AI 之前给打包指令时只 grep root `package.json` scripts 字段，忽略了这个对照表，导致两次都给的是 root scripts。
+
+### 14.3 强制核查清单（AI 下次给打包指令前 **必走**）
+
+| # | 检查项 | 通过条件 |
+|---|---|---|
+| C1 | **先读 `.planning/05-build-release.md` §3.2.0 / §4.1**（命令深度对照表）| 不能跳过这一步直接 grep package.json |
+| C2 | 是给"真正发版"指令吗？ | 是 → 用 `cd apps/electron && bun run dist:{mac,win,linux}`；否（dev 模式调试）→ `bun run electron:dev` from repo root |
+| C3 | macOS adhoc 签名 + 无 Apple Developer ID 时 | 加 `CSC_IDENTITY_AUTO_DISCOVERY=false` env var（对应 §3.7 Build 脚本 marker **B1**）|
+| C4 | Windows 端 fresh 机器（之前没跑过 dev 模式）| 提醒手动 bootstrap `uv.exe` 到 `apps/electron/resources/bin/win32-x64/uv.exe`（build-win.ps1 long-standing gap）|
+| C5 | macOS 端 fresh 机器（之前没跑过 dev 模式）| 同 C4，但是 `apps/electron/resources/bin/darwin-{arm64,x64}/uv` |
+| C6 | macOS 端 fresh 机器跑 `cd apps/electron && bun run dist:mac` | build-dmg.sh 也不 bootstrap uv（同 C4 gap）；但 SDK / bun / ripgrep 它包了 |
+
+### 14.4 long-standing gap 提醒
+
+**uv bootstrap 只在 `scripts/electron-dev.ts:ensureBundledUvForCurrentPlatform()`**——build script (`build-dmg.sh` / `build-win.ps1` / `build-linux.sh`) 都不调。这意味着任何 fresh 机器**首次打包前必须手动 bootstrap uv**：
+
+```bash
+# macOS arm64
+cd apps/electron
+mkdir -p resources/bin/darwin-arm64
+curl -L https://github.com/astral-sh/uv/releases/download/0.10.6/uv-aarch64-apple-darwin.tar.gz | tar -xz
+cp uv-aarch64-apple-darwin/uv resources/bin/darwin-arm64/uv
+chmod +x resources/bin/darwin-arm64/uv
+rm -rf uv-aarch64-apple-darwin
+
+# macOS x64
+mkdir -p resources/bin/darwin-x64
+curl -L https://github.com/astral-sh/uv/releases/download/0.10.6/uv-x86_64-apple-darwin.tar.gz | tar -xz
+cp uv-x86_64-apple-darwin/uv resources/bin/darwin-x64/uv
+chmod +x resources/bin/darwin-x64/uv
+rm -rf uv-x86_64-apple-darwin
+```
+
+```powershell
+# Windows x64
+cd apps\electron
+$uvDir = "resources\bin\win32-x64"
+New-Item -Force -ItemType Directory $uvDir | Out-Null
+Invoke-WebRequest "https://github.com/astral-sh/uv/releases/download/0.10.6/uv-x86_64-pc-windows-msvc.zip" -OutFile "uv-temp.zip"
+Expand-Archive uv-temp.zip -DestinationPath uv-extract -Force
+Copy-Item "uv-extract\uv.exe" "$uvDir\uv.exe" -Force
+Remove-Item uv-temp.zip, uv-extract -Recurse -Force
+```
+
+```bash
+# Linux x64
+cd apps/electron
+mkdir -p resources/bin/linux-x64
+curl -L https://github.com/astral-sh/uv/releases/download/0.10.6/uv-x86_64-unknown-linux-gnu.tar.gz | tar -xz
+cp uv-x86_64-unknown-linux-gnu/uv resources/bin/linux-x64/uv
+chmod +x resources/bin/linux-x64/uv
+rm -rf uv-x86_64-unknown-linux-gnu
+```
+
+### 14.5 M4 backlog（不在本 sync 范围）
+
+修复方案：让 `build-{dmg,win,linux}.*` 调 `downloadUv()`（已 export 在 `scripts/build/common.ts`），与 dev 模式行为一致。这样 fresh 机器首次打包不再缺 uv。
+
+**优先级**：P2（次次 sync 反复踩坑才补；这次只机制化"AI 给指令前必查清单"已足够防错）。
+
+---
+
 ## 13. 长期反思：紧凑模式断点错位（REVIEW-5 发现）
 
 ### 13.1 现象
@@ -1151,6 +1232,7 @@ i18n fix commit 落地但**不 push 不打包不发版**。dev 模式日常使�
 | REVIEW-4 | 2026-05-21 同日 | 改 §6.2 b 步 package.json 处理为 3-way merge + 加 Python 脚本；改 §11.10 R8 / §11.11.7 4-1 / M3 spec §9.1 笔误命令为 `bun run electron:dev` from repo root；§packages/shared/package.json exports 加 `./utils/files` 修 M2 #32c 漏盘 | sync 实测踩坑：(a) `bun run electron` 起默认欢迎页 — 命令错误；(b) `@u-agents/shared/utils/files` 解析失败 — M2 #32c 落地时漏注册 export；(c) `--theirs + sed scope` 把 14 个 package.json 的 brand 字段静默丢失（description / author / homepage / private / bin）|
 | REVIEW-5 | 2026-05-21 同日 | §11.11.2 Phase 1-6 实测清单：A1-A4 紧凑 drawer 类标记"桌面 Electron 不可达，跳过实测"，集中验证 B1 model picker brand（§3.7 #53 唯一真冲突修复点）+ C1 branching + A5 MCP source_test。新增 §11.12 紧凑模式断点错位长期反思 | sync 实测发现：BrowserWindow minWidth=800 > MOBILE_THRESHOLD=768，桌面 Electron 永远进不了 shell 紧凑布局 → 上游 v0.9.5 加的 4 个紧凑 drawer feature 在桌面 dev 模式无法触发实测。fork main / v0.9.4 / v0.9.5 都是这个状态，非 sync 引入，是 fork 长期设计错位 |
 | REVIEW-6 | 2026-05-21 Phase 3 时 | 头部加 callout 说明本文档历史"model-picker=#53, M3 i18n=#54"按 SOP 字典序的措辞与**实际落地相反**；CLAUDE.md §3.7 已补 "v0.9.5 sync 期间新增改造点" 子表 (#54 = model-picker brand)；M3 spec §7 基线 96→97 改成 96→98；AUDIT §7 同步 | Phase 3 spec 文档同步时发现：M3 i18n fix commit `5212197b` 先落地占了 #53，v0.9.5 sync 自身 model-picker brand patch 实际落到 #54，与文档的字典序决策相反。事实优先 — CLAUDE.md / M3 spec / AUDIT 按事实更新，PREVIEW 历史措辞保留作为决策推演记录 |
+| REVIEW-7 | 2026-05-22 Phase 4 实测时 | 新增 §14 "AI 给打包指令前的强制核查清单" — 防止 AI 跨 sync 反复给错入口 | 用户连续 2 次踩坑：(a) macOS dev 启动给了 `cd apps/electron && bun run electron`（启动默认欢迎页，应该 `bun run electron:dev` from repo root）；(b) Windows 打包给了 `bun run electron:dist:win`（root scripts 跳过 SDK/bun.exe/ripgrep/uv bootstrap，导致 .exe 缺 5 个 extraResources）。05-build-release.md §3.2.0 + §4.1 早就明确写了正确入口是 `cd apps/electron && bun run dist:{mac,win}`（调 build-dmg.sh / build-win.ps1 含完整 bootstrap）—— AI 之前没读到位。同时发现 long-standing gap：build-{dmg,win}.* 都不 bootstrap uv，uv bootstrap 逻辑只在 scripts/electron-dev.ts，dev 模式启动副作用 — fresh 机器（如 Windows 端）首次打包 uv 永远缺，需手动 bootstrap |
 
 **REVIEW-1 修正的事实错误**：
 
