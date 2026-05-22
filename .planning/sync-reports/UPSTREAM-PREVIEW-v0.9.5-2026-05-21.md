@@ -1082,7 +1082,7 @@ i18n fix commit 落地但**不 push 不打包不发版**。dev 模式日常使�
 
 | 子步 | 操作 | 验收 |
 |---|---|---|
-| 4-1 | macOS arm64：从 repo root 跑 `bun run electron:dist:mac`（**不是** `cd apps/electron && bun run dist:mac`——electron-builder 入口在 root scripts）| 装 .dmg → 跑 sync 主线 D-β + M3 §5.1 步骤 3-4 抽测 |
+| 4-1 | macOS arm64：从 repo root 跑 `bun run electron:dist:mac`（**不是** `cd apps/electron && bun run dist:mac`——electron-builder 入口在 root scripts）。**若 keychain 无 Apple Developer ID 证书**，electron-builder 会自动 discover 第一个 codesigning identity，可能撞到 keychain 残留的非签名证书（如 self-signed test identity）→ codesign 报 "this identity cannot be used for signing code"。这时用 `CSC_IDENTITY_AUTO_DISCOVERY=false bun run electron:dist:mac` escape hatch 跳过签名走 ad-hoc 签名路径（对应 §3.7 Build 脚本 marker **B1**）。ad-hoc DMG 能装但 macOS Gatekeeper 会拦截，首次启动需**右键 → Open**。 | 装 .dmg → 跑 sync 主线 D-β + M3 §5.1 步骤 3-4 抽测 |
 | 4-2 | Windows x64：按 v0.9.4 双平台节奏 | 装 .exe → sync 主线 D-β + i18n 步骤 3-4 抽测 |
 
 **踩刹车点 🚦4**：装包模式实测发现 dev 模式没暴露的问题 → `git revert` 对应 commit + 重新打包
