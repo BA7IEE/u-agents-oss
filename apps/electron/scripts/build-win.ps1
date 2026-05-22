@@ -295,11 +295,19 @@ try {
 # stays empty, the packaged EXE ships no pi-agent-server bundle, and the first LLM
 # message throws "piServerPath not configured" at runtime.
 # See .planning/12-subprocess-build-pipeline.md §0.3 + §2.3 + scripts/copy-subprocess-servers.ts.
+#
+# REVIEW-7 修订（v0.9.5 sync, 2026-05-22）：原命令 `bun run electron:build:subprocess` 是
+# 笔误—root package.json 没有该 script。正确链：
+#   (a) `bun run server:build:subprocess`  → build session-mcp-server + pi-agent-server
+#   (b) `bun run scripts/copy-subprocess-servers.ts` → copy 产物到 apps/electron/resources/
+#       + re-sync dist/resources（让 electron-builder packaging 引用一致）
 Write-Host "  Building subprocess servers (pi-agent-server + session-mcp-server)..."
 Push-Location $RootDir
 try {
-    bun run electron:build:subprocess
-    if ($LASTEXITCODE -ne 0) { throw "Subprocess server build failed" }
+    bun run server:build:subprocess
+    if ($LASTEXITCODE -ne 0) { throw "Subprocess server build (compile) failed" }
+    bun run scripts/copy-subprocess-servers.ts
+    if ($LASTEXITCODE -ne 0) { throw "Subprocess server copy failed" }
 } finally {
     Pop-Location
 }
