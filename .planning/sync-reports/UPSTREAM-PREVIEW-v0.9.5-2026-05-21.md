@@ -12,6 +12,8 @@
 >
 > 事实结论不变（0 §3.3 真冲突 / 1 §3.7 真冲突 / 1 C13 / A− 评级）。同时新增 §11 M3-I18N-FIX 搭车评估。
 
+> **REVIEW-6 修订（2026-05-21 Phase 3 spec 文档同步时发现）**：本文档多处（§2.3 / §3 / §6.3 commit message / §11.5.1 编号撞车决策 / §11.11.6 Phase 3 步骤 4 / §11.11.7 commit message）写"按文件路径字典序：model-picker = #53，M3 i18n = #54"，但**实际落地按时间顺序**：M3 i18n fix commit `5212197b` 先落地占了 #53，v0.9.5 sync 自身的 model-picker brand patch 落到 #54。CLAUDE.md §3.7 表已按事实更新（"v0.9.5 sync 期间新增改造点" 子表 #54 = model-picker brand）。本文档历史 "model-picker=#53, M3 i18n=#54" 措辞保留作为决策推演记录，但**最终事实**是 **M3 i18n = #53 + model-picker brand = #54**。详见 §12 修订日志 REVIEW-6。
+
 ---
 
 ## 0. TL;DR
@@ -1148,6 +1150,7 @@ i18n fix commit 落地但**不 push 不打包不发版**。dev 模式日常使�
 | DECISION-1 | 2026-05-21 同日 | 新增 §11.11 用户选定方案 Y++（增稳版）完整 SOP — 4 阶段 + 5 个踩刹车点 + 决策预设清单 | 用户："我要的是稳 麻烦一点都不怕的" — 命中决策树 §11.10.6 "sync 落地先静置 1-2 天 + 不怕麻烦" |
 | REVIEW-4 | 2026-05-21 同日 | 改 §6.2 b 步 package.json 处理为 3-way merge + 加 Python 脚本；改 §11.10 R8 / §11.11.7 4-1 / M3 spec §9.1 笔误命令为 `bun run electron:dev` from repo root；§packages/shared/package.json exports 加 `./utils/files` 修 M2 #32c 漏盘 | sync 实测踩坑：(a) `bun run electron` 起默认欢迎页 — 命令错误；(b) `@u-agents/shared/utils/files` 解析失败 — M2 #32c 落地时漏注册 export；(c) `--theirs + sed scope` 把 14 个 package.json 的 brand 字段静默丢失（description / author / homepage / private / bin）|
 | REVIEW-5 | 2026-05-21 同日 | §11.11.2 Phase 1-6 实测清单：A1-A4 紧凑 drawer 类标记"桌面 Electron 不可达，跳过实测"，集中验证 B1 model picker brand（§3.7 #53 唯一真冲突修复点）+ C1 branching + A5 MCP source_test。新增 §11.12 紧凑模式断点错位长期反思 | sync 实测发现：BrowserWindow minWidth=800 > MOBILE_THRESHOLD=768，桌面 Electron 永远进不了 shell 紧凑布局 → 上游 v0.9.5 加的 4 个紧凑 drawer feature 在桌面 dev 模式无法触发实测。fork main / v0.9.4 / v0.9.5 都是这个状态，非 sync 引入，是 fork 长期设计错位 |
+| REVIEW-6 | 2026-05-21 Phase 3 时 | 头部加 callout 说明本文档历史"model-picker=#53, M3 i18n=#54"按 SOP 字典序的措辞与**实际落地相反**；CLAUDE.md §3.7 已补 "v0.9.5 sync 期间新增改造点" 子表 (#54 = model-picker brand)；M3 spec §7 基线 96→97 改成 96→98；AUDIT §7 同步 | Phase 3 spec 文档同步时发现：M3 i18n fix commit `5212197b` 先落地占了 #53，v0.9.5 sync 自身 model-picker brand patch 实际落到 #54，与文档的字典序决策相反。事实优先 — CLAUDE.md / M3 spec / AUDIT 按事实更新，PREVIEW 历史措辞保留作为决策推演记录 |
 
 **REVIEW-1 修正的事实错误**：
 

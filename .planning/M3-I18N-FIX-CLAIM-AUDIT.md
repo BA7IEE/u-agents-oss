@@ -84,7 +84,7 @@
 
 | 断言 | 坐实 | 证据 |
 |---|---|---|
-| U-API 标记总数 96 → 97 | ✅ | [`CLAUDE.md §3.7`](../CLAUDE.md) 当前基线 96 |
+| ~~U-API 标记总数 96 → 97~~ | ⚠️ | **实际落地为 96 → 98**——本 fix 与 v0.9.5 sync 同期落地（方案 Y++），v0.9.5 sync 自身贡献 +1 (#54 model-picker brand patch)，本 fix 贡献 +1 (#53 renderer/main.tsx)，合计 +2。详见 [`CLAUDE.md §3.7`](../CLAUDE.md) "v0.9.5 sync + M3 i18n fix（2026-05-21）：98 处" 段落 |
 
 ### §8 上游同步
 

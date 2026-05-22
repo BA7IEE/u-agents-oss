@@ -368,7 +368,7 @@ formatPreferencesForPrompt()  ← packages/shared/src/config/preferences.ts:87
 |---|---|---|---|---|---|
 | 53 | renderer 启动同步当前语言到主进程（修标题生成英文 bug）| `apps/electron/src/renderer/main.tsx` | 注释 `把 detector 解析到的语言立即推给主进程` | 单行 | M3-I18N-MAIN-PROCESS-SYNC-FIX |
 
-**基线更新**：U-API 标记总数 96 → **97**（±2 浮动仍维持）
+**基线更新**：U-API 标记总数 96 → **98**（本 fix 贡献 +1 #53，同期落地的 v0.9.5 sync 自身贡献 +1 #54 model-picker brand patch，合计 +2；±2 浮动仍维持）
 
 ---
 
