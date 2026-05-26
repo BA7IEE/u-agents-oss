@@ -126,7 +126,7 @@ describe('groupConnectionsByProvider', () => {
     expect(result).toEqual([['Local', [local]]])
   })
 
-  test('"pi_compat" with remote baseUrl goes to "U-API"', () => {
+  test('"pi_compat" with remote baseUrl goes to "Craft Agents Backend"', () => {
     const remote = conn('openrouter', 'pi_compat', { baseUrl: 'https://openrouter.ai/api/v1' })
     const result = groupConnectionsByProvider([remote])
     expect(result).toEqual([['U-API', [remote]]])
@@ -135,7 +135,7 @@ describe('groupConnectionsByProvider', () => {
   test('drops empty groups from the output', () => {
     const a = conn('a', 'anthropic')
     const result = groupConnectionsByProvider([a])
-    // Only "Anthropic" appears; "Local" and "U-API" are dropped.
+    // Only "Anthropic" appears; "Local" and "Craft Agents Backend" are dropped.
     expect(result.length).toBe(1)
     expect(result[0][0]).toBe('Anthropic')
   })
