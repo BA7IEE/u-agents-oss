@@ -1,5 +1,7 @@
 # UPSTREAM PREVIEW — v0.9.6 同步预分析报告（2026-05-26）
 
+> ⚠️ **REVIEW-7 截止状态（2026-05-26 同日）**：本 PREVIEW v0-v6 修订全程基于 `v0.9.5..v0.9.6` 上游 diff 分析，**未包含 fork main 与 v0.9.5 base 之间的 1453 行非-scope 改造**。一次尝试 merge 执行后立即停手回滚（用户 "小心执行"），发现 PREVIEW SOP 的 take-theirs 策略对 17 个高 fork-customized 文件会**静默丢失** fork brand patches / feature-cuts。详见 §13 REVIEW-7 截止报告。**本 PREVIEW 的执行 SOP（§6.2 a-f）目前不可用，需要 REVIEW-8 重写**。
+
 > **本报告由本仓库 AI 在不动本地 git refs / 不动工作树的前提下，通过 GitHub Compare API 拉 `v0.9.5...v0.9.6` 只读分析产出**。
 > 本地仍是 v0.9.5（commit `983c2691 docs: SYNC-v0.9.5-20260521 实测报告 ...`，2026-05-22）；marker 基线 98 / START 9 / END 9 已确认。
 > 目的：给执行 merge 的用户/外部 AI 一份可直接照做的预案。
@@ -821,6 +823,91 @@ EOF
 
 ---
 
+## 13. REVIEW-7 截止报告：PREVIEW 执行不可用 + SOP 重写需求
+
+> 用户："好，小心执行" → AI 启动 Phase 1 merge → 实际冲突 33 个（vs PREVIEW 预测 19）→ take-theirs 一批后发现 fork brand patches 静默丢失 → 用户："中止 + git merge --abort，重新规划"
+
+### 13.1 实际执行过程（已回滚）
+
+| 步骤 | 操作 | 结果 |
+|---|---|---|
+| Phase 1.0 | git fetch upstream + verify v0.9.6 tag | ✅ 干净 |
+| 0.x | commit PREVIEW 到 main (`a6bedb4c`) | ✅ 落地 |
+| Phase 1.1 | git checkout -b sync/upstream-v0.9.6-20260526 + merge --no-ff | ⚠️ 33 个冲突（17 UU + 16 = 33；PREVIEW 预测 19）|
+| Phase 1.2 部分 | 15 package.json 走 Python 脚本 ✅ + bun.lock ✅ + 7 AA + 部分 UU | 完成 23/33 但发现 take-theirs 丢 fork patches |
+| 中止 | git reset --hard a6bedb4c + 删 sync 分支 | ✅ 回到 PREVIEW commit 干净态 |
+
+**关键发现**：
+
+- merge-base = `4144f795 (v0.9.4)` 不是 v0.9.5（fork v0.9.5 sync 是 merge commit），导致冲突数显著多于 v0.9.5..v0.9.6 diff 预测
+- 17 UU + 7 AA = 24 conflicts（PREVIEW 预测 19，差 5 处）
+- AA 类多出 7（fork v0.9.5 sync 加的 NEW 文件 + v0.9.6 也改）
+- 多个 UU 文件没在 PREVIEW §3.7 表里：drawer.tsx / mock-mobile-data.ts / event-adapter.ts / url-safety.test.ts / TurnCard.tsx / main/index.ts / SessionManager.ts
+
+### 13.2 PREVIEW SOP 的系统性缺陷
+
+| # | 缺陷 | 例子 |
+|---|---|---|
+| D1 | **`take-theirs` 静默丢 fork brand patches** | main/index.ts: env vars `U_AGENTS_IS_PACKAGED` / `U_AGENTS_RESOURCES_BASE` / `U_AGENTS_APP_ROOT` / `U_AGENTS_UV` / `U_AGENTS_BUN` / `U_AGENTS_DEEPLINK_SCHEME` / `U_AGENTS_APP_NAME` 全被改回 `CRAFT_*` |
+| D2 | **`take-theirs` 静默回退 fork feature-cuts** | main/index.ts: fork 删的 `CRAFT_SCRIPTS` / `CRAFT_COMMANDS_ENTRY` / `CRAFT_CLI_ENTRY` 等 12 行 env vars 被带回（这是 04-feature-cuts §198 同模式，但 PREVIEW 没识别）|
+| D3 | **`take-theirs` 静默回退 fork 注释 brand** | handlers/system.ts: `// uagents://` 改回 `// craftagents://`；SessionManager.ts: `CraftAgent` 改回 5 处（fork 几处改成 `UAgent`）|
+| D4 | **`take-theirs` 静默回退 fork i18n 字符串** | 7 个 locale 文件每个 96-118 行 fork 自定义被覆盖 |
+| D5 | **`merge-base = v0.9.4` 而非 v0.9.5** | PREVIEW 全程假设 v0.9.5..v0.9.6 diff 范围，实际 git 3-way merge 用 v0.9.4..v0.9.6 + main 整段 customization，导致大量"看似不交集"的文件实际 UU |
+| D6 | **PREVIEW §3.7 表只覆盖带 marker 的改造** | fork 在 main/index.ts / SessionManager.ts 等多文件做了"未带 marker" 的 brand patches / feature-cuts，PREVIEW 全部漏盘 |
+
+### 13.3 Fork-customization grand totals（REVIEW-7 实测）
+
+| 指标 | 数 |
+|---|---|
+| v0.9.6 改的 66 文件中，fork main 有非-scope 改造的文件数 | **44 / 66** |
+| 总 fork 非-scope 改造行数（diff vs v0.9.5 + NPM scope sed） | **1453 行** |
+| 高 fork-customized 文件（≥20 行改造） | **17 / 44** |
+
+### 13.4 Top 10 高 fork-customized 文件
+
+| 行 | 文件 | 类别 |
+|---|---|---|
+| 164 | `packages/shared/src/sources/__tests__/credential-manager-renew.test.ts` | §3.7 #44b/#44d SSRF 测试 block |
+| 118 | `packages/shared/src/i18n/locales/zh-Hans.json` | i18n brand + zh-Hans 翻译 |
+| 98 | `packages/shared/src/utils/__tests__/url-safety.test.ts` | §3.7 #43 SSRF 测试 |
+| 98 | `packages/shared/src/i18n/locales/pl.json` | i18n brand |
+| 96 | en/es/hu/ja/de.json 各 1 | i18n brand 同模式 |
+| 63 | `packages/shared/src/utils/url-safety.ts` | §3.7 #43 assertPublicHttpsUrl block |
+| 62 | `apps/electron/src/main/index.ts` | ⚠️ env var rename + feature-cut + brand strings（PREVIEW 全没识别）|
+| 48 | `apps/electron/src/renderer/components/app-shell/input/FreeFormInput.tsx` | M1 brand + v0.9.5 sync hunk |
+| 39 | `packages/shared/src/prompts/system.ts` | i18n / docs reference 调整 |
+| 35 | `packages/shared/src/sources/api-tools.ts` | §3.7 #43/#45 SSRF marker block |
+
+### 13.5 REVIEW-8 重写需求（下一次 PREVIEW 修订）
+
+要安全执行 v0.9.6 sync，PREVIEW SOP 必须：
+
+| # | 需求 | 必要性 |
+|---|---|---|
+| N1 | 改用 **`git diff v0.9.4..v0.9.6` 作为预测基准**（不是 v0.9.5..v0.9.6）| P0 |
+| N2 | 把"take-theirs"从 SOP 默认动作里**全部移除**，改成"ours 为基线 + 手工 apply theirs 新增" | P0 |
+| N3 | 17 个高 fork-customized 文件每个**单独列 manual merge 指引**（具体哪些 fork patch 保留 / 哪些 v0.9.6 新增 cherry-pick）| P0 |
+| N4 | **i18n locales merge 策略**：保 ours 全部翻译 + 从 theirs cherry-pick 新增 2 keys（preview.expandPreview + preview.markdownPreview，上游已翻译 zh-Hans）| P0 |
+| N5 | **04-feature-cuts.md 跟 PREVIEW 联动**：v0.9.6 新引入的上游 feature（如 `craft-agents-commands` / `craft-cli` 包引用、`CRAFT_COMMANDS_ENTRY` 等 env vars）需 04-feature-cuts 决定 fork 是否接受 / 删除 / 中性化 | P0 |
+| N6 | **CLAUDE.md §3.7 主基线表加 sub-table**：登记"未带 marker"的 fork brand patches（env vars rename / 注释 brand / feature-cut deletions），让下次 sync 不再漏 | P1 |
+| N7 | **`git merge-base` 实测优先**：sync 启动时第一步用 `git merge-base sync/branch v0.9.X` 算实际共同祖先，校准 PREVIEW 预测范围 | P1 |
+
+### 13.6 当前状态（截止）
+
+- Main 分支：HEAD = `a6bedb4c docs: PREVIEW v0.9.6 sync 预分析 + REVIEW-1..6`（PREVIEW 已 commit）
+- sync 分支：已删除
+- 工作树：clean（仅 AGENTS.md untracked，pre-existing）
+- merge：已 git reset --hard 回滚
+
+### 13.7 给下次 session 的指引
+
+1. **不要直接执行 PREVIEW §6 SOP**——它对 v0.9.6 不安全
+2. **先做 REVIEW-8** 重写 §3 + §6.2，按 §13.5 N1-N7 七项需求
+3. **REVIEW-8 重点是 17 高 fork-customized 文件的 manual merge 指引**——每个文件列出："保留 ours 的什么"+"接受 theirs 的什么"
+4. **新决策点**：04-feature-cuts.md 是否接受 v0.9.6 新增的 craft-agents-commands / craft-cli env vars？还是同模式 feature-cut 删？建议删（与 craft-agents-docs 同模式）
+
+---
+
 ## 11. 修订日志
 
 | 修订 | 日期 | 范围 | 触发 |
@@ -832,6 +919,7 @@ EOF
 | REVIEW-4 | 2026-05-26 同日 | §0 TL;DR 冲突等级 "1 git + 1 语义" → **"3 git + 1 语义"** / §3 加 "brand-patch 路径外的 §3.7 隐性冲突" 子表（handlers/system.ts:212 + server-core/handlers/rpc/system.ts:286）/ §6.1 预期冲突 17→**19** + 列 5 个 git auto-merge 干净的文件 / §6.2 加 e2 步骤处理两处 brand-patch git 冲突 / §8 加 🟡 中风险条 "deeplink protocol literal vs classification refactor" / 本日志 | 用户："行在 review 一轮"。**2 处之前漏盘的 git 冲突**：handlers/system.ts L212 + server-core/handlers/rpc/system.ts L286 的 `'uagents:'` 字面量 vs upstream `classification.kind` 重构（base→ours 改字面量，base→theirs 重构成 kind 判断，3-way merge 必标 conflict）。同时确认 `auto_retry` Effect 删除完全没问题（fork 3 处引用全在 v0.9.6 同步删除的文件里）|
 | REVIEW-5 | 2026-05-26 同日 | §8 SSRF 测试数 "9 个 fail" → **"7 个 fail"**（5 SSRF guard + 2 redirect bypass，实测 7 不是 9）/ §7 对比表"2 真 + 1 待验证"→**"3 git + 1 语义 + 0 待验证"**、"4 文件 4 处"→**"3 文件 4 处"**（同步 REVIEW-1/3/4 修订）/ §7 末段"冲突类型更集中"→**"冲突分布更分散"**（事实修订）/ §6.3 commit message 全面更新（反映 REVIEW-1/3/4 实际冲突清单）/ §6.2 b Python 脚本加 BASE_BRANCH 环境变量 + 失败诊断输出（防 fork 用了非 main 主分支）/ 本日志 | 用户："REVIEW-5"。前 4 轮独立修订没全程一致化导致 §7 对比表 / §6.3 commit message 都落后 2-4 轮，§8 SSRF 测试数 9→7 是事实校准；Python 脚本 BASE_BRANCH 硬编码 'main' 是 inherit-from-v0.9.5 的边缘案例 |
 | REVIEW-6 | 2026-05-26 同日 | §0 TL;DR L20 (c) "9 个 fail" → **"7 个 fail"**（REVIEW-5 漏改一处）/ §2.2 简表 credential-manager-renew row "9 个" → **"7 个"**（REVIEW-5 漏改第 2 处）/ §3 #44b/#44d row 分类标签"✅ 1 真冲突" → **"⚠️ 1 语义冲突（高危，git 不报警）"**（REVIEW-3 漏改）/ §6.2 d 标题加 "git 标记 marker，§3.7 路径" 限定 / §6.2 e 标题"§3 真冲突" → **"⚠️ §3 语义冲突 — git 不报警，必须主动改造"** / §9 加 F11/F12（M3 SSRF spec 追加 v0.9.6 备注 + 07-upstream-sync C15 暗坑模式沉淀）/ 本日志 | 用户："继续 REVIEW-6"。**4 处 REVIEW-3/5 漏改残留**：§0 TL;DR / §2.2 简表 / §3 详表 / §6.2 e 标题分类——都是"9→7"和"真冲突→语义冲突"的连锁同步问题。同时加 2 个 sync 后 spec 文档维护任务（F11 SSRF spec 反映 v0.9.6 / F12 07-upstream-sync 加 C15 暗坑模式）|
+| REVIEW-7 | 2026-05-26 同日（执行尝试 → 回滚 → 截止） | 文件头 callout：**PREVIEW SOP 目前不可用** / 新增 §13 截止报告 7 节（实际执行过程 / SOP 系统性缺陷 6 项 / Fork-customization grand totals 1453 行 / Top 10 高 fork-customized 文件 / REVIEW-8 重写需求 N1-N7 / 当前状态 / 给下次 session 指引）/ 本日志 | 用户："好，小心执行" 授权 Phase 1 merge → 实际遇到 33 conflicts（vs PREVIEW 19）+ merge-base v0.9.4（vs PREVIEW 假设 v0.9.5）+ take-theirs 静默丢 17 文件 fork brand patches → 用户："中止 + git merge --abort，重新规划"。**关键发现**：PREVIEW v0-v6 全程基于 v0.9.5..v0.9.6 上游 diff，没识别 fork main vs v0.9.5 之间的 **1453 行非-scope 改造**（env var renames、feature-cut deletions、注释 brand、i18n 翻译）。**PREVIEW §6 执行 SOP 需 REVIEW-8 全面重写**。|
 
 **REVIEW-1 修正的事实错误**：
 
@@ -958,7 +1046,8 @@ REVIEW-1/2/3 都把冲突等级判断收敛到"1 git + 1 语义"，但 REVIEW-4 
 
 ---
 
-> **本报告产出时间**：2026-05-26（初版 + REVIEW-1 + REVIEW-2 + REVIEW-3 + REVIEW-4 + REVIEW-5 + REVIEW-6 同日）
+> **本报告产出时间**：2026-05-26（初版 + REVIEW-1..6 + 执行尝试 + REVIEW-7 截止报告 同日）
+> ⚠️ **执行 SOP 当前不可用**——REVIEW-7 截止后需 REVIEW-8 全面重写 §3 / §6.2
 > **预测评级**：A−（3 git 冲突 + 1 语义冲突（高危，commit-gate 兜底）+ 0 待验证 / 0 C13 新增 / 0 §3.7 新 marker）
 > **建议执行时机**：本周内
 > **建议执行流程**：v0.9.5 方案 Y++ 简化版（Phase 1 → 1.5 → 3 → 4，跳过 Phase 2/2.5；已 macOS arm64 + Windows x64 双平台验证）
