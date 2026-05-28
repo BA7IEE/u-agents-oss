@@ -4,7 +4,7 @@ import { homedir } from 'os'
 import { execSync } from 'child_process'
 import { RPC_CHANNELS } from '@u-agents/shared/protocol'
 import { getWorkspaceByNameOrId, getGitBashPath, setGitBashPath, clearGitBashPath } from '@u-agents/shared/config'
-import { isSafeExternalUrl } from '@u-agents/shared/utils/url-safety'
+import { classifyExternalUrl, formatBlockedUrlError } from '@u-agents/shared/utils/url-safety'
 import { isUsableGitBashPath, validateGitBashPath } from '@u-agents/server-core/services'
 import { validateFilePath, getWorkspaceAllowedDirs } from '@u-agents/server-core/handlers'
 import type { RpcServer } from '@u-agents/server-core/transport'
@@ -281,9 +281,14 @@ export function registerSystemCoreHandlers(server: RpcServer, deps: HandlerDeps)
   server.handle(RPC_CHANNELS.shell.OPEN_URL, async (ctx, url: string) => {
     deps.platform.logger.info('[OPEN_URL] Received request:', url)
     try {
+      const classification = classifyExternalUrl(url)
+      if (classification.kind === 'dangerous') {
+        throw new Error(formatBlockedUrlError(classification))
+      }
+
       const parsed = new URL(url)
 
-      if (parsed.protocol === 'uagents:') {
+      if (classification.kind === 'internal-deeplink') {
         const deepLink = parseInternalUAgentsDeepLink(parsed)
 
         if (deepLink?.handledNoop) {
@@ -310,10 +315,6 @@ export function registerSystemCoreHandlers(server: RpcServer, deps: HandlerDeps)
           throw new Error(`Cannot open URL on client: ${deepLinkResult.error}`)
         }
         return
-      }
-
-      if (!isSafeExternalUrl(url)) {
-        throw new Error(`Refused to open URL with blocked scheme: ${parsed.protocol}`)
       }
 
       const result = await requestClientOpenExternal(server, ctx.clientId, url)

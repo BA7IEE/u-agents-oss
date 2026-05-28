@@ -5,27 +5,17 @@
  * for sources with renewEndpoint configuration.
  */
 
-import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test';
+import { describe, test, expect, mock, spyOn, beforeEach, afterEach } from 'bun:test';
 import { SourceCredentialManager } from '../credential-manager.ts';
 import type { FolderSourceConfig } from '../types.ts';
 
-// Mock storage module to prevent disk I/O
-mock.module('../storage.ts', () => ({
-  markSourceAuthenticated: mock(() => true),
-  loadSourceConfig: mock(() => null),
-  saveSourceConfig: mock(() => {}),
-}));
-
-// Mock credentials module — track set() calls to verify saves
+// Track save() calls without globally mocking credentials/storage modules.
+// Bun module mocks leak across files in the same test process; method spies keep
+// this test discoverable alongside storage.ts regression tests.
 let setCalls: unknown[][] = [];
-const mockGet = mock(() => Promise.resolve(null as unknown));
-mock.module('../../credentials/index.ts', () => ({
-  getCredentialManager: () => ({
-    set: (...args: unknown[]) => { setCalls.push(args); return Promise.resolve(); },
-    get: mockGet,
-    delete: mock(() => Promise.resolve()),
-  }),
-}));
+let mockGet = mock(() => Promise.resolve(null as unknown));
+let loadSpy: { mockRestore: () => void } | null = null;
+let saveSpy: { mockRestore: () => void } | null = null;
 
 function createRenewSource(overrides: Partial<FolderSourceConfig> = {}) {
   const config: FolderSourceConfig = {
@@ -85,9 +75,18 @@ describe('refreshApiRenew via refresh()', () => {
     originalFetch = globalThis.fetch;
     setCalls = [];
     fetchCalls = [];
+    mockGet = mock(() => Promise.resolve(null as unknown));
+    loadSpy = spyOn(credManager, 'load').mockImplementation(async () => await mockGet() as never);
+    saveSpy = spyOn(credManager, 'save').mockImplementation(async (source, credential) => {
+      setCalls.push([credManager.getCredentialId(source), credential]);
+    });
   });
 
   afterEach(() => {
+    loadSpy?.mockRestore();
+    saveSpy?.mockRestore();
+    loadSpy = null;
+    saveSpy = null;
     globalThis.fetch = originalFetch;
   });
 
@@ -233,16 +232,32 @@ describe('refreshApiRenew via refresh()', () => {
 });
 
 // U-API: M3 SSRF 防护 — 拒绝 credential-bearing fetch 到云元数据/私网（详见 .planning/M3-REFRESH-API-SSRF-SPEC.md）
+// REVIEW-3 v0.9.6 sync: 上游把 module-level mock.module 改成 per-describe spyOn，
+// 这里同步迁移 — 否则 credManager.load/save 不被拦截，SSRF guard 测试断言会 fail。
 describe('refreshApiRenew SSRF guard', () => {
   let credManager: SourceCredentialManager;
+  let loadSpy: { mockRestore: () => void } | null = null;
+  let saveSpy: { mockRestore: () => void } | null = null;
+  let originalFetch: typeof globalThis.fetch;
 
   beforeEach(() => {
     setCalls = [];
     fetchCalls = [];
     credManager = new SourceCredentialManager();
+    originalFetch = globalThis.fetch;
+    mockGet = mock(() => Promise.resolve(null as unknown));
+    loadSpy = spyOn(credManager, 'load').mockImplementation(async () => await mockGet() as never);
+    saveSpy = spyOn(credManager, 'save').mockImplementation(async (source, credential) => {
+      setCalls.push([credManager.getCredentialId(source), credential]);
+    });
   });
 
   afterEach(() => {
+    loadSpy?.mockRestore();
+    saveSpy?.mockRestore();
+    loadSpy = null;
+    saveSpy = null;
+    globalThis.fetch = originalFetch;
     mockGet.mockReset();
   });
 

@@ -235,7 +235,6 @@ export class PiEventAdapter extends BaseEventAdapter {
       return;
     }
 
-
     switch (event.type) {
       // ============================================================
       // Agent lifecycle events
