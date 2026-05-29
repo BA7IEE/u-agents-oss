@@ -126,11 +126,41 @@ fail 测试全是 focus/destroy/toolbar/popup/theme-replay（electron BrowserWin
 ## 7. 评级：A−
 
 - **支撑 A−**：全浅冲突机械解决 / typecheck:all 0 errors / i18n 绿 / marker 105 一致 / **0 新增 test regression**（baseline 实测对照）/ 无 SDK bump / Breaking None / 安全 lockdown 同步落地。
-- **未达 A**：打包 + 平台实测 deferred（F2）；lint:shared baseline 技术债待清（F1）。
+- **未达 A**：打包实测暴露 2 个 bug（§8，均已修 + 重打包）；x64 实测 + merge-to-main 待做（F2/F4）；lint:shared baseline 技术债待清（F1）。
 - 与 PREVIEW 预测（A−）一致，dry-run 校正后无意外。
 
 > **关键经验**：dry-run（REVIEW-2）准确预演了全部冲突，实际执行 0 意外；REVIEW-1 的安全核查（dispatcher 无总闸 + remote workspace 可达）驱动了 D1/D5-b 必要的纵深防御——若只做机械 sync 会漏掉这个新远程控制面的收紧。
 
 ---
 
-> 本报告由本仓库 AI 在用户当次授权下产出；执行的代码改动均已记录于 §3.7 marker 表（#55-#58）。后续打包/实测/merge-to-main 待用户驱动。
+## 8. 打包后实测发现的 bug（2026-05-29，macOS arm64 D-β）
+
+用户实测首个 arm64 DMG 发现 2 个问题，均已修复（commit `675f622b`）并重新打包：
+
+### 8.1 `piServerPath not configured`（P0，agent 不可用）
+
+**现象**：首条 LLM 消息抛 "piServerPath not configured. Cannot spawn Pi subprocess."
+
+**根因**：`build-dmg.sh` 长期缺 `copy-subprocess-servers.ts` 调用：
+- pi-agent-server build 到 `packages/pi-agent-server/dist/index.js`（electron:build 产物）
+- resolveServerPath packaged 分支找 `resources/pi-agent-server/index.js`；electron-builder.yml `files` 打包 `resources/pi-agent-server/**`
+- **但 `apps/electron/resources/` 只有 bridge-mcp-server，缺 pi/session**——无任何步骤把 server copy 进去
+- `build-win.ps1` §2.3 调了 `copy-subprocess-servers.ts`，但 **`build-dmg.sh` 从未调**（`git log -S` 确认）= macOS/Windows 打包长期不对称
+
+**影响**：macOS DMG 的 Pi backend 从未真正工作过（之前 macOS 实测有限，M2.5 #4 deferred，掩盖了此缺陷）。
+
+**fix**：build-dmg.sh `electron:build` 后加 `bun run scripts/copy-subprocess-servers.ts`（B8 marker，§3.7 build 子表；build grep 期望 ≥13→≥14）。
+
+### 8.2 更新日志（最新动态）未翻译（P2，体验）
+
+**现象**：app「最新动态」显示 v0.10.0 英文 release notes。
+
+**根因**：v0.10.0 sync 执行时漏盘 release-notes 翻译（PREVIEW §6 SOP step 10 列了但实际跳过）。
+
+**fix**：`release-notes/0.10.0.md` 中文翻译 + brand 替换 + 去 commit hash / lukilabs URL + 补 U Agents 安全默认说明（D1/D5-b）。
+
+> **教训**：打包必须真测 Pi 对话（触发 subprocess spawn），不能只测启动——B8 是 fork 历史上首次在 macOS 实测中暴露的 subprocess 打包缺陷，与 Windows 事故 #3/#4/#5 同根（build 脚本与 root chain 结构性差距，C14）。**两个 build 脚本（build-dmg.sh / build-win.ps1）应纳入定期对称性核对**；release-notes 翻译应进 sync 收尾 checklist（已在 SOP 但执行漏盘）。
+
+---
+
+> 本报告由本仓库 AI 在用户当次授权下产出；执行的代码改动均已记录于 §3.7 marker 表（#55-#58 + build 子表 B8）。后续 x64 实测 / merge-to-main 待用户驱动。
