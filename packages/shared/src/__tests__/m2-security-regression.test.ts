@@ -117,3 +117,37 @@ describe('browserToolEnabled 默认 false（v24 G1.F4.1 防回归）', () => {
     expect(src).toMatch(/U-API:\s*browser tool 默认关闭/)
   })
 })
+
+// U-API: 远程 evaluate 默认关闭防回归（M3 remote browser lockdown D1；详见 .planning/M3-REMOTE-BROWSER-LOCKDOWN-SPEC.md §2.3）
+describe('allowRemoteEvaluate 默认 false（M3 remote browser lockdown D1）', () => {
+  it('config-defaults.json allowRemoteEvaluate = false', () => {
+    const json = readSource('apps/electron/resources/config-defaults.json')
+    const parsed = JSON.parse(json) as { defaults?: { allowRemoteEvaluate?: boolean } }
+    expect(parsed.defaults?.allowRemoteEvaluate).toBe(false)
+  })
+
+  it('storage.ts FALLBACK_CONFIG_DEFAULTS.allowRemoteEvaluate = false', () => {
+    const src = readSource('packages/shared/src/config/storage.ts')
+    expect(src).toMatch(/allowRemoteEvaluate:\s*false/)
+    expect(src).not.toMatch(/allowRemoteEvaluate:\s*true/)
+  })
+
+  it('U-API: marker 在 storage.ts allowRemoteEvaluate 附近', () => {
+    const src = readSource('packages/shared/src/config/storage.ts')
+    expect(src).toMatch(/U-API:.*remote browser lockdown/)
+  })
+})
+
+// U-API: remote browser dispatcher 总闸防回归（M3 remote browser lockdown D5-b；详见 §3.4）
+describe('remote browser dispatcher browserToolEnabled 总闸（M3 lockdown D5-b）', () => {
+  it('browser-pane-manager.ts dispatchCapability 含 getBrowserToolEnabled 总闸 + marker', () => {
+    const src = readSource('apps/electron/src/main/browser-pane-manager.ts')
+    expect(src).toMatch(/getBrowserToolEnabled\(\)/)
+    expect(src).toMatch(/U-API:\s*remote browser pane 总闸/)
+  })
+
+  it('总闸在 !getBrowserToolEnabled() 分支抛 CAPABILITY_UNAVAILABLE', () => {
+    const src = readSource('apps/electron/src/main/browser-pane-manager.ts')
+    expect(src).toMatch(/getBrowserToolEnabled\(\)[\s\S]{0,160}CAPABILITY_UNAVAILABLE/)
+  })
+})
