@@ -280,6 +280,12 @@ if (!apiKey && connection.baseUrl) {
 | 58 | D5-b — dispatcher `browserToolEnabled` 总闸（**2 处 marker**：dispatcher + import）| `apps/electron/src/main/browser-pane-manager.ts` | 注释 `remote browser pane 总闸`（`dispatchCapability`）+ `getBrowserToolEnabled 为 D5-b`（import）| 单行（2 处）| 同上 §3 |
 | 58t | D5-b 防回归测试 | `packages/shared/src/__tests__/m2-security-regression.test.ts` | describe `remote browser dispatcher browserToolEnabled 总闸（M3 lockdown D5-b）` | 单行 | 同上 §3.4 |
 
+**v0.10.0 sync 收尾 — F1 baseline lint 技术债清理（2026-05-29，详见 [`.planning/sync-reports/SYNC-v0.10.0-20260529.md`](.planning/sync-reports/SYNC-v0.10.0-20260529.md) §6 F1）**：
+
+| # | 改造类别 | 文件 | 定位（用 `grep` 找）| 标记 | 关联规格 |
+|---|---|---|---|---|---|
+| 59 | F1 — token-refresh-manager `craft-shared/no-inline-source-auth-check` 误报豁免（规则不区分读/写：2 处赋值写 in-memory mirror + 2 处测试字段断言，均非 gating 读；同 #38/#39 模式）| `packages/shared/src/sources/token-refresh-manager.ts`（×2）+ `packages/shared/src/sources/__tests__/token-refresh-manager.test.ts`（×2）| 注释 `非 gating 读` / `验证 reset 语义` + `eslint-disable-next-line craft-shared/no-inline-source-auth-check` | 单行（×4）| C12 + lint:shared baseline（**merge 前 `87ffbeb7` 即 4 errors，非 v0.10.0 引入**）|
+
 **Build 脚本 marker（M2 后期补充，不计入主基线）**：
 
 主基线 grep 命令仅扫 `packages` + `apps` 下的 `.ts/.tsx`，build 脚本（`.sh` / `.ps1`）不在覆盖范围内——但仍需登记，方便上游同步时辨识改造点。
@@ -312,11 +318,13 @@ grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_mod
 
 | 指标 | 基线（2026-05-29 v0.10.0 sync 后）| 下次同步允许浮动 |
 |---|---|---|
-| U-API 标记总数（含全部注释格式）| **105** | ±2 |
+| U-API 标记总数（含全部注释格式）| **109** | ±2 |
 | `/* U-API START */` 块数 | **9** | 必须等于 END |
 | `/* U-API END */` 块数 | **9** | 必须等于 START |
 
 > ✅ **基线核对（2026-05-29）**：v0.9.5/M3 i18n 基线 98 + 本次 v0.10.0 sync 7 新 marker（#55/#56 brand + #57 D1 + #57t D1 测试 + #58 D5-b dispatcher+import 共 2 处 + #58t D5-b 测试）= **105**。实测 grep = 105 ✓ 完全吻合。（注：#58 在 `browser-pane-manager.ts` 含 2 处 marker，故净 +7 而非 LOCKDOWN-SPEC 初版预测的 +6。）
+>
+> ✅ **F1 收尾核对（2026-05-29 同日）**：v0.10.0 sync 基线 105 + F1 baseline lint 清理 4 marker（#59 token-refresh-manager `eslint-disable` 豁免 ×4）= **109**。实测 grep = 109 ✓。F1 是既有技术债（merge 前 `87ffbeb7` 跑 lint:shared 即 4 errors），非 v0.10.0 引入，本次顺手清理使 lint:shared 0 errors。
 >
 > ✅ **基线核对（2026-05-21）**：v0.9.4 sync 基线 96 + 本次 v0.9.5 sync model-picker brand patch (#54) + M3 i18n fix (#53) 各 +1 = **98**。实测 grep = 98 ✓ 完全吻合。
 >
@@ -361,7 +369,7 @@ grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_mod
 # 抗 build-dmg.sh 中间态把 SDK 包复制到 apps/electron/node_modules/ 让数字暂时虚高的情况
 grep -rEn --exclude-dir=node_modules "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
   | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
-# 期望：105（基线，允许 103-107）
+# 期望：109（基线，允许 107-111）
 
 # 块标记 START/END 配对（数量必须相等）
 grep -rE --exclude-dir=node_modules "/\* U-API START" packages apps --include="*.ts" --include="*.tsx" | wc -l

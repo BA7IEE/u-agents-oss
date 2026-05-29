@@ -116,7 +116,7 @@ fail 测试全是 focus/destroy/toolbar/popup/theme-replay（electron BrowserWin
 
 | # | 项 | 说明 |
 |---|---|---|
-| F1 | **lint:shared 4 errors 清理** | `token-refresh-manager.ts`(170/180) + test(507/538) 直接读 `source.config.isAuthenticated`，应改用 `isSourceUsable()`。baseline 既有，非本次引入。建议单独 commit 修（C13）|
+| F1 | ✅ **已清（2026-05-29）** | 经查实为**规则误报**：170/180 是赋值写 in-memory mirror（非 gating 读，`isSourceUsable()` 是只读 helper 不能替代写）、507/538 是测试字段断言（验证 reset 语义，同 §3.7 #39）。4 处加 `eslint-disable` + `// U-API:` 注释（§3.7 #59）→ lint:shared **0 errors**；token-refresh test 32 pass 不变。基线 105→109。|
 | F2 | **打包 + 平台实测** | 本次只到 merge commit，未打包。建议 macOS arm64 + Windows x64 D-β（与 v0.9.4/v0.9.6 一致）|
 | F3 | **remote browser lockdown 手动 verify** | 连一个 remote workspace 验证：默认 browserToolEnabled=false 时远程 `browser_tool` 收到 `CAPABILITY_UNAVAILABLE`；开启后远程 `evaluate` 被 D1 拦（`BROWSER_REMOTE_EVALUATE_BLOCKED`）|
 | F4 | **merge 回主分支** | 当前在 `sync/upstream-v0.10.0-20260529`，验证后 merge 回 main（用户决定时机）|
