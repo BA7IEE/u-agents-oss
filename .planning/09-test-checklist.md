@@ -270,6 +270,18 @@ CONFIG="$HOME/.u-agents/config.json"  # M1 改造完成后的位置（详见 01-
 
 ## 5. 第一条对话
 
+> ⚠️ **必须在 packaged app（装好的 `.app` / `.exe`，不是 dev / `bun run start`）里测** —— 事故 #1/#6（`piServerPath not configured`）**只在打包后暴露**：dev 模式 `resolveServerPath` 从 `packages/*/dist` 解析所以永远找得到，packaged 模式才从 `resources/` 找。每个平台打包后**至少真发一条消息**触发 pi subprocess spawn，**只测启动 = 测不出**（事故 #6 就是 macOS 长期只测启动漏过的）。
+>
+> **打包后 grep 防回归**（每平台必跑）：
+> ```bash
+> # macOS — 必须命中
+> find "/Applications/U Agents.app" -path "*resources/pi-agent-server/index.js"
+> find "/Applications/U Agents.app" -path "*resources/session-mcp-server/index.js"
+> # Windows — dir /s /b "resources\pi-agent-server\index.js"（在解包目录）
+> ```
+> 命中 0 = 打包漏 subprocess server（事故 #1/#3/#6），**别发版**。根因排查见 [`12-subprocess-build-pipeline.md`](12-subprocess-build-pipeline.md) §0。
+
+- [ ] **(packaged) 发首条消息不报 `piServerPath not configured`** —— 事故 #1/#6 防回归，三平台各测一次
 - [ ] 创建新会话
 - [ ] 用 anthropic-messages 协议 + Claude 模型发送 "hello"
 - [ ] 收到响应（流式）

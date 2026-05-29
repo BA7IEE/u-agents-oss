@@ -184,6 +184,12 @@ cd "$ROOT_DIR"
 export U_AGENTS_PACKAGING=1
 bun run electron:build
 
+# U-API: copy subprocess servers (pi-agent-server + session-mcp-server) into apps/electron/resources/
+#   同 build-dmg.sh（事故 #6 三平台对称）——build-linux.sh 同样只跑 electron:build、缺此步会致
+#   Linux AppImage piServerPath not configured。详见 12-subprocess-build-pipeline.md §0.6
+echo "Copying subprocess servers (pi-agent-server + session-mcp-server) into resources..."
+bun run scripts/copy-subprocess-servers.ts
+
 # 7. Package with electron-builder
 echo "Packaging app with electron-builder..."
 cd "$ELECTRON_DIR"
