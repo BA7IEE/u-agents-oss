@@ -211,6 +211,13 @@ cd "$ROOT_DIR"
 export U_AGENTS_PACKAGING=1
 bun run electron:build
 
+# U-API: copy subprocess servers (pi-agent-server + session-mcp-server) into apps/electron/resources/
+#   build-dmg.sh 长期缺此步 → macOS DMG 首条 LLM 消息报 "piServerPath not configured"（与
+#   build-win.ps1 §2.3 对称；electron:build 已 build 产物到 packages/*/dist，此处 copy 到 resources/
+#   供 electron-builder 打包 + resolveServerPath packaged 解析。详见 12-subprocess-build-pipeline.md §2.1）
+echo "Copying subprocess servers (pi-agent-server + session-mcp-server) into resources..."
+bun run scripts/copy-subprocess-servers.ts
+
 # 7. Package with electron-builder
 echo "Packaging app with electron-builder..."
 cd "$ELECTRON_DIR"

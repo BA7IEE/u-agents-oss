@@ -296,12 +296,13 @@ if (!apiKey && connection.baseUrl) {
 | B6 | M3-Sentry packaging signal — Linux | `apps/electron/scripts/build-linux.sh` | 注释 `M3-Sentry — 信号 packaging 模式` | `# U-API:` 单行 | 同上 §2.3 |
 | B7 | M3-Sentry packaging signal + DSN warn — Windows | `apps/electron/scripts/build-win.ps1` | 注释 `M3-Sentry — 信号 packaging 模式（与 build-dmg.sh 等价）` | `# U-API:` 单行 | 同上 §2.3（Windows 路径绕过 electron-build-main.ts，需独立 warn）|
 | B4 | Windows EXE 缺 dist/interceptor.cjs 修复（事故 #5，事故 #3/#4 同根第 3 个）| `apps/electron/scripts/build-win.ps1` | 注释 `build-win.ps1 misses electron-build-main.ts:332 buildInterceptor() step` | `# U-API:` 单行 | v16 review B 路静态分析触发（详见 [`12-subprocess-build-pipeline.md`](.planning/12-subprocess-build-pipeline.md) §0.5） |
+| B8 | **macOS DMG 缺 copy-subprocess-servers**（piServerPath not configured；build-dmg.sh ≠ build-win.ps1 长期不对称——build-win.ps1 §2.3 调了，build-dmg.sh 从未调）| `apps/electron/scripts/build-dmg.sh` | 注释 `copy subprocess servers (pi-agent-server + session-mcp-server) into apps/electron/resources/` | `# U-API:` 单行 | **v0.10.0 macOS arm64 实测触发**（用户首条 LLM 消息报错；详见 [`12-subprocess-build-pipeline.md`](.planning/12-subprocess-build-pipeline.md) §2.1 + SYNC-v0.10.0 §F-bug）|
 
 **Build 脚本 marker 单独 grep 命令**：
 
 ```bash
 grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_modules | wc -l
-# 期望：≥13（B1-B7 + electron-build-main.ts 函数注释 + main() 注释 +
+# 期望：≥14（B1-B8 + electron-build-main.ts 函数注释 + main() 注释 +
 # scripts/check-i18n-coverage.ts + scripts/check-raw-sends.sh +
 # scripts/typecheck-staged.sh + scripts/lint-i18n-staged.sh）
 ```
