@@ -269,6 +269,17 @@ if (!apiKey && connection.baseUrl) {
 |---|---|---|---|---|---|
 | 54 | v0.9.5 model-picker brand patch（上游把 FreeFormInput 内联 grouping 抽到 helper，`'Craft Agents Backend'` → `'U-API'`；同时改 4 处单测断言）| `apps/electron/src/renderer/components/app-shell/input/model-picker-helpers.ts` | 注释 `brand — v0.9.5 上游把 FreeFormInput.tsx 内联 grouping 抽到 helper` | 单行 | UPSTREAM-PREVIEW-v0.9.5-2026-05-21 §3（commit `f863f915`）|
 
+**v0.10.0 sync 期间新增改造点（2026-05-29，详见 [`.planning/sync-reports/SYNC-v0.10.0-20260529.md`](.planning/sync-reports/SYNC-v0.10.0-20260529.md) + [`.planning/M3-REMOTE-BROWSER-LOCKDOWN-SPEC.md`](.planning/M3-REMOTE-BROWSER-LOCKDOWN-SPEC.md)）**：
+
+| # | 改造类别 | 文件 | 定位（用 `grep` 找）| 标记 | 关联规格 |
+|---|---|---|---|---|---|
+| 55 | brand — v0.10.0 remote browser 错误文案 Craft Agent → U Agents | `packages/shared/src/agent/pi-agent.ts` | 注释 `brand — v0.10.0 remote browser 错误文案`（`mapBrowserToolErrorCode` 内）| 单行 | M3-REMOTE-BROWSER-LOCKDOWN-SPEC §3.3 |
+| 56 | brand — 同上（远程侧）| `packages/server-core/src/sessions/RemoteBrowserPaneManager.ts` | 注释 `brand — v0.10.0 remote browser 错误文案`（`invoke()` 内）| 单行 | 同上 |
+| 57 | D1 — `allowRemoteEvaluate` 默认 false | `packages/shared/src/config/storage.ts` | 注释 `远程 evaluate 默认关闭（M3 remote browser lockdown`（`FALLBACK_CONFIG_DEFAULTS`）+ `config-defaults.json` 改值 | 单行 | M3-REMOTE-BROWSER-LOCKDOWN-SPEC §2 |
+| 57t | D1 防回归测试 | `packages/shared/src/__tests__/m2-security-regression.test.ts` | describe `allowRemoteEvaluate 默认 false（M3 remote browser lockdown D1）` | 单行 | 同上 §2.3 |
+| 58 | D5-b — dispatcher `browserToolEnabled` 总闸（**2 处 marker**：dispatcher + import）| `apps/electron/src/main/browser-pane-manager.ts` | 注释 `remote browser pane 总闸`（`dispatchCapability`）+ `getBrowserToolEnabled 为 D5-b`（import）| 单行（2 处）| 同上 §3 |
+| 58t | D5-b 防回归测试 | `packages/shared/src/__tests__/m2-security-regression.test.ts` | describe `remote browser dispatcher browserToolEnabled 总闸（M3 lockdown D5-b）` | 单行 | 同上 §3.4 |
+
 **Build 脚本 marker（M2 后期补充，不计入主基线）**：
 
 主基线 grep 命令仅扫 `packages` + `apps` 下的 `.ts/.tsx`，build 脚本（`.sh` / `.ps1`）不在覆盖范围内——但仍需登记，方便上游同步时辨识改造点。
@@ -295,14 +306,16 @@ grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_mod
 # scripts/typecheck-staged.sh + scripts/lint-i18n-staged.sh）
 ```
 
-**同步上游验证基线**（**M3 i18n fix 后 2026-05-21 刷新**）：
+**同步上游验证基线**（**v0.10.0 sync 后 2026-05-29 刷新**）：
 
-| 指标 | 基线（2026-05-21 M3 i18n fix 后）| 下次同步允许浮动 |
+| 指标 | 基线（2026-05-29 v0.10.0 sync 后）| 下次同步允许浮动 |
 |---|---|---|
-| U-API 标记总数（含全部注释格式）| **98** | ±2 |
+| U-API 标记总数（含全部注释格式）| **105** | ±2 |
 | `/* U-API START */` 块数 | **9** | 必须等于 END |
 | `/* U-API END */` 块数 | **9** | 必须等于 START |
 
+> ✅ **基线核对（2026-05-29）**：v0.9.5/M3 i18n 基线 98 + 本次 v0.10.0 sync 7 新 marker（#55/#56 brand + #57 D1 + #57t D1 测试 + #58 D5-b dispatcher+import 共 2 处 + #58t D5-b 测试）= **105**。实测 grep = 105 ✓ 完全吻合。（注：#58 在 `browser-pane-manager.ts` 含 2 处 marker，故净 +7 而非 LOCKDOWN-SPEC 初版预测的 +6。）
+>
 > ✅ **基线核对（2026-05-21）**：v0.9.4 sync 基线 96 + 本次 v0.9.5 sync model-picker brand patch (#54) + M3 i18n fix (#53) 各 +1 = **98**。实测 grep = 98 ✓ 完全吻合。
 >
 > **历史注解**：初版基线注释一度推断"实测多 1，是历史漂移"，但实际是 §3.7 表漏登记了 v0.9.5 sync 自身的 #54 model-picker brand patch（marker 真实存在于代码中，被 grep 计入 98，但子表登记环节漏盘）。已通过补加"v0.9.5 sync 期间新增改造点"子表修正，无漂移。
@@ -336,6 +349,7 @@ grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_mod
 >   - **M3 i18n fix（commit `5212197b`）**：+1 marker = #53 renderer/main.tsx setupI18n 后追加 IPC 推送 + `// U-API:` 4 行注释 + `.catch` 兜底。修复"重启 App 后必须手切语言标题才中文"的 bug。详见 [`.planning/M3-I18N-MAIN-PROCESS-SYNC-FIX.md`](.planning/M3-I18N-MAIN-PROCESS-SYNC-FIX.md) + [`.planning/M3-I18N-FIX-CLAIM-AUDIT.md`](.planning/M3-I18N-FIX-CLAIM-AUDIT.md)。**实际是上游 bug**——上游 main 进程 `setupI18n()` 无 detector 永远 fallback `en`，但 server-core/preferences 又读 `i18n.resolvedLanguage` 注入 prompt。可考虑作为上游 PR 候选
 >   - **方案 Y++ 增稳路径**（按用户选定）：sync commit + dep fix + docs + i18n fix + F7 follow-up 共 5 commit，bisect 友好（详见 PREVIEW §11.11 DECISION-1）；Phase 1.5/2.5 双静置共 2-4 天。
 > - **v0.9.4 sync（2026-05-20 合并 upstream `4144f795` → commit `0a49a089`）：96 处**（净变化 +1：加 #52 C13 patch HANDLED_CHANNELS 加 RTK 4 channel）。上游 73 文件 / +698 −202 行（fork 历史上影响面最小的一次）；主题 = RTK Bash token 压缩 opt-in + Pi SDK 0.72.1→0.73.1 + Codex/Copilot 死代码清理（与 04-feature-cuts 同向）；冲突总数 19 处：2 处真代码冲突（SkillsListPanel uagents:// deep link + claude/event-adapter.ts brand 注释 vs 上游 docblock 重写）、15 处 package.json（NPM scope @u-agents/ vs 上游 SDK 版本号）、eslint.config.mjs（顺势删 codex-agent / copilot-agent / @github/copilot-sdk 3 条死规则）、bun.lock（不可手工合并，改用 `git checkout 29bbfdc7 -- bun.lock && bun install` 增量同步避免 Sentry dup install）；C11 触发 1 文件 4 处（settings.ts RTK RPC handler dynamic import）；C13 触发：HANDLED_CHANNELS 漏 RTK 4 channel patch（#52，与 v0.9.1 routing.ts #37 同模式）；顺手 follow-up 删 root package.json `@github/copilot-sdk` dep（REVIEW-3 backlog）；release-notes/0.9.4.md 中文翻译 + brand 五件套（Craft/craft.do/lukilabs/Codex/Copilot）0 命中。验证：typecheck 0 errors / i18n parity OK（6 locales × 1455 keys，+7 RTK key）/ lint:electron 110 warnings 0 errors / bun test 19 latent fail（全 v0.9.3 baseline 已存在，与 sync 无关）。PREVIEW 5 轮 review 后预测评级 A−，实际 **A−**（REVIEW-6 修订：sync 0 新增 test fail / 19 fail 与 v0.9.3 baseline 一致；2 真冲突 + C13 patch + bun.lock 副作用都是 sync collateral 1-2 分钟内可解，**不构成降级理由**——评级应基于 regression 而非修复过程的小波折）。**macOS arm64 + Windows x64 D-β 双平台实测通过**（2026-05-20）—— fork 历史上首次双平台都在 sync 当日完成实测验证。详见 [`.planning/sync-reports/SYNC-v0.9.4-20260520.md`](.planning/sync-reports/SYNC-v0.9.4-20260520.md) + 5 轮预测 [`UPSTREAM-PREVIEW-v0.9.4-2026-05-20.md`](.planning/sync-reports/UPSTREAM-PREVIEW-v0.9.4-2026-05-20.md)。
+> - **v0.10.0 sync（2026-05-29 合并 upstream `215910da` → merge commit `7bfd977a`）：105 处**（净 +7：#55/#56 brand remote browser 错误文案 + #57 D1 `allowRemoteEvaluate=false` + #57t D1 防回归 + #58 D5-b dispatcher 总闸（含 import marker 共 2 处）+ #58t D5-b 防回归）。上游 61 文件 / +2588 −162；主题 = remote `browser_tool` 桥接 + 浏览器标签 per-workspace 隔离 + #824 basic-auth fix；19 冲突（14 package.json C11 scope+version 0.10.0 + 5 源码 config-defaults/bootstrap/storage/browser-pane-manager/SessionManager，**全是 import 块/config 值浅冲突**，dry-run 已预演）；C11 触发 3 上游新文件 5 处 import rename（RemoteBrowserPaneManager + error-codes.test + browser-broadcast.test）；**安全 lockdown D1+D5-b**——REVIEW-1 坐实 remote workspace 可达 + dispatcher 无 `browserToolEnabled` 总闸（详见 [`M3-REMOTE-BROWSER-LOCKDOWN-SPEC.md`](.planning/M3-REMOTE-BROWSER-LOCKDOWN-SPEC.md)）；无 SDK bump / Breaking None。验证：typecheck:all 0 errors / i18n parity 6 locales × 1462 keys / lint:electron 0 errors（112 warnings pre-existing）/ **lint:shared 4 errors = baseline pre-existing**（`token-refresh-manager` `craft-shared/no-inline-source-auth-check`，merge 前 `87ffbeb7` 同样 4 errors，C13 follow-up）/ bun test **0 新增 regression**（browser-pane-manager 8 fail = v0.10.0 upstream baseline latent，临时 worktree `git worktree add v0.10.0` 实测同样 8 fail 确认）。详见 [`.planning/sync-reports/SYNC-v0.10.0-20260529.md`](.planning/sync-reports/SYNC-v0.10.0-20260529.md)。
 
 **每次同步必跑 grep（覆盖全部注释格式）**：
 
@@ -345,7 +359,7 @@ grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_mod
 # 抗 build-dmg.sh 中间态把 SDK 包复制到 apps/electron/node_modules/ 让数字暂时虚高的情况
 grep -rEn --exclude-dir=node_modules "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
   | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
-# 期望：98（基线，允许 96-100）
+# 期望：105（基线，允许 103-107）
 
 # 块标记 START/END 配对（数量必须相等）
 grep -rE --exclude-dir=node_modules "/\* U-API START" packages apps --include="*.ts" --include="*.tsx" | wc -l
