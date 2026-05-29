@@ -5,6 +5,8 @@
 > 2. **测试合并策略（重要）**：交集内 8 个 test 文件 fork 有大量 brand patch（`registration.test.ts` 18 / `registration-profiles.test.ts` 17 / `system.open-url.test.ts` 9 / `browser-pane-manager.test.ts` 8 …）；上游 0 碰 brand 行 → git 可自动合并，但**严禁 take-theirs**（会丢 60+ 处 brand → 回退 + 测试 fail）。原 §5「take-theirs 即可」已改。
 > 3. **新文件数 7 → 9**（§2.3 笔误，实测 `name-status` 中 `A` 计数 = 9）。
 >
+> ⚠️ **REVIEW-2（dry-run 实测，同日，已授权 merge→abort）**：实测 **19 冲突全是浅冲突**，印证 A− 评级（偏保守）。**校正预测 2 处**：`browser-pane-manager.ts` + `SessionManager.ts` 实际 git 冲突（PREVIEW 漏预测，但均为 C11 import 浅冲突——根因见 §10.3）；`source-test.ts`/`pi-agent.ts`/`main/index.ts`/8 个 test 文件全部自动合并（印证 marker 不重叠 + REVIEW-1 测试判断）。完整实测见 **§10**。
+>
 > **本报告由本仓库 AI 在不动本地 git refs / 不动工作树的前提下产出**（仅 `git fetch upstream` 纯下载 + 只读 `git diff` / `git show` / `git grep` 分析，未 merge、未改任何源码）。
 > 本地 main 当前在 `87ffbeb7`（今天刚 merge 完 `sync/upstream-v0.9.6`），上游 base = `v0.9.6`（`d0e674f5`）。
 > marker 基线已确认：**U-API 标记 98 / START 9 / END 9**（CLAUDE.md §3.7）；当前 HEAD `#46 browserToolEnabled = false` 已实测确认（`config-defaults.json:13` + `storage.ts:135`）。
@@ -352,4 +354,42 @@ comm -12 <(git diff v0.9.6 HEAD --name-only | grep -vE "^\.planning/|\.md$|^CLAU
 
 ---
 
-> **本报告不修改任何源码或 git refs**（CLAUDE.md §0）。merge 由用户/外部 AI 执行；执行后可让本仓库 AI 产出 `SYNC-v0.10.0-YYYYMMDD.md` 实测报告并刷新 §3.7 基线。
+## 10. dry-run 实测结果（REVIEW-2，2026-05-29，已授权 merge→abort）
+
+经用户当次授权（§0 破例），在 `sync/upstream-v0.10.0-20260529` 分支做 dry-run：`git merge v0.10.0 --no-commit` → 收集冲突 → `git merge --abort`。**工作区已完全复原，无冲突残留**。
+
+### 10.1 冲突全景：19 个
+
+| 类别 | 实测 | PREVIEW 预测 | 偏差 |
+|---|---|---|---|
+| package.json | **14** 冲突 | 15 | root `package.json` 实际自动合并（改动区不重叠）→ 14 冲突 |
+| 源码 | **5** 冲突 | 3 | 多 2：`browser-pane-manager.ts` + `SessionManager.ts` |
+
+### 10.2 五个源码冲突 vs 预测
+
+| 文件 | 预测 | 实测冲突性质 | 解法 |
+|---|---|---|---|
+| `config-defaults.json` | ✓ 必然 | `browserToolEnabled:false`(ours) vs 上游加 `allowRemoteEvaluate:true` | 保 false + 加 allowRemoteEvaluate（D1 时改 false）|
+| `bootstrap.ts` | ✓ 必然 | import 块：ours `@u-agents/` vs theirs `@craft-agent/` + 加 `BrowserCapabilityRequest` | 取 theirs 内容 + scope rename |
+| `storage.ts` | ✓ 可能 | #46 marker+false(ours) vs 上游加 `allowRemoteEvaluate:true` | 保 #46 + 加 allowRemoteEvaluate（D1）|
+| `browser-pane-manager.ts` | ✗ **漏预测** | import 块：ours `@u-agents/` vs theirs + 加 5 个 remote-browser import（`getAllowRemoteEvaluate`/`CodedError`/`BrowserInstanceSnapshot`/`BrowserCapabilityRequest`/`ScreenshotResultWire`）| 取 theirs + scope rename（顺便加 D5-b 的 `getBrowserToolEnabled`）|
+| `SessionManager.ts` | ✗ **漏预测** | import 块：ours `@u-agents/` vs theirs + 加 `RpcServer`/`CLIENT_BROWSER_INVOKE`/`RemoteBrowserPaneManager` import | 取 theirs + scope rename |
+
+**结论：5 个源码冲突全是 import 块 / config 值的浅冲突，无一深层逻辑冲突。** A− 评级成立、偏保守。
+
+### 10.3 两个漏预测的根因（C11 细化）
+
+PREVIEW 把 `browser-pane-manager.ts` / `SessionManager.ts` 归为"上游改逻辑 + fork 仅 scope → sync 后批量 rename"，未料到 **fork 的 scope rename 与上游对同一 import 块的新增 import 撞在一起 → git 报冲突**。
+
+> **C11 细化（已同步补进 [`CLAUDE.md`](../../CLAUDE.md) C11 行）**：当上游在某文件**新增 import**、而 fork 又在**同一 import 块**做过 `@craft-agent/→@u-agents/` rename 时，C11 从"sync 后批量 rename"升级为"merge 时的 import 冲突"。解法不变（取 theirs + rename scope），但**预测时不能因为"fork 只对该文件做过 scope rename"就判定它不冲突**——要看上游是否动了同一 import 块。
+
+### 10.4 正面验证（预测命中）
+
+`git merge` 输出中 **"Auto-merging"（无 CONFLICT）** 的关键文件，印证 PREVIEW + REVIEW-1 判断：
+
+- `source-test.ts`(#48 SSRF) / `pi-agent.ts`(#45c) / `main/index.ts`(#28) → marker 与上游改动不重叠，自动合并 ✓
+- **8 个交集 test 文件全部自动合并** → 印证 REVIEW-1「上游 0 碰 brand 行 → 可自动合并」。**实际解冲突时仍须 grep 确认这些文件 `uagents` brand 计数不降**（自动合并应保留 ours 的 brand 行，但须验证）✓
+
+---
+
+> **REVIEW-1 阶段与本报告产出不改任何源码（CLAUDE.md §0）；REVIEW-2 dry-run 经用户当次授权做了 `git merge`→`abort`（已复原、无残留，仅短暂创建 `sync/upstream-v0.10.0-20260529` 分支）。实际解冲突 + C11 rename + brand patch + D1/D5 lockdown 待后续授权执行**。完成后产出 `SYNC-v0.10.0-YYYYMMDD.md` 实测报告并刷新 §3.7 基线。

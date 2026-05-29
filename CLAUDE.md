@@ -371,7 +371,7 @@ grep -rE --exclude-dir=node_modules "/\* U-API END" packages apps --include="*.t
 | C8 | 基线 grep 命令漏注释格式 | 用本节"全格式"grep，不用旧 `// U-API:` 简写 |
 | C9 | 测试 syntax 让 baseline fail 数字假 | bun test 不带 --bail 跑，看真实 fail 数对照 M1-FIRST-RELEASE 已知技术债 |
 | C10 | 上游新增 connection 字段透传漏 | `enforceUApiBaseUrl` 重写连接时浅合并保字段（v0.9.1 起：midStreamBehavior；未来字段同样处理）|
-| C11 | 上游新文件用旧 NPM scope | sync 后 grep `@craft-agent/` 必须 = 0；命中跑 batch sed rename（v0.9.1 sync 触发 12 文件 20 处） |
+| C11 | 上游新文件用旧 NPM scope | sync 后 grep `@craft-agent/` 必须 = 0；命中跑 batch sed rename（v0.9.1 sync 触发 12 文件 20 处）。**v0.10.0 细化**：上游若在 fork 已 scope-rename 的**同一 import 块**新增 import，该 rename 会以 **merge 冲突**形式出现（非 sync 后批量）——v0.10.0 dry-run 中 `browser-pane-manager.ts` / `SessionManager.ts` 即此；解法不变（取 theirs + rename scope），但**预测时别因"fork 只对该文件 scope-rename 过"就判它不冲突**，要看上游是否动了同一 import 块 |
 | C12 | 上游 release 自身 lint 违规 | sync 后跑 lint 套件，errors case-by-case 处理：语义等价改源码 / `// eslint-disable-next-line` + `// U-API:` 注释加进 §3.7 |
 | C13 | 上游 release 自身 test fail | 区分 (a) 我们 patch 真能修（如 routing.ts 漏分类）→ commit fix；(b) 上游 bug 我们继承 → 记 sync 报告 follow-up，不阻塞 merge |
 | C14 | build-win.ps1 与 root chain 结构性差距 | sync 后核 dist 产物缺什么；每发现一个漏的 helper 就给 build-win.ps1 加一段调对应 root script（事故 #3 + #4 + #5 同根三胞胎，main bundle 5 步流水线 step 1+2+3+4 已修；M3 终极方案：build-win.ps1 改调 `bun run electron:build`）|
