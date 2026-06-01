@@ -694,7 +694,9 @@ diff /tmp/baseline-fails /tmp/sync-fails
 - **(b) 上游 bug 我们继承**（行为变化、permission 改）→ 记入 sync 报告 follow-up，**不阻塞 merge**，等上游 v0.9.2+ 修
 - 区分手段：跑 `git log upstream/main -- <test 文件>` 看是否上游历次自己也 fail 过
 
-#### C14 — build-win.ps1 与 root chain 之间的结构性差距（v0.9.1 sync 后 Windows 实测触发）
+#### C14 — build 脚本与 root chain 之间的结构性差距（v0.9.1 Windows + v0.10.0 macOS 实测触发）
+
+> ⚠️ **v0.10.0 升级（事故 #6）**：C14 原只讲"build-win.ps1 落后 root chain"。事故 #6 揭示**反向且更危险**——**root chain 自身会被 sync 破坏**：`electron:build` chain 末尾的 `&& bun run electron:build:subprocess` 被某次 sync 删除（事故 #1 fix `8ebe8c0` 时有，现已无），依赖它自动 copy subprocess 的 **build-dmg.sh 静默失效**（macOS `piServerPath` 回归，v0.10.0 实测才发现）。REVIEW-7 当时误判为"笔误"只修了 build-win.ps1、漏修 build-dmg.sh。**今后三平台 build 脚本都应显式调 `copy-subprocess-servers.ts`，不依赖 chain 自动触发**。详见 [`12-subprocess-build-pipeline.md`](12-subprocess-build-pipeline.md) §0.6 事故 #6 + [`sync-reports/SYNC-v0.10.0-20260529.md`](sync-reports/SYNC-v0.10.0-20260529.md) §8.1。
 
 **历史触发**：v0.9.1 sync 后 Windows EXE 实测装包成功 + 首条 LLM 消息回复正常，但 build 输出含 warning：
 ```
@@ -714,9 +716,19 @@ ls apps/electron/release/mac-arm64/U\ Agents.app/Contents/Resources/app/messagin
 ls apps/electron/release/win-unpacked/resources/messaging-whatsapp-worker/worker.cjs 2>&1
 # 两个应都存在；缺 = build 链路漏调
 
-# 2. 反向：grep build-win.ps1 是否调齐 main bundle 5 步
-grep -E "build:wa-worker|build:interceptor|electron:build:subprocess" apps/electron/scripts/build-win.ps1 | wc -l
-# 期望 ≥ 3（subprocess + interceptor + wa-worker 三个 root chain script）
+# 2. 三平台 build 脚本是否都显式调 copy-subprocess-servers（事故 #6 后统一模式）
+grep -l "copy-subprocess-servers" apps/electron/scripts/build-dmg.sh apps/electron/scripts/build-win.ps1 apps/electron/scripts/build-linux.sh
+# 期望：三个都命中（build-dmg.sh 自 v0.10.0 B8 起；build-win.ps1 自 REVIEW-7 起；build-linux.sh 同步核对）
+
+# 2b. root chain 是否仍含 subprocess sub-step（事故 #6：被 sync 删过，build 脚本不该再依赖它自动触发）
+grep -c "electron:build:subprocess" package.json
+# 期望 0（已废弃；若上游某次 sync 又加回，确认 build 脚本不会重复 copy）
+
+# 2c. Windows build-win.ps1 是否调齐 main bundle 其它步（interceptor + wa-worker + server build）
+grep -E "build:wa-worker|build:interceptor|server:build:subprocess" apps/electron/scripts/build-win.ps1 | wc -l
+# 期望 ≥ 3（server:build:subprocess + interceptor + wa-worker）
+
+# 2d. ⚠️ 最终防线：打包后真测一条 Pi 对话（事故 #1/#6 只有真发消息才暴露，见 09 §5）
 
 # 3. 与 electron-build-main.ts:main() 顺序对照
 grep -nE "buildSessionServer|buildPiAgentServer|buildInterceptor|buildWhatsAppWorker" \

@@ -85,6 +85,7 @@ export interface StoredConfig {
   richToolDescriptions?: boolean;  // Add intent/action metadata to all tool calls (default: true)
   // Tools
   browserToolEnabled?: boolean;  // Enable built-in browser tool (default: true). Disable for Playwright/Puppeteer.
+  allowRemoteEvaluate?: boolean;  // Allow remote agents to call `browser_tool evaluate` on local browser (default: true).
   // Prompt caching & context
   extendedPromptCache?: boolean;  // Use 1h prompt cache TTL instead of 5m (default: false)
   enable1MContext?: boolean;  // Enable 1M context window for supported models (default: false — opt-in; requires Anthropic Tier 4+)
@@ -133,6 +134,8 @@ const FALLBACK_CONFIG_DEFAULTS: ConfigDefaults = {
     // U-API: browser tool 默认关闭（v24 G1.F4.1 决策；详见 04-feature-cuts.md §九类）
     // 与 PRODUCT.md 目标用户（非技术 / 半技术）+ 默认安全原则一致；用户可在 Settings → Tools 主动开启。
     browserToolEnabled: false,
+    // U-API: 远程 evaluate 默认关闭（M3 remote browser lockdown；详见 .planning/M3-REMOTE-BROWSER-LOCKDOWN-SPEC.md §2.2）
+    allowRemoteEvaluate: false,
   },
   workspaceDefaults: {
     thinkingLevel: 'medium',
@@ -490,6 +493,30 @@ export function setBrowserToolEnabled(enabled: boolean): void {
   // Clear session tool caches so all sessions pick up the change immediately.
   // Lazy import to avoid circular dependency (storage ← session-scoped-tools ← storage).
   import('../agent/session-scoped-tools.ts').then(m => m.invalidateAllSessionToolsCaches()).catch(() => {});
+}
+
+/**
+ * Whether remote agents may call `browser_tool evaluate <expression>` against this
+ * desktop client's local browser. The check is enforced inside the local capability
+ * dispatcher; the remote server cannot override it.
+ *
+ * Defaults to true. Users can flip it off in Settings → AI → Advanced if they don't
+ * trust the remote workspaces they connect to.
+ */
+export function getAllowRemoteEvaluate(): boolean {
+  const config = loadStoredConfig();
+  if (config?.allowRemoteEvaluate !== undefined) {
+    return config.allowRemoteEvaluate;
+  }
+  const defaults = loadConfigDefaults();
+  return defaults.defaults.allowRemoteEvaluate;
+}
+
+export function setAllowRemoteEvaluate(allowed: boolean): void {
+  const config = loadStoredConfig();
+  if (!config) return;
+  config.allowRemoteEvaluate = allowed;
+  saveConfig(config);
 }
 
 /**

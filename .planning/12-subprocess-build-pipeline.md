@@ -162,7 +162,30 @@ Windows EXE 包内必然 `undefined`，Pi subprocess 静默 fallback。
 
 **步骤 1+2+3+4 全闭环 = 事故 #3/#4/#5 修后 Windows 路径与 root chain 在 main bundle 流水线达成等价**。M3 终极方案（C14）= 把 step 5 也改成调 root chain，可考虑跳过本节单独 helper 修复，但风险大（main process 的 OAuth env var inject 逻辑 Windows 路径有特殊处理）。
 
-### 0.6 共性教训
+> ⚠️ **v0.10.0 修正（事故 #6）**：上表"macOS/Linux 走 electron:build ✓"对 **step 1+2（subprocess servers）已失效**——`electron:build` chain 末尾的 `&& bun run electron:build:subprocess` sub-step 在某次 sync 后被删除（事故 #1 fix commit `8ebe8c0` 时存在，现已无；`electron:build:subprocess` script 本身也不存在，`grep -c` = 0）。三平台 build 脚本现都应**显式调** `copy-subprocess-servers.ts`，不再依赖 chain 自动触发。详见 §0.6 事故 #6。
+
+### 0.6 事故 #6 — macOS DMG 缺 copy-subprocess-servers（root chain 回归 = 事故 #1 的 macOS 重现，v0.10.0 修）
+
+**事故时间**：v0.10.0 sync 后用户首次在 macOS arm64 DMG 实测（发首条 LLM 消息）。
+
+**症状**：与事故 #1 完全一致——`piServerPath not configured. Cannot spawn Pi subprocess.`。但这次是 **macOS**（事故 #1 的 fix 本应永久覆盖 macOS）。
+
+**根因（root chain 回归 + REVIEW-7 误判 + 漏修 mac，三重）**：
+1. **root chain 退化**：事故 #1 fix（commit `8ebe8c0`）当时把 `&& bun run electron:build:subprocess` 加进 root `electron:build` chain，build-dmg.sh 的 `bun run electron:build` 借此自动 copy subprocess。但**某次 sync 后 `electron:build:subprocess` sub-step 从 chain 被删**（git 自动合并 / 上游重构吞掉），且该 script 本身也消失（现 `grep -c "electron:build:subprocess" package.json` = 0）。build-dmg.sh 仍依赖它自动触发 → macOS 静默缺 pi-agent-server。
+2. **REVIEW-7 误判**：v0.9.5 sync 时 REVIEW-7 发现 build-win.ps1 引用的 `electron:build:subprocess` "不存在"，**误判为笔误**（实为 root chain 回归），改 build-win.ps1 用 `server:build:subprocess` + `copy-subprocess-servers.ts`——**修了 Windows**。
+3. **漏修 macOS + 没察觉 root chain 回归**：REVIEW-7 没意识到 build-dmg.sh 同样依赖已失效的 chain 自动触发，**没同步修 build-dmg.sh**，也没恢复 / 警示 root chain 退化。文档（本节 §0.3 line 58 + 07 C14）至今仍写"build-dmg.sh 自动触发 ✓"。
+
+**为什么长期没发现**：macOS 实测不充分（M2.5 #4 macOS x64 实测 deferred；v0.9.x 的 macOS"实测通过"未真发 Pi 对话）。build-dmg.sh 在 chain 退化之后**从未真正 copy 过 subprocess**，但 happy-path 启动测试 catch 不到——必须真发一条消息触发 pi spawn。
+
+**与事故 #1/#3 的关系**：事故 #1 = macOS 首次缺 pi；事故 #3 = Windows 翻版；**事故 #6 = macOS 回归**（root chain 退化让事故 #1 的 fix 在 macOS 静默失效）。三者同症状（piServerPath）、同根因家族（subprocess server 没进包），触发机制不同。
+
+**修复**：build-dmg.sh 在 `bun run electron:build` 后显式加 `bun run scripts/copy-subprocess-servers.ts`（与 build-win.ps1 §2.3 对称，不再依赖已失效的 root chain 自动触发）。`electron-build-main.ts` 已 build pi/session 到 `packages/*/dist`，此处只需 copy 到 `resources/`（故 build-dmg.sh 无需像 build-win.ps1 那样先 `server:build:subprocess`）。加 `# U-API:` marker（§3.7 Build 子表 B8）。
+
+**修复验证**：v0.10.0 重新打包后 `find "U Agents.app" -path "*pi-agent-server*"` 命中 `resources/pi-agent-server/index.js` + 用户实测发消息**不再报 piServerPath**（2026-05-29 ✅）。详见 [`sync-reports/SYNC-v0.10.0-20260529.md`](sync-reports/SYNC-v0.10.0-20260529.md) §8.1。
+
+**教训（升级 C14）**：C14 原表述是"build-win.ps1 落后 root chain"。事故 #6 揭示**反向**——**root chain 自身会被 sync 破坏**（subprocess sub-step 被删），依赖它的 build-dmg.sh 静默失效。今后：(a) 三平台 build 脚本都**显式调** `copy-subprocess-servers.ts`（不依赖 chain 自动触发）；(b) sync 后必须 grep 核对 `electron:build` chain 完整性 + 三脚本是否都显式调 subprocess copy；(c) **所有平台打包后必须真测一条 Pi 对话**（不只启动）。
+
+### 0.7 共性教训
 
 **为什么 typecheck / lint / validate:dev 没发现**：所有发版前自动化检查都是**纯静态**——TypeScript 编译、字符串 grep、shared 包单元测试。没有任何一项会启动一个 packaged 应用、点开会话、发出第一条消息。这是 [`05-build-release.md`](05-build-release.md) §1 检查清单的盲点（详见 §3 修订建议）。
 

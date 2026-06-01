@@ -504,6 +504,8 @@ describe('TokenRefreshManager', () => {
 
       await manager.ensureFreshToken(source);
 
+      // U-API: 直接断言字段验证 reset 语义（非 gating 逻辑），同 §3.7 #39 模式
+      // eslint-disable-next-line craft-shared/no-inline-source-auth-check
       expect(source.config.isAuthenticated).toBe(false);
       expect(source.config.connectionStatus).toBe('needs_auth');
       expect(source.config.connectionError).toBe('Token refresh failed');
@@ -535,6 +537,8 @@ describe('TokenRefreshManager', () => {
 
       await manager.ensureFreshToken(source);
 
+      // U-API: 直接断言字段验证 reset 语义（非 gating 逻辑），同 §3.7 #39 模式
+      // eslint-disable-next-line craft-shared/no-inline-source-auth-check
       expect(source.config.isAuthenticated).toBe(false);
       expect(source.config.connectionStatus).toBe('needs_auth');
       expect(source.config.connectionError).toBe('Refresh error: network down');

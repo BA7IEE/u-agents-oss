@@ -1,6 +1,6 @@
 {
   "name": "@u-agents/cli",
-  "version": "0.9.6",
+  "version": "0.10.0",
   "license": "Apache-2.0",
   "description": "Terminal client for U Agents server",
   "type": "module",
