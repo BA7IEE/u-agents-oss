@@ -285,7 +285,7 @@ rclone delete r2:u-agents-update/latest/latest-mac-arm64-only.yml || true
 **完整上传清单（每次发版必跑）**：
 
 ```bash
-RELEASE=/Users/dengwang/Documents/u-agents-oss/u-agents/apps/electron/release
+RELEASE=/Users/dengwang/Documents/coding/u-agents-oss/u-agents/apps/electron/release
 WIN=~/win-release   # Windows 端打的产物（你拷回来的位置）
 VERSION=v0.9.2
 

@@ -20,6 +20,8 @@
 
 **为什么**：用户是非职业程序员，依赖 AI 长期维护这个项目。代码改造由用户自己（或他另开的执行会话/外部 AI）按照本仓库 `.planning/` 的规格文档执行。本仓库的 AI 角色只有一个——**写规格、改规格、对照代码核查规格**。这样上游同步、回滚、跨 AI 工具都不会丢失约束。
 
+> 自 2026-05-29 起，本铁律由 `.claude/hooks/enforce-docs-only.py`（PreToolUse hook）**机械强制**：任何对非 `.md` 文件的 Edit/Write 会被直接拦截。破例时需带环境变量 `U_AGENTS_ALLOW_CODE=1` 启动。详见 §8。
+
 ---
 
 ## 1. 项目身份
@@ -36,12 +38,15 @@
 ## 2. 仓库布局
 
 ```
-/Users/dengwang/Documents/u-agents-oss/
-└── u-agents/                        ← 本仓库（fork 工作区）
+/Users/dengwang/Documents/coding/u-agents-oss/   ← 路径仅供参考；仓库可整体移动，无硬依赖
+└── u-agents/                        ← 本仓库（fork 工作区，git 根；从这里启动 Claude Code）
     ├── CLAUDE.md                    ← 本文件
+    ├── AGENTS.md                    ← 指向本文件的 stub（保留 §0 铁律）
     ├── PRODUCT.md                   ← 产品定位与功能边界
     ├── LEGAL.md                     ← 法律合规清单
+    ├── .claude/                     ← Claude Code harness（settings / hooks / skills，详见 §8）
     ├── .planning/
+    │   ├── 00-codebase-map.md       ← 源码树地图（packages/apps 导航）⭐ 新
     │   ├── 01-branding-spec.md      ← 品牌替换全表
     │   ├── 02-llm-gateway-spec.md   ← 中转站接入规格 ⭐
     │   ├── 03-ui-lockdown-spec.md   ← UI 锁定清单
@@ -52,10 +57,17 @@
     │   ├── 08-conflict-zones.md     ← 高冲突文件清单
     │   ├── 09-test-checklist.md     ← 发版回归清单
     │   ├── 10-i18n-zh.md            ← 中文化策略
-    │   └── 11-roadmap.md            ← 阶段路线图
+    │   ├── 11-roadmap.md            ← 阶段路线图
+    │   ├── 12-subprocess-build-pipeline.md ← 子进程打包流水线
+    │   ├── 13-claude-harness.md     ← Claude Code harness 配置规格 ⭐ 新
+    │   ├── 14-uapi-marker-registry.md ← `// U-API:` 改造点登记表 + 同步基线 ⭐ 新
+    │   ├── M1-*.md / M2-*.md / M3-*.md ← 各里程碑专项规格
+    │   └── sync-reports/            ← 历次同步差异报告 + REVIEW 记录
     ├── (上游全部源码 ...)
     └── ...
 ```
+
+源码树（packages/* + apps/* 各自职责、关键文件、治理它的规格编号、高冲突区）见 [`.planning/00-codebase-map.md`](.planning/00-codebase-map.md)。
 
 Git remote 配置：
 - `upstream` → `https://github.com/lukilabs/craft-agents-oss.git`（同步源，**只读**）
@@ -116,271 +128,21 @@ Git remote 配置：
 - **U-API** = LLM 中转站品牌（在所有 LLM 连接相关 UI、错误提示、控制台跳转里使用）
 - 两个品牌不要混用：连接卡片显示 "U-API"，应用关于页显示 "U Agents"
 
-### 3.7 代码改造点统一加 `// U-API:` 标记前缀（**新增，每次同步上游必跑 grep 验证**）
+### 3.7 代码改造点统一加 `// U-API:` 标记（每次同步上游必跑 grep 验证）
 
-**为什么需要标记**：M1 我们改造了几十处代码（详见 `.planning/01-branding-spec.md` §2 + `.planning/03-ui-lockdown-spec.md` §1.10）。同步上游时这些改造点容易被 git 自动合并"无声破坏"——加统一标记后可以 grep 快速扫描所有改造点。
+所有对上游代码的改造都加 `// U-API:` 标记，便于同步时 grep 扫描、防止 git 自动合并"无声破坏"。
 
-**标记规范**：
-- 单行改造：`// U-API: <改造原因/简述>`
-- 多行块：用 `/* U-API START */` 和 `/* U-API END */` 包围
-- 必须含"U-API"字样（grep 用，且与上游历史 craft 标记隔离）
-
-**示例**：
-
-```typescript
-// state.ts:296-299（详见 02 §4.1）
-if (!apiKey && connection.baseUrl) {
-  // U-API: 上游 keyless 路径仅给 Ollama 用；U-API 必须有 Token，加特判
-  const isUApi = defaultConnectionSlug === 'u-api-default';
-  hasCredentials = !isUApi;
-}
-```
-
-```typescript
-/* U-API START: 03 §1.10.1 BUILT_IN_CONNECTION_TEMPLATES 新增 entry */
-'u-api-default': {
-  name: 'U-API',
-  providerType: 'pi_compat',
-  authType: 'api_key_with_endpoint',
-},
-/* U-API END */
-```
-
-**M1 必加 `// U-API:` 标记的改造点**（与 `01 §2.0 子节分级总览表`对应）：
-
-> **定位策略说明（REVIEW-2 P1 改进，2026-05-04）**：
-> 本表用**函数/变量名**而非硬行号定位——上游同步时行号会漂，符号名稳定。每行用 `grep -n "<符号>" <文件>` 即可定位。
-> 标记类型：`单行` = `// U-API: ...`；`块` = `/* U-API START ... */ ... /* U-API END */`。
-
-| # | 改造类别 | 文件 | 定位（用 `grep` 找）| 标记 | 关联规格 |
-|---|---|---|---|---|---|
-| 1 | baseUrl 锁定 + 多连接重写 | `packages/shared/src/config/storage.ts` | 函数 `enforceUApiBaseUrl` 整体 | 块 | 02 §4.3 + §6.2.1 |
-| 2 | model 列表保护 loop | `packages/shared/src/config/storage.ts` | 注释 `user-managed model lists must not be overwritten` | 单行 | 02 §6.2.2 |
-| 3 | startup lock | `packages/shared/src/config/storage.ts` | 注释 `continuous startup lock, not a one-shot migration` | 单行 | 02 §4.3 |
-| 4 | 凭证 keyless 特判 | `packages/shared/src/auth/state.ts` | 函数 `hasCredentials` 内 `if (!apiKey && connection.baseUrl)` 块 | 单行 | 02 §4.1 |
-| 5 | BUILT_IN_CONNECTION_TEMPLATES `'u-api'` 模板 | `packages/server-core/src/domain/connection-setup-logic.ts` | 注释 `multi-connection soft lockdown — base 'u-api' template` | 块 | 03 §1.10.1 |
-| 6 | validateSetupTestInput 扩展 | `packages/server-core/src/domain/connection-setup-logic.ts` | 注释 `validateSetupTestInput 扩展，支持 pi_compat` | 块 | 02 §4.2 |
-| 7 | u_api ApiSetupMethod 类型 | `apps/electron/src/renderer/components/onboarding/APISetupStep.tsx` | 注释 `u_api ApiSetupMethod 定义（M1 多 provider 裁剪后保留）` | 块 | 03 §1.10 |
-| 8 | API_SETUP_ICONS u_api 项 | 同上 | 常量 `API_SETUP_ICONS` 内（在 #7 块内）| 块内 | 03 §1.10 |
-| 9 | BASE_SLUG_FOR_METHOD u_api 项 | `apps/electron/src/renderer/hooks/useOnboarding.ts` | 注释 `multi-connection soft lockdown — base 'u-api'` | 单行 | 02 §6.2.2 |
-| 10 | apiSetupMethodToConnectionSetup case 'u_api' | 同上 | 函数 `apiSetupMethodToConnectionSetup` 内注释 `let resolveSlugForMethod` | 块 | 02 §6.2.2 |
-| 11 | useOnboarding U_API_SLUG 已迁移 | 同上 | 注释 `U_API_SLUG no longer needed here` | 单行 | 02 §6.2.2 |
-| 12 | ApiKeyInput U_API_TOPUP_URL 移除 | `apps/electron/src/renderer/components/apisetup/ApiKeyInput.tsx` | 注释 `U_API_TOPUP_URL no longer imported` | 单行 | 02 §6.2 |
-| 13 | ApiKeyInput lockNotice + 三链接移除 | 同上 | 注释 `removed lockNotice banner` + `removed Topup link per UI cleanup` | JSX 行内 `{/* U-API: */}` （2 处）| 02 §6.2 |
-| 14 | CredentialsStep isUApi 路由 | `apps/electron/src/renderer/components/onboarding/CredentialsStep.tsx` | 注释 `路由 U-API 凭证流程，绕过通用 OAuth 路径` + 2 处 `U-API 模式分支` | 单行（3 处）| 03 §1.10 |
-| 15 | paths.ts CONFIG_DIR 双 env 兼容 | `packages/shared/src/config/paths.ts` | 注释 `allow the new env var while preserving the legacy override` | 单行 | 01 §2.15 + §2.20 |
-| 16 | interceptor-common.ts 路径迁移 | `packages/shared/src/interceptor-common.ts` | 注释 `path migration from CRAFT_CONFIG_DIR to U_AGENTS_CONFIG_DIR` | 单行 | 01 §2.15 |
-| 17 | isUApiSlug helper（多连接判定）| `packages/shared/src/config/u-api-defaults.ts` | 函数 `isUApiSlug` 上方 | 单行 | 02 §6.2.2 |
-| 18 | provider-metadata pi_compat 分支 | `packages/shared/src/config/provider-metadata.ts` | 注释 `multi-connection soft lockdown — match all U-API slugs` + import 注释 | 单行（2 处）| 02 §6.2.2 |
-| 19 | AiSettings isUApiSlug import | `apps/electron/src/renderer/pages/settings/AiSettingsPage.tsx` | 注释 `isUApiSlug recognizes 'u-api-default'` | 单行 | 02 §6.2.2 |
-| 20 | ConnectionRow isUApiConnection 判定 | 同上 | 注释 `ConnectionRow isUApiConnection 判定` + 4 行解释 | 单行（5 处连排）| 02 §6.2 |
-| 21 | getApiKeyMethodForConnection | 同上 | 注释 `every U-API slug routes to the U-API setup wizard` | 单行 | 02 §6.2.2 |
-| 22 | uApiConnections filter | 同上 | 注释 `show every U-API slug, not just primary` | 单行 | 02 §6.2.2 |
-| 23 | Default Connection selector 恢复 | 同上 | 注释 `always show Default Connection`（多行注释起始行）| 块 | 02 §6.2 |
-| 24 | last-connection 删除保护 | 同上 | 注释 `last U-API connection cannot be deleted` | 单行 | 02 §6.2 Q2 |
-| 25 | Add Connection button 恢复 | 同上 | 注释 `restore Add Connection button removed by 540509b` | 块 | 02 §6.2 |
-| 26a | onboarding 防护性禁用 — LocalModelStep | `apps/electron/src/renderer/components/onboarding/LocalModelStep.tsx` | 注释 `intentionally not reached by the M1 onboarding state machine` | 单行 | 03 §1.10（裁剪后防护）|
-| 26b | onboarding 防护性禁用 — ProviderSelectStep | `apps/electron/src/renderer/components/onboarding/ProviderSelectStep.tsx` | 同上注释 | 单行 | 同上 |
-| 27 | first-install onboarding 路由到 placeholder slug | `apps/electron/src/renderer/App.tsx` | 注释 `first-install onboarding edits the placeholder` + `first-install onboarding always targets the placeholder` | 单行（2 处）| 02 §6.2.3 |
-| 28 | About panel Apache §4(c) attribution | `apps/electron/src/main/index.ts` | 注释 `Apache §4(c) attribution — About panel shows U Studio copyright only` | 块 | LEGAL.md §2 + commit 323293b |
-| 29 | EditPopover example brand cleanup | `apps/electron/src/renderer/components/ui/EditPopover.tsx` | 注释 `brand cleanup — mirrors editPopover.example.addSource i18n value` | 单行 | 01 §2.29 |
-| 30 | OAuth callback HTML 品牌化 | `packages/shared/src/auth/callback-page.ts` | HTML 注释 `<!-- U-API: brand title for OAuth callback page` | HTML 注释 | 01 §2.16 |
-
-**M2 期间新增改造点（2026-05-05 收尾后补入）**：
-
-| # | 改造类别 | 文件 | 定位（用 `grep` 找）| 标记 | 关联规格 |
-|---|---|---|---|---|---|
-| 31a | TLS 严格化 — handlers/workspace | `apps/electron/src/main/handlers/workspace.ts` | 注释 `TLS strict mode (REVIEW-5 P0 fix` | 单行 | `M2-TLS-FIX-SPEC.md` + LEGAL §5.4 |
-| 31b | TLS 严格化 — preload/bootstrap | `apps/electron/src/preload/bootstrap.ts` | 同上注释（2 处）| 单行 | 同上 |
-| 32a | atomicWriteFileSync — storage | `packages/shared/src/config/storage.ts` | 注释 `atomic writes for user-data persistence` | 单行 | `M2-ATOMIC-WRITES-SPEC.md` |
-| 32b | atomicWriteFileSync — preferences | `packages/shared/src/config/preferences.ts` | 同上注释 | 单行 | 同上 |
-| 32c | atomicWriteFileSync — topic-registry | `packages/messaging-gateway/src/topic-registry.ts` | 同上注释 | 单行 | 同上 |
-| 32d | atomicWriteFileSync — window-state | `apps/electron/src/main/window-state.ts` | 同上注释 | 单行 | 同上 |
-| 33a | dir 0o700 — watcher | `packages/shared/src/config/watcher.ts` | 注释 `dir mode 0o700 for multi-user machine privacy` | 单行 | `M2-SECURITY-CLEANUP-SPEC.md` |
-| 33b | dir 0o700 — storage（与 32a 同文件）| `packages/shared/src/config/storage.ts` | 同上注释 | 单行 | 同上 |
-| 33c | dir 0o700 — window-state（与 32d 同文件）| `apps/electron/src/main/window-state.ts` | 同上注释 | 单行 | 同上 |
-| 34 | LLM API key 长度限制 | `packages/shared/src/credentials/manager.ts` | 注释 `LLM API key length bounds` + 常量 `MIN_LLM_API_KEY_LENGTH` / `MAX_LLM_API_KEY_LENGTH` | 单行 | `M2-SECURITY-CLEANUP-SPEC.md` |
-| 35 | apps/cli rename | `apps/cli/src/index.ts` | 注释 `tmpDir prefix renamed (M2 cli rename)` + `skill description rebrand` | 单行（2 处）| `M2-CLI-RENAME-SPEC.md` |
-| 36 | REVIEW-4 P0 多连接 keyless 回归测试 | `packages/shared/src/auth/__tests__/state.test.ts` | describe block `hasCredentials keyless special case (multi-connection)` | 单行 | REVIEW-4 + REVIEW-5 §1 P1 |
-
-**v0.9.1 sync 期间新增改造点（2026-05-06 commit `bd2a005d` sync merge 时落地）**：
-
-| # | 改造类别 | 文件 | 定位（用 `grep` 找）| 标记 | 关联规格 |
-|---|---|---|---|---|---|
-| ~~37~~ | ~~v0.9.1 routing.ts 漏分类 9 channel 修复~~ | ~~`packages/shared/src/protocol/routing.ts`~~ | **已过期（v0.9.3 sync 删除）**：上游 v0.9.3 自己补了 9 channel 进 `REMOTE_ELIGIBLE_CHANNELS`（与我们 patch 等价），SYNC-v0.9.3 merge 时全盘接受 theirs + 删 marker | —— | SYNC-v0.9.3-20260512 自动过期 |
-| 38 | 上游 v0.9.1 ESLint 违规 disable（color-mix annotation） | `packages/ui/src/components/annotations/block-markers.ts` | 注释 `dynamic color-mix annotation; cannot be expressed as a static utility class` | 单行 | SYNC-v0.9.1-20260506 §6.2（C12 上游 lint 违规） |
-| 39 | 上游 v0.9.1 ESLint 违规 disable（test 直读 isAuthenticated） | `packages/shared/src/resources/__tests__/resource-bundle.test.ts` | 注释 `test asserts the field directly to verify reset semantics, not gating logic` | 单行 | SYNC-v0.9.1-20260506 §6.2（C12 上游 lint 违规） |
-
-**v17 review 后修复（v0.9.1 sync 后实测发现的 3 项漏盘改造点）**：
-
-| # | 改造类别 | 文件 | 定位（用 `grep` 找）| 标记 | 关联规格 |
-|---|---|---|---|---|---|
-| 40 | messaging access-control rejection 文案品牌（v0.9.1 引入）| `packages/messaging-gateway/src/access-control.ts` | 注释 `brand replacement — v0.9.1 上游引入 messaging access-control` | 单行 | REVIEW-17 F2（v0.9.1 sync 漏品牌替换）|
-| 41 | messaging pairing-code rejection 文案品牌（v0.9.1 引入）| `packages/messaging-gateway/src/commands.ts` | 注释 `brand — v0.9.1 上游引入 pairing code rejection 文案` | 单行 | 同上 |
-| 42 | apps/cli printHelp craft-cli → u-agents-cli（M2 cli rename 漏盘补丁）| `apps/cli/src/index.ts` | 注释 `M2 cli rename — bin name 改为 u-agents-cli (commit 1a49d128), 此 printHelp 文案漏改` | 单行 | REVIEW-17 F3（M2-CLI-RENAME 验收清单未含 printHelp）|
-
-**M3 SSRF 防护落地（v21 后 P1，详见 [`M3-REFRESH-API-SSRF-SPEC.md`](.planning/M3-REFRESH-API-SSRF-SPEC.md)）**：
-
-| # | 改造类别 | 文件 | 定位（用 `grep` 找）| 标记 | 关联规格 |
-|---|---|---|---|---|---|
-| 43 | `assertPublicHttpsUrl` helper（IPv4/IPv6 私网 + 云元数据域名）| `packages/shared/src/utils/url-safety.ts` | 块 `M3 SSRF 防护 — assertPublicHttpsUrl helper` | 块 | M3-REFRESH-API-SSRF-SPEC §2.1 |
-| 44a | `refreshApiRenew` 接入 SSRF guard | `packages/shared/src/sources/credential-manager.ts` | 函数 `refreshApiRenew` 内 `M3 SSRF 防护 — 阻止 credential-bearing fetch` | 单行 | M3-REFRESH-API-SSRF-SPEC §2.2 |
-| 44b | `refreshApiRenew` SSRF 回归测试（5 个）| `packages/shared/src/sources/__tests__/credential-manager-renew.test.ts` | 注释 `M3 SSRF 防护 — 拒绝 credential-bearing fetch 到云元数据/私网` | 单行 | C5 自洽（新改造点必加单测） |
-| 44c | `refreshApiRenew` redirect bypass 防护（v24 F1.F3 P0）| `packages/shared/src/sources/credential-manager.ts` | 注释 `M3 SSRF 防护 — redirect bypass 修补` + `主动拒绝 30x redirect` | 单行（2 处）| REVIEW-24 §1.1 |
-| 44d | `refreshApiRenew` redirect bypass 单测（2 个）| `packages/shared/src/sources/__tests__/credential-manager-renew.test.ts` | 注释 `M3 SSRF redirect bypass 防护（v24 F1.F3 P0 真修）` | 单行 | C5 自洽 |
-| 45a | `createApiTool` 接入 SSRF guard + redirect:'manual'（v23 §5.2 follow-up + v24 F1.F3 真修）| `packages/shared/src/sources/api-tools.ts` | 注释 `M3 SSRF 防护 — ...`（4 处：import + redirect:'manual' 配置 + safety check + 30x reject）| 单行（4 处）| REVIEW-23 §2.2 + REVIEW-24 §1.1 |
-| 45b | `createApiTool` SSRF 运行时测试（10 个，v24 F1.F5 重写从 grep-only → runtime mock fetch）| `packages/shared/src/sources/__tests__/api-tools-ssrf.test.ts` | describe `api-tools SSRF guard` | 单行 | C5 自洽 + REVIEW-24 §1.2 |
-| 45c | `pi-agent-server` 系统 prompt 注释 brand（v0.9.2 sync 漏盘补丁）| `packages/pi-agent-server/src/index.ts:~1285` | 注释 `brand — v0.9.2 sync 漏盘 "Craft-built" → "U Agents-built"` | 单行 | REVIEW-24 §1.3 / G1.F2.1 |
-| 45d | spawn-helpers regex U Agents.app 显式回归测试（v24 G1.F3.2）| `packages/shared/src/agent/__tests__/claude-agent-spawn-cwd.test.ts` | 注释 `brand — v24 G1.F3.2 P2 真修：补 U Agents.app 显式回归` | 单行 | REVIEW-24 §3.2 |
-| 46 | `browserToolEnabled` 默认改 `false`（v24 G1.F4.1 决策）| `packages/shared/src/config/storage.ts` 内 `defaults.browserToolEnabled: false` | 注释 `browser tool 默认关闭` | 单行 | REVIEW-24 §1（Bucket C）+ 04-feature-cuts §九类 |
-| 46t | `browserToolEnabled` 默认 false 防回归测试 | `packages/shared/src/__tests__/m2-security-regression.test.ts` | describe `browserToolEnabled 默认 false` | 单行 | C5 自洽 |
-
-**v27 Bucket B SSRF 横向扩展 + 漏盘补丁（2026-05-08，详见 [`M3-SSRF-CONSOLIDATION-SPEC.md`](.planning/M3-SSRF-CONSOLIDATION-SPEC.md)）**：
-
-| # | 改造类别 | 文件 | 定位（用 `grep` 找）| 标记 | 关联规格 |
-|---|---|---|---|---|---|
-| 47a | `web_fetch` redirect:'manual' + 30x reject（v27 P0-1 真修，redirect bypass 漏洞）| `packages/pi-agent-server/src/tools/web-fetch.ts:~366,377` | 注释 `M3 SSRF 防护 — redirect bypass 修补` + `主动拒绝 30x redirect` | 单行（2 处）| M3-SSRF-CONSOLIDATION-SPEC §2.1 + REVIEW-27 P0-1 |
-| 47b | `web_fetch` SSRF 运行时测试（7 个，含 marker 防回归 1 处）| `packages/pi-agent-server/src/tools/web-fetch-ssrf.test.ts` | describe `web-fetch SSRF guard` | 单行 | C5 自洽 |
-| 48a-d | `source-test.ts` 4 处 fetch SSRF guard（auth path + basic path × 3）| `packages/session-tools-core/src/handlers/source-test.ts` | 注释 `M3 SSRF 防护` × 7（import + safety check + auth redirect:'manual' + 30x reject + basic 3× redirect:'manual' + 30x reject）| 单行（8 处）| M3-SSRF-CONSOLIDATION-SPEC §2.2 + REVIEW-27 P1 |
-| 49 | `auto-update.ts` 注释 URL 与 publish.url 一致（v27 P0-5 漏盘补丁）| `apps/electron/src/main/auto-update.ts:7` | 注释 `comment URL must match electron-builder.yml publish.url exactly` | 单行 | REVIEW-27 P0-5 |
-
-**v0.9.3 sync 期间新增改造点（2026-05-12，详见 [`.planning/sync-reports/UPSTREAM-PREVIEW-v0.9.3-2026-05-12.md`](.planning/sync-reports/UPSTREAM-PREVIEW-v0.9.3-2026-05-12.md)）**：
-
-| # | 改造类别 | 文件 | 定位（用 `grep` 找）| 标记 | 关联规格 |
-|---|---|---|---|---|---|
-| 50 | 上游 v0.9.3 ESLint 违规 disable（FabNewChat base shadow）| `apps/electron/src/renderer/components/app-shell/FabNewChat.tsx` | 注释 `继承上游 v0.9.3 FAB 视觉设计；改 shadow class 会破坏设计` | 单行（含 `eslint-disable-next-line craft-styles/no-nonstandard-shadows`）| SYNC-v0.9.3-20260512（C12 上游 lint 违规）|
-| 51 | 上游 v0.9.3 ESLint 违规 disable（FabNewChat hover shadow）| 同上 | 注释 `同上 — 继承上游 hover 视觉效果，豁免 lint` | 单行（含 `eslint-disable-next-line craft-styles/no-nonstandard-shadows`）| 同 #50 |
-
-**v0.9.4 sync 期间新增改造点（2026-05-20，详见 [`.planning/sync-reports/SYNC-v0.9.4-20260520.md`](.planning/sync-reports/SYNC-v0.9.4-20260520.md)）**：
-
-| # | 改造类别 | 文件 | 定位（用 `grep` 找）| 标记 | 关联规格 |
-|---|---|---|---|---|---|
-| 52 | C13 patch — RPC handler HANDLED_CHANNELS 加 RTK 4 channel（上游 v0.9.4 漏分类）| `packages/server-core/src/handlers/rpc/settings.ts` | 注释 `classify v0.9.4 RTK channels missed by upstream's HANDLED_CHANNELS` | 单行 | SYNC-v0.9.4-20260520 §1.3（C13 pattern；与 v0.9.1 上游 routing.ts 漏分类同模式，曾有 `#37` marker 但 v0.9.3 sync 时上游自修后被删——本次 #52 是同模式新触发）|
-
-**M3 i18n 主进程启动同步（2026-05-21，详见 [`.planning/M3-I18N-MAIN-PROCESS-SYNC-FIX.md`](.planning/M3-I18N-MAIN-PROCESS-SYNC-FIX.md)）**：
-
-| # | 改造类别 | 文件 | 定位（用 `grep` 找）| 标记 | 关联规格 |
-|---|---|---|---|---|---|
-| 53 | renderer 启动时把 detector 解析到的语言推给主进程（修标题/preferences/原生菜单始终英文 bug）| `apps/electron/src/renderer/main.tsx` | 注释 `把 detector 解析到的语言立即推给主进程` | 单行 | M3-I18N-MAIN-PROCESS-SYNC-FIX（commit `5212197b`）|
-
-**v0.9.5 sync 期间新增改造点（2026-05-21，详见 [`.planning/sync-reports/UPSTREAM-PREVIEW-v0.9.5-2026-05-21.md`](.planning/sync-reports/UPSTREAM-PREVIEW-v0.9.5-2026-05-21.md)）**：
-
-| # | 改造类别 | 文件 | 定位（用 `grep` 找）| 标记 | 关联规格 |
-|---|---|---|---|---|---|
-| 54 | v0.9.5 model-picker brand patch（上游把 FreeFormInput 内联 grouping 抽到 helper，`'Craft Agents Backend'` → `'U-API'`；同时改 4 处单测断言）| `apps/electron/src/renderer/components/app-shell/input/model-picker-helpers.ts` | 注释 `brand — v0.9.5 上游把 FreeFormInput.tsx 内联 grouping 抽到 helper` | 单行 | UPSTREAM-PREVIEW-v0.9.5-2026-05-21 §3（commit `f863f915`）|
-
-**Build 脚本 marker（M2 后期补充，不计入主基线）**：
-
-主基线 grep 命令仅扫 `packages` + `apps` 下的 `.ts/.tsx`，build 脚本（`.sh` / `.ps1`）不在覆盖范围内——但仍需登记，方便上游同步时辨识改造点。
-
-> ⚠️ **命名 disambiguation**：本节的 `B1/B2` = **Build 脚本 marker**（改造点登记表）。
-> [`07-upstream-sync.md` §2.7b](.planning/07-upstream-sync.md) 里另有一组 `B1/B2/B5` = **SOP-REHEARSAL Branding 类反向核对**（审计分类，非改造点登记）—— 同名异义，不要混淆。
-
-| # | 改造类别 | 文件 | 定位 | 标记 | 引入 commit |
-|---|---|---|---|---|---|
-| B1 | adhoc 签名 escape hatch | `apps/electron/scripts/build-dmg.sh` | 注释 `allow caller to override (e.g. CSC_IDENTITY_AUTO_DISCOVERY=false bun run dist:mac)` | `# U-API:` 单行 | `6ba75da4` (M2) |
-| B2 | Windows EXE 缺 pi-agent-server 修复（事故 #3）| `apps/electron/scripts/build-win.ps1` | 注释 `build-win.ps1 missed subprocess server build that build-dmg.sh L208 triggers` | `# U-API:` 单行 | M2 收尾（详见 [`12-subprocess-build-pipeline.md`](.planning/12-subprocess-build-pipeline.md) §0.3） |
-| B3 | Windows EXE 缺 WhatsApp worker 修复（事故 #4）| `apps/electron/scripts/build-win.ps1` | 注释 `build-win.ps1 misses electron-build-main.ts:335 buildWhatsAppWorker() step` | `# U-API:` 单行 | v0.9.1 sync 后 Windows 实测 verify 触发（详见 [`12-subprocess-build-pipeline.md`](.planning/12-subprocess-build-pipeline.md) §0.4） |
-| B5 | M3-Sentry packaging signal — macOS | `apps/electron/scripts/build-dmg.sh` | 注释 `M3-Sentry — 信号 packaging 模式给 electron-build-main.ts:assertSentryDsnForPackaging` | `# U-API:` 单行 | M3-SENTRY-DSN-ASSERTION（详见 [`.planning/M3-SENTRY-DSN-ASSERTION-SPEC.md`](.planning/M3-SENTRY-DSN-ASSERTION-SPEC.md) §2.2）|
-| B6 | M3-Sentry packaging signal — Linux | `apps/electron/scripts/build-linux.sh` | 注释 `M3-Sentry — 信号 packaging 模式` | `# U-API:` 单行 | 同上 §2.3 |
-| B7 | M3-Sentry packaging signal + DSN warn — Windows | `apps/electron/scripts/build-win.ps1` | 注释 `M3-Sentry — 信号 packaging 模式（与 build-dmg.sh 等价）` | `# U-API:` 单行 | 同上 §2.3（Windows 路径绕过 electron-build-main.ts，需独立 warn）|
-| B4 | Windows EXE 缺 dist/interceptor.cjs 修复（事故 #5，事故 #3/#4 同根第 3 个）| `apps/electron/scripts/build-win.ps1` | 注释 `build-win.ps1 misses electron-build-main.ts:332 buildInterceptor() step` | `# U-API:` 单行 | v16 review B 路静态分析触发（详见 [`12-subprocess-build-pipeline.md`](.planning/12-subprocess-build-pipeline.md) §0.5） |
-
-**Build 脚本 marker 单独 grep 命令**：
-
-```bash
-grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_modules | wc -l
-# 期望：≥13（B1-B7 + electron-build-main.ts 函数注释 + main() 注释 +
-# scripts/check-i18n-coverage.ts + scripts/check-raw-sends.sh +
-# scripts/typecheck-staged.sh + scripts/lint-i18n-staged.sh）
-```
-
-**同步上游验证基线**（**M3 i18n fix 后 2026-05-21 刷新**）：
-
-| 指标 | 基线（2026-05-21 M3 i18n fix 后）| 下次同步允许浮动 |
-|---|---|---|
-| U-API 标记总数（含全部注释格式）| **98** | ±2 |
-| `/* U-API START */` 块数 | **9** | 必须等于 END |
-| `/* U-API END */` 块数 | **9** | 必须等于 START |
-
-> ✅ **基线核对（2026-05-21）**：v0.9.4 sync 基线 96 + 本次 v0.9.5 sync model-picker brand patch (#54) + M3 i18n fix (#53) 各 +1 = **98**。实测 grep = 98 ✓ 完全吻合。
->
-> **历史注解**：初版基线注释一度推断"实测多 1，是历史漂移"，但实际是 §3.7 表漏登记了 v0.9.5 sync 自身的 #54 model-picker brand patch（marker 真实存在于代码中，被 grep 计入 98，但子表登记环节漏盘）。已通过补加"v0.9.5 sync 期间新增改造点"子表修正，无漂移。
-
-> 浮动 ±2 是为了容纳"上游改了某改造点附近代码，我们顺手补/合并标记"的合理变化。**超出 ±2 必须停下逐项核对**——多半是 git 自动合并吞掉了改造，或者引入了未文档化的新改造（应补进 §3.7 表）。
->
-> **历次基线演进**：
-> - REVIEW-2（2026-05-04 上午）：44 处（旧 grep 命令漏 3 处 HTML/JSX 注释）
-> - REVIEW-3（同日修正）：47 处（grep 命令改全格式，覆盖率 100%）
-> - REVIEW-6（hotfix v0.9.0+u-agents.1 后）：48 处（state.test.ts 新增 1 处回归测试 `// U-API:` 引用）
-> - M2 TLS 修复（2026-05-05 commit `c516e4d2`）：51 处（workspace.ts:27 + bootstrap.ts:124, 148 各加 1 处 TLS strict mode 注释 marker）
-> - M2 atomicWriteFileSync 用户数据持久化（2026-05-05 commit `25d38ab9`）：55 处（4 文件各加 1 处 atomic writes 注释 marker：storage.ts / preferences.ts / topic-registry.ts / window-state.ts）
-> - M2 dir 0o700 + Token 长度限制（2026-05-05 commit `2972d8f4`）：59 处（3 处 dir mode 0o700 marker：watcher.ts / storage.ts / window-state.ts + 1 处 manager.ts MIN/MAX 长度常量 marker）
-> - M2 apps/cli rename（2026-05-05 commit `1a49d128`）：61 处（apps/cli/src/index.ts 加 2 处 marker：tmpDir 前缀 + skill description）
-> - v0.9.1 sync（2026-05-06 commit `bd2a005d`）：64 处（routing.ts 加 1 处 + block-markers.ts 加 1 处 + resource-bundle.test.ts 加 1 处；上游 v0.9.1 引入的 1 个 routing bug + 3 处 ESLint 违规我们 patch 后加 marker）
-> - v17 漏盘补丁（2026-05-07）：67 处（access-control.ts + commands.ts messaging brand + cli/src/index.ts printHelp，3 处都是 v0.9.1 sync 时漏盘 / M2 cli rename 时漏盘）；同次 commit 顺手修 F1 自动更新 publish.url 缺 `/latest` 后缀（electron-builder.yml）+ F6 07-upstream-sync 基线 61→64 漂移
-> - **M3 SSRF 防护（2026-05-07）：71 处**（url-safety.ts 加 `assertPublicHttpsUrl` 块 1 处 + credential-manager.ts:982 单行 1 处 + credential-manager-renew.test.ts 单行 1 处；详见 [`.planning/M3-REFRESH-API-SSRF-SPEC.md`](.planning/M3-REFRESH-API-SSRF-SPEC.md)，对应 §3.7 #43/#44a/#44b）
-> - **M3 死路径清理（2026-05-07）：71 处不变**（main/index.ts 删 6 行 CRAFT_* env + 1 行注释；utils/files.ts 5 处 craft-clipboard → u-agents-clipboard；删除 + 品牌替换不计 marker。详见 [`.planning/M3-DEAD-PATH-CLEANUP-SPEC.md`](.planning/M3-DEAD-PATH-CLEANUP-SPEC.md) 修订记录——CRAFT_DEBUG 14+ 处真消费方决策保留）
-> - **M3-Sentry DSN assertion（2026-05-07）：71 处不变**（scripts/electron-build-main.ts 加 assertSentryDsnForPackaging 函数 + main() 调用，但在 repo root 不计入主基线 grep；Build 脚本子表 4 → 9：B5/B6/B7 + electron-build-main.ts 函数注释 + main() 注释）。M2 过渡期 warn 不 fail；M3-4 GlitchTip 上线日把 console.warn 改 process.exit(1)。详见 [`.planning/M3-SENTRY-DSN-ASSERTION-SPEC.md`](.planning/M3-SENTRY-DSN-ASSERTION-SPEC.md)
-> - **M2.5 #5 CI dead refs 修（2026-05-07）：71 处不变**（scripts/check-i18n-coverage.ts + check-raw-sends.sh + typecheck-staged.sh + lint-i18n-staged.sh 4 个 stub 实现；v0.9.1 上游 package.json 引用入口但漏文件 — C13 模式继承）。**`bun run validate:ci` 现全绿**，v0.9.1 sync 后第一次。Build 脚本子表 grep 命令含范围扩到 scripts/，期望 ≥13
-> - **M2.5 #3 husky 装回（2026-05-07）：71 处不变**（.husky/pre-commit 跑 lint:i18n:staged；.husky/_/ gitignored 由 bun install 自动重建）。每次 git commit 自动跑 i18n staged 检查；无 staged 相关文件时直接 skip 不卡 commit。
-> - **M2.5 #4 macOS x64 装包实测：deferred**（用户暂无 x64 机器；R2 上 v0.9.1 macOS x64 包已上线但未经用户实测验证）。M2 评级保持 A−（不到 A），等下次有机会实测后升 A。其它 follow-up（M3-1 OAuth relay / M3-4 GlitchTip / M3-2/3 文档站）等用户活跃数据驱动。
-> - **v23 P1 follow-up（2026-05-07）：73 处**（api-tools.ts 加 import 1 处 + createApiTool fetch 前 1 处 SSRF marker；新增 §3.7 #45a/#45b。同 commit：webui/login.html placeholder + 3 个 release-notes brand 替换不计 marker——属 01-branding-spec §1 全表）。详见 [`.planning/sync-reports/REVIEW-23-DEEP-MULTI-AGENT-2026-05-07.md`](.planning/sync-reports/REVIEW-23-DEEP-MULTI-AGENT-2026-05-07.md) §2.2。
-> - **v0.9.2 sync（2026-05-07 commit `a76e502d`）：73 处不变**（上游 +38 文件 / +1369 −304 主要是 spawn-helpers + system-prompt-override + OAuth refresh 重整；merge 干净未碰任何 §3.7 改造点；C11 触发 1 处 NPM scope rename `sendmessage-oauth-refresh.test.ts` 已修 + 6 处 brand 化 + 0 单测新增——基线维持。详见 [`.planning/sync-reports/SYNC-v0.9.2-20260507.md`](.planning/sync-reports/SYNC-v0.9.2-20260507.md)）。
-> - **v24 SSRF redirect bypass 真修 + brand 漏盘补丁（2026-05-07）：80 处**（+7 marker：api-tools.ts 加 redirect:'manual' + 30x reject 共 4 处 / credential-manager.ts 同样 +2 处 / pi-agent-server/index.ts:1285 brand 漏盘补 +1 处；新增 §3.7 #44c/#44d/#45c/#45d；#45a 升级到 4 处 marker；同 commit 重写 4 SSRF 单测从 grep-only → runtime mock fetch（v24 F1.F5）+ refreshApiRenew 加 redirect bypass 单测 + spawn-cwd 加 U Agents.app 显式回归测试。详见 [`.planning/sync-reports/REVIEW-24-POST-SYNC-2026-05-07.md`](.planning/sync-reports/REVIEW-24-POST-SYNC-2026-05-07.md)）。
-> - **v24 Bucket C browser tool 裁剪决策（2026-05-07）：82 处**（+2 marker：storage.ts browserToolEnabled 默认改 false 加 1 处 marker + m2-security-regression.test.ts 防回归测试加 1 处 marker；同 commit 改 config-defaults.json 默认值；新增 §3.7 #46/#46t；详见 [`.planning/04-feature-cuts.md`](.planning/04-feature-cuts.md) §九类）。
-> - **v27 Bucket B SSRF 横向扩展（2026-05-08）：94 处**（+12 marker：auto-update.ts 注释品牌 1 处 + web-fetch.ts redirect:'manual' + 30x reject 2 处 + web-fetch-ssrf.test.ts marker 防回归 1 处 + source-test.ts SSRF 8 处（import + safety check + auth path redirect:'manual' + 30x reject + basic path 3× redirect:'manual' + 30x reject）；新增 §3.7 #47a/#47b/#48a-d/#49；同 commit zh-Hans browser tool i18n 文案重写不计 marker（属 i18n 改动）+ Bucket A 7 文档已分别 commit。详见 [`.planning/M3-SSRF-CONSOLIDATION-SPEC.md`](.planning/M3-SSRF-CONSOLIDATION-SPEC.md) + [`.planning/sync-reports/REVIEW-27-FULL-2026-05-08.md`](.planning/sync-reports/REVIEW-27-FULL-2026-05-08.md)）。**B4 toast / B5 chat gate defer 给后续 commit，需 IPC 与 chat hook 集成**。
-> - **v0.9.3 sync（2026-05-12 合并 upstream `c310624f`）：95 处**（净变化 +1：删 #37（上游 v0.9.3 自己修了 v0.9.1 routing 漏分类，自动过期）−1，加 #50/#51（FabNewChat 两处 shadow ESLint 违规 disable）+2。上游 134 文件 / 31 新增 + 103 修改；25 个 unmerged 冲突（14 package.json + routing.ts + AiSettingsPage.tsx + 2 html + README + bug_report.yml + D 组 4 文件 AppMenu/TopBar/SessionMenu/SessionMenuParts）；架构层面接受上游 TopBar → AppMenu wrapper → DesktopAppMenu/MobileAppMenu 重构（替代我们 fork 把 menu rendering 搬到 TopBar 的方向）；C11 触发 6 文件 9 处 NPM scope rename（mobile UI 新建 5 文件 + messaging test 1）；C12 触发 2 处 ESLint 违规 disable（FabNewChat shadow，对应 #50/#51）；C13 未触发（上游反而修了 v0.9.1 routing 自身 bug）；上游新文件 brand patch 3 个（DesktopAppMenu/MobileAppMenu CraftAgentsSymbol → UAgentsSymbol + menu-schema.ts quitUAgents key + u-agents docs URL + HELP_LINKS 加 Automations 入口）。验证：typecheck 全绿 / lint:i18n:parity OK（6 locales × 1448 keys）/ lint:electron 仅剩 FabNewChat 2 处 disable 之外的 110 个 pre-existing warnings / bun test 4 fail 全部来自 stale `apps/electron/release/*.app` bundle 副本（与 sync 无关）。详见 [`.planning/sync-reports/UPSTREAM-PREVIEW-v0.9.3-2026-05-12.md`](.planning/sync-reports/UPSTREAM-PREVIEW-v0.9.3-2026-05-12.md)）。
-> - **v0.9.5 sync + M3 i18n fix（2026-05-21）：98 处**（净 +2）：
->   - **v0.9.5 sync（commit `f863f915`）**：+1 marker = #54 model-picker brand patch（上游把 FreeFormInput.tsx 内联 grouping 抽到 helper `model-picker-helpers.ts`，brand 字面量 `'Craft Agents Backend'` 随之迁移到新文件需要重新 patch 成 `'U-API'`；同时改 4 处单测断言）。上游 73 文件 / +4167 −797；20 个冲突（15 package.json + FreeFormInput.tsx §3.7 真冲突 + mock-mobile-data + event-adapter + TurnCard + bun.lock）；C11 触发 7 文件 9 处 import + 15 package.json 用 3-way merge Python 脚本（保 v0.9.5 version+dep+exports 与 fork description+author+homepage+private+bin）；C13 stub `scripts/check-task-tool-checks.sh`（上游 lint chain 引用未实现脚本）；release-notes/0.9.5.md 中文翻译 + brand 五件套 0 命中。sync collateral：(a) `packages/shared/package.json` exports 加 `./utils/files`（修 M2 #32c atomicWriteFileSync 落地时漏注册 subpath export，v0.9.5 sync bun install 严格模块解析暴露）；(b) root package.json `electron:dev:logs` script 中 `@craft-agent/electron/main.log` → `@u-agents/electron/main.log`（v0.9.4 sync 漏盘补丁）；(c) revert `@github/copilot-sdk` dep 被 3-way merge 误带回。**桌面 Electron BrowserWindow minWidth=800 > MOBILE_THRESHOLD=768**，v0.9.5 上游加的 4 个紧凑 drawer feature 不可达——非 sync 引入（fork main / v0.9.4 / v0.9.5 都这样），记 §13 长期反思。详见 [`.planning/sync-reports/UPSTREAM-PREVIEW-v0.9.5-2026-05-21.md`](.planning/sync-reports/UPSTREAM-PREVIEW-v0.9.5-2026-05-21.md)
->   - **M3 i18n fix（commit `5212197b`）**：+1 marker = #53 renderer/main.tsx setupI18n 后追加 IPC 推送 + `// U-API:` 4 行注释 + `.catch` 兜底。修复"重启 App 后必须手切语言标题才中文"的 bug。详见 [`.planning/M3-I18N-MAIN-PROCESS-SYNC-FIX.md`](.planning/M3-I18N-MAIN-PROCESS-SYNC-FIX.md) + [`.planning/M3-I18N-FIX-CLAIM-AUDIT.md`](.planning/M3-I18N-FIX-CLAIM-AUDIT.md)。**实际是上游 bug**——上游 main 进程 `setupI18n()` 无 detector 永远 fallback `en`，但 server-core/preferences 又读 `i18n.resolvedLanguage` 注入 prompt。可考虑作为上游 PR 候选
->   - **方案 Y++ 增稳路径**（按用户选定）：sync commit + dep fix + docs + i18n fix + F7 follow-up 共 5 commit，bisect 友好（详见 PREVIEW §11.11 DECISION-1）；Phase 1.5/2.5 双静置共 2-4 天。
-> - **v0.9.4 sync（2026-05-20 合并 upstream `4144f795` → commit `0a49a089`）：96 处**（净变化 +1：加 #52 C13 patch HANDLED_CHANNELS 加 RTK 4 channel）。上游 73 文件 / +698 −202 行（fork 历史上影响面最小的一次）；主题 = RTK Bash token 压缩 opt-in + Pi SDK 0.72.1→0.73.1 + Codex/Copilot 死代码清理（与 04-feature-cuts 同向）；冲突总数 19 处：2 处真代码冲突（SkillsListPanel uagents:// deep link + claude/event-adapter.ts brand 注释 vs 上游 docblock 重写）、15 处 package.json（NPM scope @u-agents/ vs 上游 SDK 版本号）、eslint.config.mjs（顺势删 codex-agent / copilot-agent / @github/copilot-sdk 3 条死规则）、bun.lock（不可手工合并，改用 `git checkout 29bbfdc7 -- bun.lock && bun install` 增量同步避免 Sentry dup install）；C11 触发 1 文件 4 处（settings.ts RTK RPC handler dynamic import）；C13 触发：HANDLED_CHANNELS 漏 RTK 4 channel patch（#52，与 v0.9.1 routing.ts #37 同模式）；顺手 follow-up 删 root package.json `@github/copilot-sdk` dep（REVIEW-3 backlog）；release-notes/0.9.4.md 中文翻译 + brand 五件套（Craft/craft.do/lukilabs/Codex/Copilot）0 命中。验证：typecheck 0 errors / i18n parity OK（6 locales × 1455 keys，+7 RTK key）/ lint:electron 110 warnings 0 errors / bun test 19 latent fail（全 v0.9.3 baseline 已存在，与 sync 无关）。PREVIEW 5 轮 review 后预测评级 A−，实际 **A−**（REVIEW-6 修订：sync 0 新增 test fail / 19 fail 与 v0.9.3 baseline 一致；2 真冲突 + C13 patch + bun.lock 副作用都是 sync collateral 1-2 分钟内可解，**不构成降级理由**——评级应基于 regression 而非修复过程的小波折）。**macOS arm64 + Windows x64 D-β 双平台实测通过**（2026-05-20）—— fork 历史上首次双平台都在 sync 当日完成实测验证。详见 [`.planning/sync-reports/SYNC-v0.9.4-20260520.md`](.planning/sync-reports/SYNC-v0.9.4-20260520.md) + 5 轮预测 [`UPSTREAM-PREVIEW-v0.9.4-2026-05-20.md`](.planning/sync-reports/UPSTREAM-PREVIEW-v0.9.4-2026-05-20.md)。
-
-**每次同步必跑 grep（覆盖全部注释格式）**：
-
-```bash
-# 全部 U-API 标记（含 // 单行 / /* 块 / <!-- HTML / {/* JSX 行内）
-# SOP-REHEARSAL 2026-05-05 改进：用 --exclude-dir 替代 grep -v 过滤，
-# 抗 build-dmg.sh 中间态把 SDK 包复制到 apps/electron/node_modules/ 让数字暂时虚高的情况
-grep -rEn --exclude-dir=node_modules "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
-  | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
-# 期望：98（基线，允许 96-100）
-
-# 块标记 START/END 配对（数量必须相等）
-grep -rE --exclude-dir=node_modules "/\* U-API START" packages apps --include="*.ts" --include="*.tsx" | wc -l
-grep -rE --exclude-dir=node_modules "/\* U-API END" packages apps --include="*.ts" --include="*.tsx" | wc -l
-# 期望：均 = 9
-```
-
-**基线刷新规则**：每次同步成功后，在本表填新数字 + 当次同步日期。
-
-> 此规则同时满足 `LEGAL.md` §2 Apache §4(b) "modification notices" 合规要求——标记本身就是修改声明的一种形式。
-
-**⚠️ 改造点常见踩坑模式**（每月同步必跑核对，详见 [`07-upstream-sync.md` §2.7c](.planning/07-upstream-sync.md)）：
-
-| # | 模式 | 一句话 |
-|---|---|---|
-| C1 | 硬编码 slug 而非 helper | 凭证判定别用 `=== U_API_SLUG`，用 `isUApiSlug()` |
-| C2 | batch sed 漏 object key 引号 | `{ u-agents: }` 是 syntax error，必须 `{ 'u-agents': }` |
-| C3 | sed 改 input 漏 assertion | 测试改输入也要改断言（同文件 'craft' + 'u-agents' 混用是嫌疑）|
-| C4 | dead import | 修 callsite 后 grep `<symbol>` 计数 = 1 = dead import 待删 |
-| C5 | 新改造点忘记加单测 | 新增 §3.7 表项必须同时加 `__tests__/*.test.ts` |
-| C6 | system prompt craft 字面量未门控 | 用户可见路径 0 craft；FEATURE_FLAGS 门控的可保留 |
-| C7 | §3.7 反向覆盖空白 | grep 实际标记的文件清单要全在表里 |
-| C8 | 基线 grep 命令漏注释格式 | 用本节"全格式"grep，不用旧 `// U-API:` 简写 |
-| C9 | 测试 syntax 让 baseline fail 数字假 | bun test 不带 --bail 跑，看真实 fail 数对照 M1-FIRST-RELEASE 已知技术债 |
-| C10 | 上游新增 connection 字段透传漏 | `enforceUApiBaseUrl` 重写连接时浅合并保字段（v0.9.1 起：midStreamBehavior；未来字段同样处理）|
-| C11 | 上游新文件用旧 NPM scope | sync 后 grep `@craft-agent/` 必须 = 0；命中跑 batch sed rename（v0.9.1 sync 触发 12 文件 20 处） |
-| C12 | 上游 release 自身 lint 违规 | sync 后跑 lint 套件，errors case-by-case 处理：语义等价改源码 / `// eslint-disable-next-line` + `// U-API:` 注释加进 §3.7 |
-| C13 | 上游 release 自身 test fail | 区分 (a) 我们 patch 真能修（如 routing.ts 漏分类）→ commit fix；(b) 上游 bug 我们继承 → 记 sync 报告 follow-up，不阻塞 merge |
-| C14 | build-win.ps1 与 root chain 结构性差距 | sync 后核 dist 产物缺什么；每发现一个漏的 helper 就给 build-win.ps1 加一段调对应 root script（事故 #3 + #4 + #5 同根三胞胎，main bundle 5 步流水线 step 1+2+3+4 已修；M3 终极方案：build-win.ps1 改调 `bun run electron:build`）|
+- **标记规范**：单行 `// U-API: <原因>`；多行块 `/* U-API START */ ... /* U-API END */`；必须含 "U-API" 字样。
+- **完整登记表（54+ 改造点）、当前基线数字、校验 grep、C1–C14 踩坑模式，已全部移到 [`.planning/14-uapi-marker-registry.md`](.planning/14-uapi-marker-registry.md)。**
+- 本节只保留约束力：每次上游同步**必须**跑 §14 的全格式 grep，核对标记总数与 START/END 配对；**超出基线 ±2 必须停下逐项核对**。
+- 此规则同时满足 `LEGAL.md` §2 Apache §4(b) "modification notices" 合规要求。
+- 写规格涉及改造点时，`upstream-sync` / `uapi-markers` skill 会自动拉起 §14 详表，不必常驻本文件。
 
 ---
 
 ## 4. 上游同步流程（每月 1 次，由用户/外部 AI 执行，本仓库 AI 不执行）
 
-> 本仓库 AI **不执行**这些命令，只产出"指引文档"让用户照做。详细规程见 `.planning/07-upstream-sync.md`。
+> 本仓库 AI **不执行**这些命令，只产出"指引文档"让用户照做。详细规程见 `.planning/07-upstream-sync.md`；同步时让 `upstream-sync` skill 自动加载完整流程 + §14 改造点核对。
 
 参考流程（用户/外部 AI 在本仓库 AI 视野外执行）：
 
@@ -431,4 +193,15 @@ grep -rE --exclude-dir=node_modules "/\* U-API END" packages apps --include="*.t
 
 ---
 
-> **每次会话开始时，AI 应当默读本文件第 3 节"硬规则"。**
+## 8. Claude Code Harness（本地工具配置）
+
+本仓库已配置一套 Claude Code 工具脚手架（2026-05-29 落地），完整说明与维护规程见 [`.planning/13-claude-harness.md`](.planning/13-claude-harness.md)。要点：
+
+- **必须在 `u-agents/` 目录下启动 Claude Code**（不是父目录 `u-agents-oss/`）。否则本文件、`.claude/settings.json`、hook、skill 都不会自动加载——约束等于失效。
+- **铁律强制 hook**：`.claude/hooks/enforce-docs-only.py` 在 PreToolUse 阶段拦截任何对非 `.md` 文件的 Edit/Write，把 §0 从"靠记性"升级成"机械护栏"。需要破例时（如配置 harness 本身）设环境变量 `U_AGENTS_ALLOW_CODE=1` 再启动。
+- **Skills**（`.claude/skills/`，按需自动加载）：`upstream-sync`（同步）、`brand-audit`（品牌核查）、`i18n-check`（多语言）、`uapi-markers`（改造点核对）、`spec-writer`（写规格 house-style）。
+- **settings.json**：`permissions.deny` 排除 `apps/electron/release/**`（已知造成 `bun test` 假失败）等噪音；`permissions.allow` 预放 §0 的只读 Bash，减少授权打断。
+
+---
+
+> **每次会话开始时，AI 应当默读本文件第 3 节"硬规则"。上游同步任务额外默读 [`.planning/14-uapi-marker-registry.md`](.planning/14-uapi-marker-registry.md)。**

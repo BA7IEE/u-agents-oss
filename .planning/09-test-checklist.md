@@ -489,7 +489,7 @@ CONFIG="$HOME/.u-agents/config.json"  # M1 改造完成后的位置（详见 01-
 > 验证 M2.5 #3 husky pre-commit 装回 + M2.5 #5 CI 4 死引用修。**每次 sync 后 + 每次发版前必跑**。
 
 **`bun run validate:ci` 全链路全绿**：
-- [ ] `cd /Users/dengwang/Documents/u-agents-oss/u-agents && bun run validate:ci 2>&1 | tail -10` exit 0
+- [ ] `cd /Users/dengwang/Documents/coding/u-agents-oss/u-agents && bun run validate:ci 2>&1 | tail -10` exit 0
   - 应包含：typecheck:all 干净 / test:shared:all (3 子测试 file) / test:doc-tools (Python smoke 19 pass) / lint:i18n:parity OK (6 locales, 1447 keys) / lint:i18n:sorted OK / lint:i18n:coverage OK
 - [ ] 反向：随便破坏一个 i18n key（如把 `zh-Hans.json` 删一行）→ `validate:ci` 应 fail
 
@@ -502,9 +502,9 @@ CONFIG="$HOME/.u-agents/config.json"  # M1 改造完成后的位置（详见 01-
 - [ ] `.husky/_/` 目录由 `bun install` 自动重建，gitignored（不入版本控制）
 
 **§3.7 marker 基线 grep 必跑**（每次 sync 后 + 每次 follow-up commit 后）：
-- [ ] 主基线 = **82 ± 2**（v24 全 Bucket A+B+C 落地后；详见 [`CLAUDE.md` §3.7](../CLAUDE.md)）
+- [ ] 主基线 = **§14 §0 当前基线 ± 2**（唯一权威；写作时 82，2026-05 v0.9.6 后已升到 98；详见 [`14-uapi-marker-registry.md`](14-uapi-marker-registry.md) §0）
 - [ ] `/* U-API START */` = **9** 且与 `/* U-API END */` 配对
-- [ ] Build 脚本子表 ≥ **13**（实测 20）
+- [ ] Build 脚本子表 ≥ **13**（floor；2026-05-29 v0.9.6 后实测 21）
 - [ ] 超出 ±2 必须停下逐项核对——多半是 git 自动合并吞掉了改造，或引入未文档化的新改造（应补进 §3.7 表）
 
 ### 13.8 sync 报告必备贴片（v24 H1.F4 教训：SOP 写了 ≠ 实战跑了）
@@ -516,7 +516,7 @@ CONFIG="$HOME/.u-agents/config.json"  # M1 改造完成后的位置（详见 01-
 ```bash
 ## §5 验证结果（v24 后强制贴片）
 
-### §5.1 主基线 grep（§3.7 期望 82/9/9 — v24 全 Bucket A+B+C 落地后基线，详见 CLAUDE.md §3.7 历次演进表）
+### §5.1 主基线 grep（期望 = §14 §0 当前基线/9/9 — 写作时 82，现 98；详见 14-uapi-marker-registry.md §0 + §5 历次演进）
 $ grep -rEn --exclude-dir=node_modules "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
     | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
 [实际数字]

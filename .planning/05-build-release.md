@@ -105,7 +105,7 @@ WIN_CSC_KEY_PASSWORD="证书密码"
 每次发版前**必跑**：
 
 ```bash
-cd /Users/dengwang/Documents/u-agents-oss/u-agents
+cd /Users/dengwang/Documents/coding/u-agents-oss/u-agents
 
 # 1. 工作区干净 + 同步到最新 main（安全版）
 git status                          # 应为干净状态（无未提交修改）
