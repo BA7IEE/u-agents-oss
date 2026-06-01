@@ -10,7 +10,7 @@
 
 | 指标 | 基线（2026-05-29 v0.9.6 sync 后确认）| 下次同步允许浮动 |
 |---|---|---|
-| U-API 标记总数（含全部注释格式）| **98** | ±2 |
+| U-API 标记总数（含全部注释格式）| **109** | ±2 |
 | `/* U-API START */` 块数 | **9** | 必须等于 END |
 | `/* U-API END */` 块数 | **9** | 必须等于 START |
 
@@ -22,7 +22,7 @@
 # 抗 build-dmg.sh 中间态把 SDK 包复制到 apps/electron/node_modules/ 让数字暂时虚高的情况
 grep -rEn --exclude-dir=node_modules "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
   | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
-# 期望：98（基线，允许 96-100）
+# 期望：109（基线，允许 107-111）
 
 # 块标记 START/END 配对（数量必须相等）
 grep -rE --exclude-dir=node_modules "/\* U-API START" packages apps --include="*.ts" --include="*.tsx" | wc -l
@@ -197,6 +197,23 @@ if (!apiKey && connection.baseUrl) {
 |---|---|---|---|---|---|
 | 54 | v0.9.5 model-picker brand patch（上游把 FreeFormInput 内联 grouping 抽到 helper，`'Craft Agents Backend'` → `'U-API'`；同时改 4 处单测断言）| `apps/electron/src/renderer/components/app-shell/input/model-picker-helpers.ts` | 注释 `brand — v0.9.5 上游把 FreeFormInput.tsx 内联 grouping 抽到 helper` | 单行 | UPSTREAM-PREVIEW-v0.9.5-2026-05-21 §3（commit `f863f915`）|
 
+**v0.10.0 sync 期间新增改造点（2026-05-29，详见 [`sync-reports/SYNC-v0.10.0-20260529.md`](sync-reports/SYNC-v0.10.0-20260529.md) + [`M3-REMOTE-BROWSER-LOCKDOWN-SPEC.md`](M3-REMOTE-BROWSER-LOCKDOWN-SPEC.md)）**：
+
+| # | 改造类别 | 文件 | 定位（用 `grep` 找）| 标记 | 关联规格 |
+|---|---|---|---|---|---|
+| 55 | brand — v0.10.0 remote browser 错误文案 Craft Agent → U Agents | `packages/shared/src/agent/pi-agent.ts` | 注释 `brand — v0.10.0 remote browser 错误文案`（`mapBrowserToolErrorCode` 内）| 单行 | M3-REMOTE-BROWSER-LOCKDOWN-SPEC §3.3 |
+| 56 | brand — 同上（远程侧）| `packages/server-core/src/sessions/RemoteBrowserPaneManager.ts` | 注释 `brand — v0.10.0 remote browser 错误文案`（`invoke()` 内）| 单行 | 同上 |
+| 57 | D1 — `allowRemoteEvaluate` 默认 false | `packages/shared/src/config/storage.ts` | 注释 `远程 evaluate 默认关闭（M3 remote browser lockdown`（`FALLBACK_CONFIG_DEFAULTS`）+ `config-defaults.json` 改值 | 单行 | M3-REMOTE-BROWSER-LOCKDOWN-SPEC §2 |
+| 57t | D1 防回归测试 | `packages/shared/src/__tests__/m2-security-regression.test.ts` | describe `allowRemoteEvaluate 默认 false（M3 remote browser lockdown D1）` | 单行 | 同上 §2.3 |
+| 58 | D5-b — dispatcher `browserToolEnabled` 总闸（**2 处 marker**：dispatcher + import）| `apps/electron/src/main/browser-pane-manager.ts` | 注释 `remote browser pane 总闸`（`dispatchCapability`）+ `getBrowserToolEnabled 为 D5-b`（import）| 单行（2 处）| 同上 §3 |
+| 58t | D5-b 防回归测试 | `packages/shared/src/__tests__/m2-security-regression.test.ts` | describe `remote browser dispatcher browserToolEnabled 总闸（M3 lockdown D5-b）` | 单行 | 同上 §3.4 |
+
+**v0.10.0 sync 收尾 — F1 baseline lint 技术债清理（2026-05-29，详见 [`sync-reports/SYNC-v0.10.0-20260529.md`](sync-reports/SYNC-v0.10.0-20260529.md) §6 F1）**：
+
+| # | 改造类别 | 文件 | 定位（用 `grep` 找）| 标记 | 关联规格 |
+|---|---|---|---|---|---|
+| 59 | F1 — token-refresh-manager `craft-shared/no-inline-source-auth-check` 误报豁免（规则不区分读/写：2 处赋值写 in-memory mirror + 2 处测试字段断言，均非 gating 读；同 #38/#39 模式）| `packages/shared/src/sources/token-refresh-manager.ts`（×2）+ `packages/shared/src/sources/__tests__/token-refresh-manager.test.ts`（×2）| 注释 `非 gating 读` / `验证 reset 语义` + `eslint-disable-next-line craft-shared/no-inline-source-auth-check` | 单行（×4）| C12 + lint:shared baseline（**merge 前 `87ffbeb7` 即 4 errors，非 v0.10.0 引入**）|
+
 ---
 
 ## 4. Build 脚本 marker（M2 后期补充，不计入主基线）
@@ -215,12 +232,14 @@ if (!apiKey && connection.baseUrl) {
 | B6 | M3-Sentry packaging signal — Linux | `apps/electron/scripts/build-linux.sh` | 注释 `M3-Sentry — 信号 packaging 模式` | `# U-API:` 单行 | 同上 §2.3 |
 | B7 | M3-Sentry packaging signal + DSN warn — Windows | `apps/electron/scripts/build-win.ps1` | 注释 `M3-Sentry — 信号 packaging 模式（与 build-dmg.sh 等价）` | `# U-API:` 单行 | 同上 §2.3（Windows 路径绕过 electron-build-main.ts，需独立 warn）|
 | B4 | Windows EXE 缺 dist/interceptor.cjs 修复（事故 #5，事故 #3/#4 同根第 3 个）| `apps/electron/scripts/build-win.ps1` | 注释 `build-win.ps1 misses electron-build-main.ts:332 buildInterceptor() step` | `# U-API:` 单行 | v16 review B 路静态分析触发（详见 [`12-subprocess-build-pipeline.md`](12-subprocess-build-pipeline.md) §0.5） |
+| B8 | **macOS DMG 缺 copy-subprocess-servers**（piServerPath；build-dmg.sh ≠ build-win.ps1 长期不对称——root chain `electron:build:subprocess` 被 sync 删后失效）| `apps/electron/scripts/build-dmg.sh` | 注释 `copy subprocess servers (pi-agent-server + session-mcp-server) into apps/electron/resources/` | `# U-API:` 单行 | **v0.10.0 macOS arm64 实测触发**（详见 [`12-subprocess-build-pipeline.md`](12-subprocess-build-pipeline.md) §0.6 事故 #6 + SYNC-v0.10.0 §8.1）|
+| B9 | **Linux AppImage 缺 copy-subprocess-servers**（事故 #6 三平台对称核查连带发现）| `apps/electron/scripts/build-linux.sh` | 注释 `同 build-dmg.sh（事故 #6 三平台对称）` | `# U-API:` 单行 | v0.10.0 事故 #6 连带修（详见 [`12-subprocess-build-pipeline.md`](12-subprocess-build-pipeline.md) §0.6）|
 
 **Build 脚本 marker 单独 grep 命令**：
 
 ```bash
 grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_modules | wc -l
-# 期望：≥13（floor，非精确值；2026-05-29 v0.9.6 后实测 21）。含 B1-B7 + electron-build-main.ts 函数注释 + main() 注释 +
+# 期望：≥15（floor；v0.10.0 后含 B1-B9 + electron-build-main.ts 函数注释 + main() 注释 +
 # scripts/check-i18n-coverage.ts + scripts/check-raw-sends.sh +
 # scripts/typecheck-staged.sh + scripts/lint-i18n-staged.sh）
 ```
@@ -262,6 +281,7 @@ grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_mod
   - **v0.9.5 sync（commit `f863f915`）**：+1 marker = #54 model-picker brand patch（上游把 FreeFormInput.tsx 内联 grouping 抽到 helper `model-picker-helpers.ts`，brand 字面量 `'Craft Agents Backend'` 随之迁移到新文件需要重新 patch 成 `'U-API'`；同时改 4 处单测断言）。上游 73 文件 / +4167 −797；20 个冲突。详见 [`sync-reports/UPSTREAM-PREVIEW-v0.9.5-2026-05-21.md`](sync-reports/UPSTREAM-PREVIEW-v0.9.5-2026-05-21.md)
   - **M3 i18n fix（commit `5212197b`）**：+1 marker = #53 renderer/main.tsx setupI18n 后追加 IPC 推送 + `// U-API:` 4 行注释 + `.catch` 兜底。修复"重启 App 后必须手切语言标题才中文"的 bug。**实际是上游 bug**——上游 main 进程 `setupI18n()` 无 detector 永远 fallback `en`。可考虑作为上游 PR 候选。详见 [`M3-I18N-MAIN-PROCESS-SYNC-FIX.md`](M3-I18N-MAIN-PROCESS-SYNC-FIX.md) + [`M3-I18N-FIX-CLAIM-AUDIT.md`](M3-I18N-FIX-CLAIM-AUDIT.md)
 - **v0.9.6 sync（2026-05-29，已完成）：98 处不变**（无新增改造点；实测 grep 98 → 98，START/END 仍各 = 9）。上游 66 文件 / +2199 −184（GitHub Compare v0.9.5...v0.9.6）；`git merge-base` 实测落在 v0.9.4（因 v0.9.5 sync 是 merge commit）。sync collateral 4 处（`utils/files` exports 漏 / `window-manager.ts` batch sed 漏 / `SessionManager.ts` 重复 const / release-notes 没译没去链）——均为基线漏盘 fix，非 v0.9.6 引入。验证：`lint:electron` 0 errors / 112 warnings(baseline)、api-tools-ssrf 10 pass、web-fetch-ssrf 7 pass。详见 [`sync-reports/SYNC-v0.9.6-20260529.md`](sync-reports/SYNC-v0.9.6-20260529.md)。
+- **v0.10.0 sync（2026-05-29 合并 upstream `215910da` → merge `7bfd977a`，F4 merge 回 main `33602aaa`）：109 处**（净 +11 from 98：#55/#56 brand remote browser 文案 + #57 D1 `allowRemoteEvaluate=false` + #57t + #58 D5-b dispatcher 总闸（含 import 共 2 处）+ #58t + #59 F1 eslint-disable ×4）。上游 61 文件 / +2588 −162；主题 = remote `browser_tool` 桥接 + 浏览器标签 per-workspace 隔离 + #824 basic-auth fix；19 冲突全浅（14 package.json C11 + 5 源码 import/config）；**安全 lockdown D1+D5-b**（REVIEW-1 坐实 remote workspace 可达 + dispatcher 原无 `browserToolEnabled` 总闸）；无 SDK bump。验证：typecheck:all 0 errors / i18n parity 6×1462 / lint:electron 0 errors / **lint:shared 0 errors（F1 清了 4 个 baseline error）** / bun test 0 新增 regression（browser-pane-manager 8 fail = v0.10.0 upstream baseline，临时 worktree 实测确认）。**macOS arm64 + Windows x64 双平台实测通过**（agent 对话工作 = piServerPath 修复生效；连带修 build-dmg.sh/build-linux.sh 缺 copy-subprocess-servers = 事故 #6，B8/B9）。F4 与主 worktree 的 CLAUDE.md 重构整合（§3.7 marker 表抽到本文件）。详见 [`sync-reports/SYNC-v0.10.0-20260529.md`](sync-reports/SYNC-v0.10.0-20260529.md)。
 
 ---
 
@@ -281,7 +301,7 @@ grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_mod
 | C8 | 基线 grep 命令漏注释格式 | 用 §0 的"全格式"grep，不用旧 `// U-API:` 简写 |
 | C9 | 测试 syntax 让 baseline fail 数字假 | bun test 不带 --bail 跑，看真实 fail 数对照 M1-FIRST-RELEASE 已知技术债 |
 | C10 | 上游新增 connection 字段透传漏 | `enforceUApiBaseUrl` 重写连接时浅合并保字段（v0.9.1 起：midStreamBehavior；未来字段同样处理）|
-| C11 | 上游新文件用旧 NPM scope | sync 后 grep `@craft-agent/` 必须 = 0；命中跑 batch sed rename（v0.9.1 sync 触发 12 文件 20 处） |
+| C11 | 上游新文件用旧 NPM scope | sync 后 grep `@craft-agent/` 必须 = 0；命中跑 batch sed rename（v0.9.1 sync 触发 12 文件 20 处）。**v0.10.0 细化**：上游若在 fork 已 scope-rename 的**同一 import 块**新增 import，该 rename 以 **merge 冲突**形式出现（非 sync 后批量）——v0.10.0 中 `browser-pane-manager.ts`/`SessionManager.ts` 即此；解法不变（取 theirs + rename），但预测时别因"fork 只 scope-rename 过"就判它不冲突 |
 | C12 | 上游 release 自身 lint 违规 | sync 后跑 lint 套件，errors case-by-case 处理：语义等价改源码 / `// eslint-disable-next-line` + `// U-API:` 注释加进 §3 |
 | C13 | 上游 release 自身 test fail | 区分 (a) 我们 patch 真能修（如 routing.ts 漏分类）→ commit fix；(b) 上游 bug 我们继承 → 记 sync 报告 follow-up，不阻塞 merge |
-| C14 | build-win.ps1 与 root chain 结构性差距 | sync 后核 dist 产物缺什么；每发现一个漏的 helper 就给 build-win.ps1 加一段调对应 root script（事故 #3 + #4 + #5 同根三胞胎，main bundle 5 步流水线 step 1+2+3+4 已修；M3 终极方案：build-win.ps1 改调 `bun run electron:build`）|
+| C14 | build 脚本与 root chain 结构性差距（**双向**）| sync 后核 dist 产物缺什么 + **三平台 build 脚本是否都显式调 `copy-subprocess-servers`**。原向：build-win.ps1 落后 root chain（事故 #3/#4/#5）。**v0.10.0 事故 #6 揭示反向**：root chain 自身会被 sync 破坏（`electron:build:subprocess` 被删 → 依赖它的 build-dmg.sh/build-linux.sh 静默失效，macOS/Linux piServerPath，B8/B9 修）。铁律：**打包后必须真测一条 Pi 对话**（事故 #1/#6 只有真发消息才暴露，见 09 §5）|
