@@ -21,7 +21,7 @@
 import { existsSync, cpSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import type { Platform, Arch, BuildConfig } from './build/common';
-import { copyPiAgentServer, downloadBun } from './build/common';
+import { copyPiAgentServer, downloadBun, downloadUv } from './build/common';
 
 const ROOT_DIR = join(import.meta.dir, '..');
 const ELECTRON_DIR = join(ROOT_DIR, 'apps/electron');
@@ -83,6 +83,24 @@ async function main(): Promise<void> {
     if (!existsSync(bunPath)) {
       throw new Error(`downloadBun() did not produce ${bunPath}`);
     }
+  }
+
+  // 3.5. Bundled uv runtime — required by transform_data python3. resolve-script-runtime.ts
+  //      fallback finds resources/bin/<platform>-<arch>/uv; downloadUv() writes exactly there.
+  //      Same gap as bun / pi-agent-server (事故 #6): downloadUv() was only wired into
+  //      build-server.ts, never the electron app build → all packaged apps shipped without uv
+  //      → transform_data `spawn uv ENOENT` (全平台,详见 .planning/15-known-issues-backlog.md §1).
+  //      electron-builder.yml files 已列 resources/bin/<platform>/**/* 期望 uv,此处补下载。
+  const uvBinary = platform === 'win32' ? 'uv.exe' : 'uv';
+  const uvPath = join(ELECTRON_DIR, 'resources', 'bin', `${platform}-${arch}`, uvBinary);
+  if (existsSync(uvPath)) {
+    console.log(`✓ Bundled uv cached at ${uvPath} (skipping download)`);
+  } else {
+    await downloadUv(buildConfig);
+    if (!existsSync(uvPath)) {
+      throw new Error(`downloadUv() did not produce ${uvPath}`);
+    }
+    console.log(`✓ Downloaded uv → ${uvPath}`);
   }
 
   // 4. Re-sync dist/resources so electron-build-resources output is consistent.
