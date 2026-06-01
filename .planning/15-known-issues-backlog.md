@@ -20,7 +20,9 @@
   - (a) `scripts/copy-subprocess-servers.ts` 加 `downloadUv()`（它已 downloadBun，三平台 build 脚本都调它 = 一次修三平台）→ uv 落 `resources/bin/<platform>/uv`。
   - (b) **`electron-builder.yml` `files` 加 uv** — ⚠️ §3.3 高冲突文件，**改前必停确认**。
   - (c) 重新打三平台包，验证 `find uv` 命中 + transform_data 实跑。
-- **优先级**：中（全平台缺口，但 transform_data 非核心）。修复涉及 §3.3 + 重新打包,执行前需用户确认。
+- **✅ 已修（2026-06-02，commit `ef4581ca`）**：`copy-subprocess-servers.ts` 加 `downloadUv()`（step 3.5，与 downloadBun 同模式）。**无需改 §3.3** —— electron-builder.yml `files` 早已列 `resources/bin/<platform>/**/*` + 注释 "Include bundled uv binary"，只是 build 漏调 downloadUv。macOS 重打包实测 `uv`(42M)进 app `Contents/Resources/app/resources/bin/darwin-arm64/uv` ✓（DMG 225M→261M）。
+- **剩余**：Windows/Linux 各自重打包验证（fix 是三平台共用 copy-subprocess-servers，逻辑同）+ packaged app 实跑 transform_data 终验。
+- **原优先级**：中（全平台缺口）。
 
 ## 2. `web_search` — pi_compat 锁定下后端不可用（中频，需调查）
 
