@@ -11,16 +11,16 @@
 
 ---
 
-## 1. `transform_data` — Windows 缺 `uv`（中频，需产品决策）
+## 1. `transform_data` — **全平台 packaged app 缺 `uv`**（中频，可修的打包缺陷 = 事故 #6 同类）
 
-- **现象**：`spawn uv ENOENT`
-- **根因**：`packages/session-tools-core/src/handlers/transform-data.ts` 的 python3 runtime 经 `uv` 跑 Python（依赖管理）；Windows 未装 uv / 不在 PATH。
-- **影响**：Windows 用户用 transform_data（数据转换 → datatable/spreadsheet/html-preview）失败。macOS 若装了 uv 则正常。
-- **方案**（产品决策）：
-  - **(a) bundle uv** — build 脚本 copy uv binary 进包（与 vendor/bun、claude-sdk-binary 同模式）。最彻底、跨平台一致。**倾向此项**（与 piServerPath/vendor 处理哲学一致）。
-  - (b) 文档让用户装 uv（体验差）。
-  - (c) fallback 系统 python3（失去依赖管理）。
-- **优先级**：中。先确认 macOS 是否也依赖 uv（若是 = 全平台 bundle）。
+- **现象**：`spawn uv ENOENT`（Windows 实测；**macOS/Linux 同样缺**，已查实）
+- **根因（全平台，已查实）**：`transform-data.ts` python3 runtime 经 `uv` 跑 Python；uv 该在 `apps/electron/resources/bin/<platform>/uv`，由 `downloadUv()`（`scripts/build/common.ts:197`，`UV_VERSION='0.10.6'`）下载。**但只有 `scripts/build-server.ts`（standalone server build）调 downloadUv —— electron app build（build-dmg.sh / build-win.ps1 / build-linux.sh）都不下载 uv，且 `electron-builder.yml` 的 `files` 列了 markitdown/pdf-tool/xlsx-tool 等 wrapper 却漏了 uv**。实测刚打的 macOS app `find uv` = 空 → **全平台 packaged app 都缺 uv**（不只 Windows；那条 Windows `resources\bin\win32-x64` warning 即它）。这是 **事故 #6 同类**（build 漏 vendor binary）。
+- **影响**：**所有 packaged app** 用 transform_data 失败。dev 模式若系统装了 uv 则正常，掩盖了它（macOS 之前没测 transform_data）。
+- **修复方案**（清晰，复用现成 `downloadUv`）：
+  - (a) `scripts/copy-subprocess-servers.ts` 加 `downloadUv()`（它已 downloadBun，三平台 build 脚本都调它 = 一次修三平台）→ uv 落 `resources/bin/<platform>/uv`。
+  - (b) **`electron-builder.yml` `files` 加 uv** — ⚠️ §3.3 高冲突文件，**改前必停确认**。
+  - (c) 重新打三平台包，验证 `find uv` 命中 + transform_data 实跑。
+- **优先级**：中（全平台缺口，但 transform_data 非核心）。修复涉及 §3.3 + 重新打包,执行前需用户确认。
 
 ## 2. `web_search` — pi_compat 锁定下后端不可用（中频，需调查）
 
