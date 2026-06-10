@@ -101,6 +101,8 @@
 ## 5. Follow-up（按优先级）
 
 1. **🔴 打包装机实测（D3 deferred 项，发版前必做）**：macOS arm64 完整路径打包（`cd apps/electron && bun run dist:mac`，含 `build-dmg.sh` SDK 复制）→ **冷启动**（SDK externalize 后第一道哨兵，崩 = MODULE_NOT_FOUND）→ 发消息 / transform_data+uv / 切模型 / **OpenAI 协议三个新预设模型各发一条**（gpt-5.5 / deepseek-v4-pro / MiniMax-M3，需 newapi 后台已配同名自定义模型）。
+   - **2026-06-10 打包 + 静态验证已完成（同日补记）**：`U-Agents-arm64.dmg`（272M，v0.10.3，adhoc）构建成功。包内验证 ✓：SDK 本体 + binary alias 均在 `Resources/app/node_modules/@anthropic-ai/`，`main.cjs` 含 8 处 SDK 运行时 `require`（externalize 生效且目标存在，MODULE_NOT_FOUND 静态排除）、uv 42M 在 `dist/resources/bin/darwin-arm64/`、Identifier `cn.u-studio.u-agents`。**装机动态实测由用户执行（pending）**。
+   - ⚠️ 本机踩坑：钥匙串存在不可签名的自签证书（`com.justiceleague.batman`），`CSC_IDENTITY_AUTO_DISCOVERY` 默认 true 会自动发现它并失败——**本机 adhoc 打包必须带 `CSC_IDENTITY_AUTO_DISCOVERY=false`**（05 §3.2.1 预案）；M2 正式签名走 `.env.release` 显式凭证不受影响。另：`bun run dist:mac 2>&1 | tail` 管道会吞真实退出码，校验用 `pipestatus[1]`。
 2. **🟡 transport-banner 测试断言修复**：`transport-connection-banner.test.ts:55` 期望 `CRAFT_SERVER_TOKEN` 应改为断言我方实际文案（"Verify your server token"）——独立小修，建议下次顺手（C13 模式）。
 3. **🟡 存量 x64 用户 updater 行为**（D1 尾巴，05 §3 已登记）：新 `latest-mac.yml` 无 x64 产物后，Intel 机上 electron-updater 表现待实测；必要时 06 规格补冻结方案。
 4. **🟢 下载页/公告**：注明 v0.10.0 为最后 Intel 版。
