@@ -280,4 +280,36 @@ describe('startup migration U-API lockdown (integration)', () => {
     expect(second.llmConnections[0].models).toEqual(['gpt-5.5'])
     expect(second.llmConnections[0].defaultModel).toBe('gpt-5.5')
   })
+
+  it('exempts U-API connections from upstream deprecated-model normalization (D2, 02 §6.2.2)', () => {
+    // claude-opus-4-6 here is a newapi route name. Upstream v0.10.1+
+    // migrateLegacyOpusToDefaultOpus would rewrite it to claude-opus-4-8;
+    // the U-API exemption must keep the user-managed list byte-identical.
+    const { configDir, workspaceRoot, configPath } = setupWorkspaceConfigDir()
+
+    writeRootConfig(configPath, workspaceRoot, {
+      defaultLlmConnection: 'u-api-default',
+      llmConnections: [
+        {
+          slug: 'u-api-default',
+          name: 'U-API',
+          providerType: 'pi_compat',
+          baseUrl: 'https://token.u-studio.cn/v1',
+          authType: 'api_key_with_endpoint',
+          customEndpoint: { api: 'openai-completions', supportsImages: true },
+          models: ['claude-opus-4-6', 'deepseek-v4-pro'],
+          defaultModel: 'claude-opus-4-6',
+          modelSelectionMode: 'userDefined3Tier',
+          createdAt: Date.now(),
+        },
+      ],
+    })
+
+    runMigration(configDir)
+
+    const migrated = readConfigJson(configPath)
+    expect(migrated.llmConnections).toHaveLength(1)
+    expect(migrated.llmConnections[0].models).toEqual(['claude-opus-4-6', 'deepseek-v4-pro'])
+    expect(migrated.llmConnections[0].defaultModel).toBe('claude-opus-4-6')
+  })
 })

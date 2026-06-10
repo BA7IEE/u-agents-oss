@@ -1903,6 +1903,10 @@ function migrateLegacyOpusToDefaultOpus(config: StoredConfig): boolean {
   let changed = false;
 
   for (const connection of config.llmConnections) {
+    // U-API: D2 (v0.10.3 sync, 02 §6.2.2) — U-API 连接的模型清单是 newapi 路由名（用户自管，
+    // 与 Anthropic 官方 deprecation 解耦），不参与 deprecated-ID normalize。第二道防线；
+    // 第一道为启动序列中 enforceUApiBaseUrl 先行（归一 pi_compat 后本就不在扫描范围）。
+    if (isUApiSlug(connection.slug)) continue;
     if (connection.providerType !== 'anthropic' && connection.providerType !== 'pi') continue;
 
     if (connection.defaultModel) {
@@ -2038,6 +2042,12 @@ function migrateWorkspaceSonnet45ToSonnet46(config: StoredConfig): void {
  * Migrate deprecated/previous Opus defaults in workspace default models to the current default Opus model.
  */
 function migrateWorkspaceLegacyOpusToDefaultOpus(config: StoredConfig): void {
+  /* U-API START: D2 (v0.10.3 sync, 02 §6.2.2) — fork 内全部连接皆 U-API（lockdown 保证），
+     workspace defaults.model 必然是用户自管的 newapi 路由名，不参与 deprecated-ID normalize
+     （上游此函数还会把 4-7 强升 4-8，对中转站路由同样不适用）。整体 no-op 化。 */
+  return;
+  /* U-API END */
+  // eslint-disable-next-line no-unreachable
   if (!config.workspaces) return;
 
   for (const workspace of config.workspaces) {

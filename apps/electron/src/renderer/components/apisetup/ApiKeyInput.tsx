@@ -148,8 +148,10 @@ const GOOGLE_PRESETS: Preset[] = [
 /** Presets that require the Pi SDK for authentication — hidden in Anthropic API Key mode */
 const PI_ONLY_PRESET_KEYS: ReadonlySet<string> = new Set(['minimax-global', 'minimax-cn'])
 
-const COMPAT_ANTHROPIC_DEFAULTS = 'claude-opus-4-8, claude-opus-4-7, claude-sonnet-4-6, claude-haiku-4-5'
-const COMPAT_OPENAI_DEFAULTS = 'openai/gpt-5.2-codex, openai/gpt-5.1-codex-mini'
+// U-API: D4 (2026-06-10, 02 §3.3) — Anthropic 侧预设不展示 claude-opus-4-8/claude-fable-5（上游
+// v0.10.1/v0.10.3 自动合并曾引入 4-8，此处为决策性回退）；OpenAI 侧为 newapi 后台自定义模型名。
+const COMPAT_ANTHROPIC_DEFAULTS = 'claude-opus-4-7, claude-sonnet-4-6, claude-haiku-4-5'
+const COMPAT_OPENAI_DEFAULTS = 'gpt-5.5, deepseek-v4-pro, MiniMax-M3'
 const COMPAT_MINIMAX_DEFAULTS = 'MiniMax-M2.5, MiniMax-M2.5-highspeed'
 const COMPAT_KIMI_DEFAULTS = 'k2p5, kimi-k2-thinking'
 
@@ -941,7 +943,7 @@ export function ApiKeyInput({
                 setConnectionDefaultModel(e.target.value)
                 setModelError(null)
               }}
-              placeholder="e.g. claude-opus-4-8, claude-opus-4-7, claude-sonnet-4-6, claude-haiku-4-5"
+              placeholder="e.g. claude-opus-4-7, claude-sonnet-4-6, claude-haiku-4-5"
               className="border-0 bg-transparent shadow-none"
               disabled={isDisabled}
             />

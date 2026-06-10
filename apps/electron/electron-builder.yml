@@ -98,15 +98,15 @@ mac:
   # The value must match --app-icon used in actool (see afterPack.js)
   extendInfo:
     CFBundleIconName: AppIcon
+  # U-API: D1 (2026-06-10) — 跟随上游 v0.10.1 macOS Intel 停产，仅出 arm64
+  # （v0.10.0 为最后 Intel 版；详见 .planning/05-build-release.md §3）
   target:
     - target: dmg
       arch:
         - arm64
-        - x64
     - target: zip
       arch:
         - arm64
-        - x64
   hardenedRuntime: true
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist

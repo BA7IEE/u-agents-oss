@@ -1,6 +1,8 @@
 # M3-I18N-MAIN-PROCESS-SYNC-FIX — 主进程 i18n 启动同步修复
 
-> **优先级**：P1（用户体验 bug，影响所有新会话首次标题生成）
+> **⛔ 已退役（2026-06-10，v0.10.3 同步）**：上游 v0.10.1 以更完整的 `uiLanguage` 机制修复了同一个 bug（#815/#738）——持久化 + main 启动 hydrate + renderer 每启动 push（功能超集）。本规格的临时修复已在 merge 时由上游实现取代；我方仅保留一行 `.catch` 兜底 marker（替代上游 `void`，防 unhandledrejection 噪音）。本文档保留作历史背景与 §6.4 dormant 路径分析参考。详见 [`sync-reports/UPSTREAM-PREVIEW-v0.10.3-2026-06-10.md`](sync-reports/UPSTREAM-PREVIEW-v0.10.3-2026-06-10.md) §6。
+>
+> **优先级**：~~P1~~（已由上游解决）
 > **目标**：消除"必须手动切一次语言，标题才跟随用户偏好"的隐性步骤；让每次 App 启动后，标题生成立刻使用用户选定的语言
 > **预估**：实施 0.25 天（**1 行代码** + 1 处 `// U-API:` 标记 + §5.1+§6.4 desktop 实测 10 步）。**不写单测**（见 §5.2 决策）
 > **关联**：[`10-i18n-zh.md`](10-i18n-zh.md)（i18n 总策略）+ [`CLAUDE.md §3.7`](../CLAUDE.md)（U-API 标记表新增 1 项）
