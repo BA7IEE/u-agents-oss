@@ -182,6 +182,12 @@ git tag v1.x.y
 
 ## 3. macOS 打包
 
+> ⚠️ **D1 决策（2026-06-10）：自 v0.10.3 上游同步版起，macOS 仅出 arm64（Apple Silicon），跟随上游 Intel (x64) 停产**（上游 v0.10.0 是最后一个 Intel 版，我方对应版本同此）。
+> - 本节下文所有 `x64` 命令、产物（`U-Agents-x64.dmg` / `U-Agents-x64.zip`）**自该版本起不再产出**，保留文字仅作历史参考
+> - 执行项：调整 mac 打包目标仅 arm64（`electron-builder.yml` mac target 或对应 `dist:mac*` 脚本参数，以同步时实际配置为准），下载页/公告注明 v0.10.0 为最后 Intel 版
+> - 待验证（同步后）：**存量 x64 用户的自动更新行为**——新 `latest-mac.yml` 不再含 x64 产物时，Intel 机上 electron-updater 是静默不更新还是报错弹窗；若报错需在 `06-update-server.md` 补处理方案（如保留旧 yml 的 x64 条目冻结在 v0.10.0）
+> - 决策出处：[`sync-reports/UPSTREAM-PREVIEW-v0.10.3-2026-06-10.md`](sync-reports/UPSTREAM-PREVIEW-v0.10.3-2026-06-10.md) §8 D1
+
 ### 3.1 清理 + 构建
 
 ```bash
@@ -212,11 +218,13 @@ bun run electron:build
 | `bun run electron:dist:adhoc:mac` | ❌ | ❌ | M1 锁 U-API 时勉强可用，**SDK 缺失对 pi_compat 路径透明** |
 | `bun run electron:dist:mac` | ❌ | ❌ | 同上但启用自动 codesign |
 | **`cd apps/electron && bun run dist:mac`** | ✅ 调 build-dmg.sh | ❌ | **真正完整产物**——M2 应切换到这条 |
-| **`cd apps/electron && bun run dist:mac:x64`** | ✅ | ❌ | 同上 x64 |
+| **`cd apps/electron && bun run dist:mac:x64`** | ✅ | ❌ | ~~同上 x64~~ **D1：v0.10.3 起停产，勿再使用** |
 
 **M1 历史选择**：v0.9.0 首发 + 2026-05-05 hotfix 重打都用 `electron:dist:adhoc:mac`，SDK 不在 DMG 但 U-API 用户走 pi-agent.ts 路径（不调 Claude SDK），透明。
 
 **M2 应切换到** `cd apps/electron && bun run dist:mac` —— 让 SDK 真正进 DMG，**防御性 bundle**：万一未来上游同步引入 Claude 直连 fallback，也不会因 SDK 缺失 crash。
+
+> ⚠️ **v0.10.3 同步起本节"SDK 缺失透明"论述失效**：上游 v0.10.1 把 `@anthropic-ai/claude-agent-sdk` 从 esbuild bundle 改为 externalize（运行时 `require`），**不含 SDK 的包（adhoc 直打不调 build-dmg.sh）从"功能透明"变成"启动即崩"（MODULE_NOT_FOUND）**。该同步后所有打包必须走含 `build-dmg.sh` 的完整路径（已含 SDK 本体复制，L132-137 段，无需改脚本）；冷启动为第一道哨兵测试。详见 [`sync-reports/UPSTREAM-PREVIEW-v0.10.3-2026-06-10.md`](sync-reports/UPSTREAM-PREVIEW-v0.10.3-2026-06-10.md) §5。
 
 详见 [`sync-reports/M2-REBUILD-HOTFIX-2026-05-05.md`](sync-reports/M2-REBUILD-HOTFIX-2026-05-05.md) §4。
 
@@ -248,15 +256,15 @@ bun run | grep electron:dist:adhoc:mac
 ```
 
 ```bash
-# 同时打 arm64 + x64（adhoc 签名）
+# adhoc 签名（D1：v0.10.3 起仅 arm64，不再打 x64）
 bun run electron:dist:adhoc:mac
 ```
 
-**预期输出**：`apps/electron/release/`：
+**预期输出**：`apps/electron/release/`（D1 后 x64 两项不再产出）：
 - `U-Agents-arm64.dmg`
-- `U-Agents-x64.dmg`
+- ~~`U-Agents-x64.dmg`~~（D1 停产）
 - `U-Agents-arm64.zip`（用于自动更新）
-- `U-Agents-x64.zip`
+- ~~`U-Agents-x64.zip`~~（D1 停产）
 - `latest-mac.yml`
 - `*.blockmap`
 
@@ -355,7 +363,7 @@ source .env.release
 #### 3.3.3 打包
 
 ```bash
-# 同时打 arm64 + x64（正式签名 + 公证）
+# 正式签名 + 公证（D1：v0.10.3 起仅 arm64，不再打 x64）
 bun run electron:dist:mac
 ```
 
@@ -375,11 +383,11 @@ spctl -a -t exec -vv apps/electron/release/mac-arm64/U\ Agents.app
 # 输出应包含 "accepted" 与 "source=Notarized Developer ID"
 ```
 
-**预期输出**：`apps/electron/release/`：
+**预期输出**：`apps/electron/release/`（D1 后 x64 两项不再产出）：
 - `U-Agents-arm64.dmg`
-- `U-Agents-x64.dmg`
+- ~~`U-Agents-x64.dmg`~~（D1 停产）
 - `U-Agents-arm64.zip`（用于自动更新）
-- `U-Agents-x64.zip`
+- ~~`U-Agents-x64.zip`~~（D1 停产）
 - `latest-mac.yml`（自动更新清单）
 - `*.blockmap`（增量更新用）
 

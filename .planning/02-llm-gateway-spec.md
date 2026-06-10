@@ -163,6 +163,20 @@ if (!gate.ok) {
 - 输入框预填 `gpt-5.5` 作为占位模型 ID（用户在 newapi 后台已预设）
 - 用户可以接受预填值直接进入下一步，也可以改成自己想要的模型 ID（如 `claude-sonnet-4-5`、`gpt-4o-mini` 等）
 
+**按协议预填的候选清单（D4 决策，2026-06-10，随 v0.10.3 同步落地）**：
+
+对应 `apps/electron/src/renderer/components/apisetup/ApiKeyInput.tsx` 的两个常量（设置页添加/编辑 U-API 连接时按所选协议预填）：
+
+| 常量 | 现值 | 目标值（D4） |
+|---|---|---|
+| `COMPAT_OPENAI_DEFAULTS`（L152） | `openai/gpt-5.2-codex, openai/gpt-5.1-codex-mini` | **`gpt-5.5, deepseek-v4-pro, MiniMax-M3`** |
+| `COMPAT_ANTHROPIC_DEFAULTS`（L151） | `claude-opus-4-7, claude-sonnet-4-6, claude-haiku-4-5` | **保持不变**（不加 `claude-opus-4-8` / `claude-fable-5`——上游 v0.10.1/v0.10.3 注册表照收，但不进 U-API 预设展示） |
+
+- **newapi 侧机制（2026-06-10 用户澄清）**：这三个 ID 是 newapi 后台的**自定义模型**（管理员在渠道配置中自行添加并命名），不依赖 newapi 预置清单；应用端清单字符串与后台自定义模型名**完全一致即可**（含大小写）。现值带 `openai/` 前缀是旧命名习惯，新清单直接按目标值书写
+- 两处常量改动均登记 `// U-API:` marker（14 号规格）
+- onboarding 预填仍为单值 `gpt-5.5`（即新清单第一项，本节上文不变）
+- 决策出处：[`sync-reports/UPSTREAM-PREVIEW-v0.10.3-2026-06-10.md`](sync-reports/UPSTREAM-PREVIEW-v0.10.3-2026-06-10.md) §8 D4
+
 **UI（onboarding 阶段）**：
 - 协议二选一**之后**显示"模型 ID"输入框，预填 `gpt-5.5`
 - 输入框旁三个并列链接（同 §3.1）：

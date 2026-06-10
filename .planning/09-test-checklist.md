@@ -657,7 +657,7 @@ $ bun test packages/shared 2>&1 | tail -5  # 记 pass/fail/skip 数字 vs 上次
 # v1.x.y 测试记录 — YYYY-MM-DD
 
 ## 测试环境
-- macOS: arm64 / x64 (Sonoma 14.5)
+- macOS: arm64 (Sonoma 14.5) ← D1（2026-06-10）：v0.10.3 同步版起 x64 停产，不再测 Intel；详见 05-build-release.md §3
 - Windows: 11 24H2（M2）
 - Linux: Ubuntu 22.04（M2）
 
