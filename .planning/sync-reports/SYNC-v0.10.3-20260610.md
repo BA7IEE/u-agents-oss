@@ -63,6 +63,7 @@
 
 - **正则贪婪跨块事故（已修复，无残留）**：首版冲突解析用 `re.S` 非贪婪正则，遇到 **ours 为空** 的冲突块时跨块匹配，丢失块间公共内容。`git checkout -m -- <file>` 恢复冲突态后改用**逐行状态机**解析（对空边安全）。验证环节（describe 计数）当场抓住，未流入 commit。
 - **unreachable narrowing**：workspace 迁移 no-op 化首版保留原实现于 `return` 之后，TS 控制流分析在 unreachable 区失效报 8 个 errors → 改为干净空函数体（原实现在 merge 历史 `a512da7a` 可查）。
+- **release-notes 只清洗未翻译（用户装机实测发现，v0.9.6 同坑重犯）**：brand patch 阶段对 `0.10.1/2/3.md` 只做了去品牌+去链，漏了整篇中文化——应用内"更新日志"以英文展示。已补译三篇（风格对照 0.9.6 中文版，含 U Agents 适用性按语：D2 豁免说明 / 缓存修复价值 / Fable 5 如何自行启用）并**固化进 `upstream-sync` skill 合并后清单第 3 条**，下次同步不再靠记性。
 
 ---
 
