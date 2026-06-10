@@ -112,6 +112,14 @@
 
 ---
 
+## 5.1 发版记录（2026-06-10 当日完成）
+
+- **合并**：同步分支已 merge 回 `main`（`cbb53e0b`，与分支 0/0 一致）。
+- **上传**：mac 套件由本机 rclone/控制台、Windows 套件由 Windows 机器直传（未经 Mac 中转）；`/latest` 指针与 `/v0.10.3/manifest.json` 因 Windows 产物未拷回，改由 **AI 从 CDN 下载已发布产物计算 sha256/size 生成**，用户经 COS 控制台手动上传（注意：`latest` 指针是**无扩展名裸对象**，与 `latest/` 前缀共存）。
+- **验证（全绿）**：`/latest` 指针 ✓；manifest 双平台 key + 零品牌残留 ✓；`latest-mac.yml`（0.10.3，纯 arm64）+ `latest.yml`（win）✓；归档与 latest 产物 200 ✓；**CDN 分发字节 sha512 与两个 yml 完全一致**（DMG 275935142B / EXE 261936213B，等价于一次真实下载链路全验）。
+- **manifest sha256**：darwin-arm64 `7e6ddb37…ecea`，win32-x64 `bd78b3d2…c4e4`。
+- 用户侧待办（不阻塞）：N-1→N 双平台自动更新观察（05 §8）；下载页换链 + **v0.10.0 为最后 Intel 版**公告（D1）。
+
 ## 6. 残留风险声明
 
 - **SDK 0.2.123→0.3.170 跨 minor 两连跳**：typecheck/测试全绿，但 SDK 行为只在 Claude 直连路径深度使用（我方 U-API 用户走 `pi-agent.ts`，0 SDK 依赖）；externalize 后 SDK 实体必须在包内（build-dmg.sh L132-137 已覆盖）。运行时风险集中在打包形态——见 Follow-up #1。
