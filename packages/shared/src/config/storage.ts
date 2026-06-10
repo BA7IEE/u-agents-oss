@@ -2044,23 +2044,10 @@ function migrateWorkspaceSonnet45ToSonnet46(config: StoredConfig): void {
 function migrateWorkspaceLegacyOpusToDefaultOpus(config: StoredConfig): void {
   /* U-API START: D2 (v0.10.3 sync, 02 §6.2.2) — fork 内全部连接皆 U-API（lockdown 保证），
      workspace defaults.model 必然是用户自管的 newapi 路由名，不参与 deprecated-ID normalize
-     （上游此函数还会把 4-7 强升 4-8，对中转站路由同样不适用）。整体 no-op 化。 */
-  return;
+     （上游此函数还会把 4-7 强升 4-8，对中转站路由同样不适用）。整体 no-op 化；
+     上游原实现见 v0.10.3 merge 历史。 */
+  void config;
   /* U-API END */
-  // eslint-disable-next-line no-unreachable
-  if (!config.workspaces) return;
-
-  for (const workspace of config.workspaces) {
-    const wsConfig = loadWorkspaceConfig(workspace.rootPath);
-    if (!wsConfig?.defaults?.model) continue;
-
-    const normalized = normalizeDeprecatedModelId(wsConfig.defaults.model);
-    const nextModel = normalized === OPUS_FALLBACK_ID ? OPUS_DEFAULT_ID : normalized;
-    if (nextModel !== wsConfig.defaults.model) {
-      wsConfig.defaults.model = nextModel;
-      saveWorkspaceConfig(workspace.rootPath, wsConfig);
-    }
-  }
 }
 
 /**
