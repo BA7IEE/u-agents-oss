@@ -16,12 +16,27 @@ import './index.css'
 // Initialize i18n before any React rendering
 setupI18n([LanguageDetector, initReactI18next])
 
-// U-API: 把 detector 解析到的语言立即推给主进程，修复"重启后必须手切语言标题才中文"的 bug。
-// setupI18n 用 initImmediate:false（同步 init），此时 resolvedLanguage 已可用。
-// 主进程 handler 内部会调 rebuildMenu()，理论上可能抛——用 .catch 兜底而非 void。
-// 详见 .planning/M3-I18N-MAIN-PROCESS-SYNC-FIX.md
-window.electronAPI?.changeLanguage?.(i18n.resolvedLanguage ?? 'en')
-  ?.catch((err) => console.warn('[i18n] startup sync to main failed:', err))
+// One-shot bootstrap: ensure the main process's i18n + preferences.json learn
+// the language we just restored from localStorage. The main-process IPC handler
+// validates the code and persists idempotently, so this is safe to run on every
+// renderer startup. Without this push, a freshly-installed (or freshly-upgraded)
+// app would still generate titles in English until the user manually re-picks
+// the language in Appearance.
+const resolvedLanguage = i18n.resolvedLanguage
+// Diagnostic: console-log the bootstrap push so it shows up in DevTools and
+// (via captureConsoleIntegration) in Sentry, alongside the main-process
+// [i18n] startup hydration log. If these two diverge, the renderer's
+// localStorage isn't tracking the user's Appearance selection.
+console.info('[i18n] renderer bootstrap push', {
+  resolvedLanguage: resolvedLanguage ?? null,
+  localStorageI18nextLng: typeof window !== 'undefined' ? window.localStorage?.getItem('i18nextLng') : null,
+})
+if (resolvedLanguage) {
+  // U-API: .catch 兜底替代上游 void — main 侧 i18n:changeLanguage handler 内 rebuildMenu 可能抛，
+  // 避免 unhandledrejection 噪音进 Sentry。我方原临时修复已退役，由上游 v0.10.1 uiLanguage 机制取代。
+  window.electronAPI?.changeLanguage?.(resolvedLanguage)
+    ?.catch((err) => console.warn('[i18n] renderer bootstrap push failed:', err))
+}
 
 // Known-harmless console messages that should NOT be sent to Sentry.
 // These are dev-mode noise or expected warnings that aren't actionable.
