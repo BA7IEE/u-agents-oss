@@ -502,8 +502,8 @@ curl https://update.u-agents.u-studio.cn/v1.x.y/manifest.json
 
 在 `u-agents.u-studio.cn` 主页放置下载按钮，链接指向：
 - `https://update.u-agents.u-studio.cn/v1.x.y/U-Agents-arm64.dmg`（macOS Apple Silicon）
-- `https://update.u-agents.u-studio.cn/v1.x.y/U-Agents-x64.dmg`（macOS Intel）
-- `https://update.u-agents.u-studio.cn/v1.x.y/U-Agents-x64.exe`（Windows，M2）
+- ~~`U-Agents-x64.dmg`（macOS Intel）~~（**D1：v0.10.3 起停产**；下载页注明 v0.10.0 为最后 Intel 版，链接可保留指向 `/v0.10.0/U-Agents-x64.dmg` 归档）
+- `https://update.u-agents.u-studio.cn/v1.x.y/U-Agents-x64.exe`（Windows）
 - `https://update.u-agents.u-studio.cn/v1.x.y/U-Agents-x64.AppImage`（Linux，M2）
 
 ---
