@@ -13,13 +13,13 @@ description: 核查 U Agents fork 的品牌替换是否遗漏。当任务涉及�
 - **U-API** = LLM 中转站（所有 LLM 连接 UI、连接卡片、错误提示、控制台跳转）。
 
 ## 用户可见面 0 残留（`CLAUDE.md` §3.5）
-`Craft` / `Craft Agents` / `craft.do` / `lukilabs` 不得出现在菜单、对话框、错误提示、邮件签名、commit 模板。
+`Craft` / `Craft Agents` / `craft.do` / `lukilabs` / `craft-ai-agents` 不得出现在菜单、对话框、错误提示、邮件签名、commit 模板。
 已知可接受瑕疵：OAuth 首授时地址栏短暂 `agents.craft.do`（M3 自建 relay 前保留，见 `LEGAL.md`）。
 
 ## 快速反向核查（只读 grep）
 ```bash
 # 用户可见品牌残留（应为 0；FEATURE_FLAG 门控/系统 prompt 例外见 01 规格）
-grep -rIn --exclude-dir=node_modules -E "Craft Agents|craft\.do|lukilabs" packages apps --include="*.ts" --include="*.tsx" | grep -v "U-API"
+grep -rIn --exclude-dir=node_modules -E "Craft Agents|craft\.do|lukilabs|craft-ai-agents" packages apps --include="*.ts" --include="*.tsx" | grep -v "U-API"
 # 旧 NPM scope（同步后必须 0，命中即 C11）
 grep -rIn --exclude-dir=node_modules "@craft-agent/" packages apps
 ```

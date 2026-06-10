@@ -26,7 +26,7 @@
 
 ## 1. 项目身份
 
-**U Agents（优智体）** 是基于 Apache 2.0 开源项目 [`craft-agents-oss`](https://github.com/lukilabs/craft-agents-oss) 二次开发的中文桌面 Agent 应用，由独立开发者运营，闭源商业分发。
+**U Agents（优智体）** 是基于 Apache 2.0 开源项目 [`craft-agents-oss`](https://github.com/craft-ai-agents/craft-agents-oss) 二次开发的中文桌面 Agent 应用，由独立开发者运营，闭源商业分发。（上游 2026-06 前位于 `lukilabs/craft-agents-oss`，已整体迁移至 `craft-ai-agents` org，旧地址自动跳转。）
 
 - **品牌**：U Agents（英文）/ 优智体（中文）
 - **发行方**：tungwerl@gmail.com（独立开发者）
@@ -70,7 +70,7 @@
 源码树（packages/* + apps/* 各自职责、关键文件、治理它的规格编号、高冲突区）见 [`.planning/00-codebase-map.md`](.planning/00-codebase-map.md)。
 
 Git remote 配置：
-- `upstream` → `https://github.com/lukilabs/craft-agents-oss.git`（同步源，**只读**）
+- `upstream` → `https://github.com/craft-ai-agents/craft-agents-oss.git`（同步源，**只读**；2026-06-10 起，旧 `lukilabs` 地址已迁移）
 - `origin` → 用户自己的私有 fork（待用户提供后设置）
 
 ---
@@ -120,7 +120,7 @@ Git remote 配置：
 - 详见 `.planning/11-roadmap.md` 入口条件"Bun（强制）"
 
 ### 3.5 不暴露上游品牌
-- `Craft` / `Craft Agents` / `craft.do` / `lukilabs` 不能出现在用户可见界面（菜单、对话框、错误提示、邮件签名、提交信息、自动生成的会话 commit 模板）
+- `Craft` / `Craft Agents` / `craft.do` / `lukilabs` / `craft-ai-agents` 不能出现在用户可见界面（菜单、对话框、错误提示、邮件签名、提交信息、自动生成的会话 commit 模板）
 - **已知瑕疵**（已被用户接受）：第三方 OAuth Source（Slack/Gmail/Outlook）首次授权时，浏览器地址栏会短暂出现 `agents.craft.do`。这是上游 OAuth relay 的硬依赖，路线图 M3 自建 relay 后解决。详见 `LEGAL.md`。
 
 ### 3.6 双品牌区分（U Agents vs U-API）

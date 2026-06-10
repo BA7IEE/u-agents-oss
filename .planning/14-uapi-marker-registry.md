@@ -8,11 +8,11 @@
 
 ## 0. 当前基线（速查）
 
-| 指标 | 基线（2026-05-29 v0.10.0 sync 后确认；标签笔误 v0.9.6→v0.10.0 已于 2026-06-10 REVIEW 修正）| 下次同步允许浮动 |
+| 指标 | 基线（2026-06-10 v0.10.3 sync 后确认）| 下次同步允许浮动 |
 |---|---|---|
-| U-API 标记总数（含全部注释格式）| **109** | ±2 |
-| `/* U-API START */` 块数 | **9** | 必须等于 END |
-| `/* U-API END */` 块数 | **9** | 必须等于 START |
+| U-API 标记总数（含全部注释格式）| **115** | ±2 |
+| `/* U-API START */` 块数 | **10** | 必须等于 END |
+| `/* U-API END */` 块数 | **10** | 必须等于 START |
 
 **每次同步必跑 grep（覆盖全部注释格式）**：
 
@@ -22,12 +22,12 @@
 # 抗 build-dmg.sh 中间态把 SDK 包复制到 apps/electron/node_modules/ 让数字暂时虚高的情况
 grep -rEn --exclude-dir=node_modules "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
   | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
-# 期望：109（基线，允许 107-111）
+# 期望：115（基线，允许 113-117）
 
 # 块标记 START/END 配对（数量必须相等）
 grep -rE --exclude-dir=node_modules "/\* U-API START" packages apps --include="*.ts" --include="*.tsx" | wc -l
 grep -rE --exclude-dir=node_modules "/\* U-API END" packages apps --include="*.ts" --include="*.tsx" | wc -l
-# 期望：均 = 9
+# 期望：均 = 10
 ```
 
 **基线刷新规则**（每次同步成功后照做）：
@@ -189,7 +189,7 @@ if (!apiKey && connection.baseUrl) {
 
 | # | 改造类别 | 文件 | 定位（用 `grep` 找）| 标记 | 关联规格 |
 |---|---|---|---|---|---|
-| 53 | renderer 启动时把 detector 解析到的语言推给主进程（修标题/preferences/原生菜单始终英文 bug）| `apps/electron/src/renderer/main.tsx` | 注释 `把 detector 解析到的语言立即推给主进程` | 单行 | M3-I18N-MAIN-PROCESS-SYNC-FIX（commit `5212197b`）|
+| 53 | ~~renderer 启动时把 detector 解析到的语言推给主进程~~ **v0.10.3 sync 演化**：原临时修复退役（上游 v0.10.1 uiLanguage 机制取代，同位置同机制超集）；现仅保留 `.catch` 兜底替代上游 `void`（防 unhandledrejection 噪音）| `apps/electron/src/renderer/main.tsx` | 注释 `.catch 兜底替代上游 void` | 单行 | M3-I18N-MAIN-PROCESS-SYNC-FIX（已标注退役）+ SYNC-v0.10.3 §6 |
 
 **v0.9.5 sync 期间新增改造点（2026-05-21，详见 [`sync-reports/UPSTREAM-PREVIEW-v0.9.5-2026-05-21.md`](sync-reports/UPSTREAM-PREVIEW-v0.9.5-2026-05-21.md)）**：
 
@@ -213,6 +213,13 @@ if (!apiKey && connection.baseUrl) {
 | # | 改造类别 | 文件 | 定位（用 `grep` 找）| 标记 | 关联规格 |
 |---|---|---|---|---|---|
 | 59 | F1 — token-refresh-manager `craft-shared/no-inline-source-auth-check` 误报豁免（规则不区分读/写：2 处赋值写 in-memory mirror + 2 处测试字段断言，均非 gating 读；同 #38/#39 模式）| `packages/shared/src/sources/token-refresh-manager.ts`（×2）+ `packages/shared/src/sources/__tests__/token-refresh-manager.test.ts`（×2）| 注释 `非 gating 读` / `验证 reset 语义` + `eslint-disable-next-line craft-shared/no-inline-source-auth-check` | 单行（×4）| C12 + lint:shared baseline（**merge 前 `87ffbeb7` 即 4 errors，非 v0.10.0 引入**）|
+| 60a | D2 — 启动序列顺序约定（enforce 先于上游 Phase 1k normalize；第一道防线）| `packages/shared/src/config/storage.ts`（启动迁移序列）| 注释 `enforceUApiBaseUrl 必须先于 Phase 1k`（×2 行命中）| 单行（注释 2 行）| 02 §6.2.2 + SYNC-v0.10.3 §D2 |
+| 60b | D2 — 新建连接路径同顺序约定 | `packages/shared/src/config/storage.ts`（`createConnectionsFromLegacy` 尾部）| 注释 `enforce 先于 normalize` | 单行 | 同上 |
+| 60c | D2 — `migrateLegacyOpusToDefaultOpus` 连接级 `isUApiSlug` 豁免（第二道防线）| `packages/shared/src/config/storage.ts` | 注释 `U-API 连接的模型清单是 newapi 路由名` + `if (isUApiSlug(connection.slug)) continue;` | 单行 | 同上 |
+| 60d | D2 — `migrateWorkspaceLegacyOpusToDefaultOpus` 整体 no-op（fork 全连接皆 U-API，workspace 默认模型即用户自管路由名；上游原实现还会把 4-7 强升 4-8）| `packages/shared/src/config/storage.ts` | `/* U-API START: D2 ... */`（**新增 START/END 第 10 对**）| 块 | 同上 |
+| 60t | D2 防回归测试（U-API 连接 `claude-opus-4-6`/`deepseek-v4-pro` 清单经 runMigration 后逐字节不变）| `packages/shared/src/config/__tests__/storage-startup-migration.test.ts` | it `exempts U-API connections from upstream deprecated-model normalization` + 注释 `the U-API exemption must keep` | 单行 | 同上 |
+| 61 | D4 — 按协议预设候选清单（OpenAI 侧 `gpt-5.5, deepseek-v4-pro, MiniMax-M3`；Anthropic 侧决策性回退自动合并引入的 `claude-opus-4-8`，不展示 4-8/Fable）| `apps/electron/src/renderer/components/apisetup/ApiKeyInput.tsx` | 注释 `D4 (2026-06-10, 02 §3.3)` | 单行 | 02 §3.3 |
+| 62 | D1 — mac 打包仅 arm64（跟随上游 v0.10.1 Intel 停产）。**yml `#` 注释，不计入 .ts/.tsx grep 基线** | `apps/electron/electron-builder.yml` | 注释 `# U-API: D1 (2026-06-10)` | 单行（yml）| 05 §3 |
 
 ---
 
@@ -282,6 +289,7 @@ grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_mod
   - **M3 i18n fix（commit `5212197b`）**：+1 marker = #53 renderer/main.tsx setupI18n 后追加 IPC 推送 + `// U-API:` 4 行注释 + `.catch` 兜底。修复"重启 App 后必须手切语言标题才中文"的 bug。**实际是上游 bug**——上游 main 进程 `setupI18n()` 无 detector 永远 fallback `en`。可考虑作为上游 PR 候选。详见 [`M3-I18N-MAIN-PROCESS-SYNC-FIX.md`](M3-I18N-MAIN-PROCESS-SYNC-FIX.md) + [`M3-I18N-FIX-CLAIM-AUDIT.md`](M3-I18N-FIX-CLAIM-AUDIT.md)
 - **v0.9.6 sync（2026-05-29，已完成）：98 处不变**（无新增改造点；实测 grep 98 → 98，START/END 仍各 = 9）。上游 66 文件 / +2199 −184（GitHub Compare v0.9.5...v0.9.6）；`git merge-base` 实测落在 v0.9.4（因 v0.9.5 sync 是 merge commit）。sync collateral 4 处（`utils/files` exports 漏 / `window-manager.ts` batch sed 漏 / `SessionManager.ts` 重复 const / release-notes 没译没去链）——均为基线漏盘 fix，非 v0.9.6 引入。验证：`lint:electron` 0 errors / 112 warnings(baseline)、api-tools-ssrf 10 pass、web-fetch-ssrf 7 pass。详见 [`sync-reports/SYNC-v0.9.6-20260529.md`](sync-reports/SYNC-v0.9.6-20260529.md)。
 - **v0.10.0 sync（2026-05-29 合并 upstream `215910da` → merge `7bfd977a`，F4 merge 回 main `33602aaa`）：109 处**（净 +11 from 98：#55/#56 brand remote browser 文案 + #57 D1 `allowRemoteEvaluate=false` + #57t + #58 D5-b dispatcher 总闸（含 import 共 2 处）+ #58t + #59 F1 eslint-disable ×4）。上游 61 文件 / +2588 −162；主题 = remote `browser_tool` 桥接 + 浏览器标签 per-workspace 隔离 + #824 basic-auth fix；19 冲突全浅（14 package.json C11 + 5 源码 import/config）；**安全 lockdown D1+D5-b**（REVIEW-1 坐实 remote workspace 可达 + dispatcher 原无 `browserToolEnabled` 总闸）；无 SDK bump。验证：typecheck:all 0 errors / i18n parity 6×1462 / lint:electron 0 errors / **lint:shared 0 errors（F1 清了 4 个 baseline error）** / bun test 0 新增 regression（browser-pane-manager 8 fail = v0.10.0 upstream baseline，临时 worktree 实测确认）。**macOS arm64 + Windows x64 双平台实测通过**（agent 对话工作 = piServerPath 修复生效；连带修 build-dmg.sh/build-linux.sh 缺 copy-subprocess-servers = 事故 #6，B8/B9）。F4 与主 worktree 的 CLAUDE.md 重构整合（§3.7 marker 表抽到本文件）。详见 [`sync-reports/SYNC-v0.10.0-20260529.md`](sync-reports/SYNC-v0.10.0-20260529.md)。
+- **v0.10.3 sync（2026-06-10 合并 upstream `a512da7a`，跨 v0.10.1/2/3 三版本）：115 处**（净 +6 from 109：#60a-d D2 模型迁移豁免 ×4+测试 #60t + #61 D4 预设清单 − #53 旧形态退役换 `.catch` 兜底；START/END 9→**10** 对，新增 #60d workspace no-op 块；#62 D1 yml 注释不计入 grep）。上游 105 文件 / +2223 −613；主题 = Opus 4.8 默认 + **Fable 5** + `uiLanguage` 机制 + **Pi prompt-cache 修复(#862)** + SDK **0.2.123→0.3.170** 两连跳 + esbuild externalize + **macOS Intel 停产**（D1 跟随）。27 冲突（14 package.json C11 + bun.lock + 12 源码/docs）；**上游仓库迁移 org：`lukilabs` → `craft-ai-agents`**（remote 已更新）。验证：typecheck:all 0 errors / i18n parity 6×1466 / lint:electron 0 errors（114 warnings，+2 上游）/ **lint:shared 0 errors（上游自修了 4 个 baseline errors，#59 的 C13 follow-up 自动关闭）** / 测试 0 新增 regression（electron 9 fail = browser 8 基线 + transport-banner 1 处 **v0.9.1 起 pre-existing**（上游测试断言 `CRAFT_SERVER_TOKEN` vs 我方更早文案清洗，本次新发现入账）；shared 1 fail send-developer-feedback = pre-existing latent，临时 worktree 基线实测确认）。**打包装机实测 deferred**（SDK externalize 后冷启动为第一道哨兵）。详见 [`sync-reports/SYNC-v0.10.3-20260610.md`](sync-reports/SYNC-v0.10.3-20260610.md)。
 
 ---
 
