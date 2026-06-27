@@ -20,11 +20,11 @@ import {
   type BackendHostRuntimeContext,
   type PostInitResult,
 } from '@u-agents/shared/agent/backend'
-import { getLlmConnection, getLlmConnections, getDefaultLlmConnection, getDefaultThinkingLevel, resetManagedAnthropicAuthEnvVars, resolveMidStreamBehavior } from '@u-agents/shared/config'
+import { getLlmConnection, getLlmConnections, getDefaultLlmConnection, getDefaultThinkingLevel, resetManagedAnthropicAuthEnvVars, resolveMidStreamBehavior, getPersistedUiLanguage, resolveTitleLanguageName } from '@u-agents/shared/config'
 import { PrivilegedExecutionBroker } from '@u-agents/server-core/services'
 import { isValidWorkingDirectory } from '../utils/path-validation'
 import { InitGate } from '@u-agents/server-core/domain'
-import { i18n, LOCALE_REGISTRY, type LanguageCode } from '@u-agents/shared/i18n'
+import { i18n } from '@u-agents/shared/i18n'
 import {
   getWorkspaces,
   getWorkspaceByNameOrId,
@@ -4946,15 +4946,15 @@ export class SessionManager implements ISessionManager {
 
     const assistantResponse = lastAssistantMsg?.content ?? ''
 
-    // Derive language from app's i18n setting for language-aware title generation
-    const titleLangCode = (i18n.resolvedLanguage ?? 'en') as LanguageCode
-    const titleLangEntry = LOCALE_REGISTRY[titleLangCode]
-    const titleOptions = { language: titleLangEntry?.nativeName }
+    // Resolve title language from the explicitly persisted UI language (disk-backed,
+    // race-free vs. main-process i18n async hydration); undefined => auto-detect (#885).
+    const titleLanguage = resolveTitleLanguageName()
+    const titleOptions = { language: titleLanguage }
     sessionLog.info(`[refreshTitle] language at call time`, {
       sessionId,
+      persistedUiLanguage: getPersistedUiLanguage() ?? null,
       resolvedLanguage: i18n.resolvedLanguage ?? null,
-      titleLangCode,
-      nativeName: titleLangEntry?.nativeName ?? null,
+      titleLanguage: titleLanguage ?? null,
     })
 
     // Use existing agent or create temporary one
@@ -6756,15 +6756,15 @@ export class SessionManager implements ISessionManager {
     }
 
     try {
-      const genLangCode = (i18n.resolvedLanguage ?? 'en') as LanguageCode
-      const genLangEntry = LOCALE_REGISTRY[genLangCode]
+      // Race-free language resolution from persisted UI language; undefined => auto-detect (#885).
+      const titleLanguage = resolveTitleLanguageName()
       sessionLog.info(`[generateTitle] language at call time`, {
         sessionId: managed.id,
+        persistedUiLanguage: getPersistedUiLanguage() ?? null,
         resolvedLanguage: i18n.resolvedLanguage ?? null,
-        genLangCode,
-        nativeName: genLangEntry?.nativeName ?? null,
+        titleLanguage: titleLanguage ?? null,
       })
-      const title = await agent.generateTitle(userMessage, { language: genLangEntry?.nativeName })
+      const title = await agent.generateTitle(userMessage, { language: titleLanguage })
       if (title) {
         managed.name = title
         this.persistSession(managed)
