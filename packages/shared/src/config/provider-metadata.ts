@@ -32,7 +32,7 @@ const PROVIDER_METADATA: Record<string, ProviderMetadata> = {
   },
   'u-api': {
     name: 'U-API',
-    dashboardUrl: 'https://token.u-studio.cn/console/token',
+    dashboardUrl: 'https://token.u-studio.cn/keys',
   },
   google: {
     name: 'Google AI Studio',

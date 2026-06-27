@@ -3,7 +3,7 @@ import type { LlmConnection } from './llm-connections.ts';
 export const U_API_BASE_URL = 'https://token.u-studio.cn/v1';
 export const U_API_SLUG = 'u-api-default';
 export const U_API_NAME = 'U-API';
-export const U_API_CONSOLE_URL = 'https://token.u-studio.cn/console/token';
+export const U_API_CONSOLE_URL = 'https://token.u-studio.cn/keys';
 export const U_API_TOPUP_URL = 'https://token.u-studio.cn/console/topup';
 export const U_API_PRICING_URL = 'https://token.u-studio.cn/pricing';
 

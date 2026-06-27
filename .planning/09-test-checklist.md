@@ -114,7 +114,7 @@ defaults delete cn.u-studio.u-agents 2>/dev/null
 - [ ] **不出现** "Choose your provider" 多卡片选择页
 - [ ] **不出现** Anthropic / OpenAI / Bedrock / Vertex / Copilot / Codex / Ollama / Mistral / DeepSeek / Groq / xAI 等品牌字样
 - [ ] 直接进入 Token 输入页
-- [ ] 输入框旁有 "获取 Token" 链接，点击后浏览器打开 `https://token.u-studio.cn/console/token`
+- [ ] 输入框旁有 "获取 Token" 链接，点击后浏览器打开 `https://token.u-studio.cn/keys`
 - [ ] 输入框旁有 "充值" 链接，点击后浏览器打开 `https://token.u-studio.cn/console/topup`
 - [ ] 协议二选一可见：OpenAI Chat Completions / Anthropic Messages
 - [ ] 默认选项是 Anthropic Messages

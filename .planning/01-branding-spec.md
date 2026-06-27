@@ -21,7 +21,7 @@
 |   └ 文档 | `https://u-agents.u-studio.cn/docs/{path}` |
 | **Electron 自动更新** | `https://update.u-agents.u-studio.cn`（subdomain）|
 | **Token 中转站根域** | `https://token.u-studio.cn`（已存在）|
-| **Token 控制台**（用户充值/查 token） | `https://token.u-studio.cn/console/token` |
+| **Token 控制台**（用户充值/查 token） | `https://token.u-studio.cn/keys` |
 | **OAuth Relay**（M3 自建后） | `https://u-agents.u-studio.cn/auth/callback`（路径形式，主域复用） |
 | **支持邮箱** | `support@u-studio.cn` |
 | **Co-Authored-By 邮箱** | `agents@u-studio.cn` |

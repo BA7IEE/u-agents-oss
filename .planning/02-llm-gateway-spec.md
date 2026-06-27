@@ -14,7 +14,7 @@
 | **底层实现** | [newapi](https://github.com/Calcium-Ion/new-api) 开源项目 |
 | **支持的协议** | OpenAI Chat Completions（`/v1/chat/completions`）+ Anthropic Messages（`/v1/messages`）|
 | **认证方式** | Bearer Token（用户在 U-API 控制台开通） |
-| **Token 控制台**（创建/管理 API Key） | `https://token.u-studio.cn/console/token` |
+| **Token 控制台**（创建/管理 API Key） | `https://token.u-studio.cn/keys` |
 | **充值页**（购买额度） | `https://token.u-studio.cn/console/topup` |
 | **模型清单/定价页**（查可用模型与价格） | `https://token.u-studio.cn/pricing` |
 
@@ -59,7 +59,7 @@
 ### 3.1 Token / API Key
 - 字段：`apiKey`（保存在系统凭证管理器，加密存储）
 - UI：标准 API Key 输入框，输入框旁附两个并列链接：
-  - "获取 Token" → `U_API_CONSOLE_URL` (`https://token.u-studio.cn/console/token`)
+  - "获取 Token" → `U_API_CONSOLE_URL` (`https://token.u-studio.cn/keys`)
   - "充值" → `U_API_TOPUP_URL` (`https://token.u-studio.cn/console/topup`)
 - 校验：沿用上游现有 setup/test 链路（renderer 调 `window.electronAPI.testLlmConnectionSetup(...)`，后端走 `testBackendConnection(...)`）；M1 不新增前端直连 `GET /v1/models` 认证路径
 
@@ -643,7 +643,7 @@ if (changed) {
 export const U_API_BASE_URL = 'https://token.u-studio.cn/v1';
 export const U_API_SLUG = 'u-api-default';
 export const U_API_NAME = 'U-API';
-export const U_API_CONSOLE_URL = 'https://token.u-studio.cn/console/token';  // 创建/管理 API Key
+export const U_API_CONSOLE_URL = 'https://token.u-studio.cn/keys';  // 创建/管理 API Key
 export const U_API_TOPUP_URL   = 'https://token.u-studio.cn/console/topup';  // 充值
 export const U_API_PRICING_URL = 'https://token.u-studio.cn/pricing';         // 模型清单/定价
 
@@ -779,12 +779,12 @@ export function buildDefaultConnection(): LlmConnection {
 'u-api': {
   name: 'U-API',
   statusPageUrl: 'https://u-agents.u-studio.cn/status',  // 待开发者建立，建议挂主域 /status 路径
-  dashboardUrl: 'https://token.u-studio.cn/console/token',  // 用户管理 Token / 充值的入口
+  dashboardUrl: 'https://token.u-studio.cn/keys',  // 用户管理 Token / 充值的入口
 }
 ```
 
   - 当前 `getProviderMetadata` 签名只按 provider 维度取 metadata，不能直接判断 `slug`；M1 需要二选一：扩展签名让调用方传入 `slug`，或新增 `getProviderMetadataForConnection(connection)` 包装函数，在 `connection.slug === 'u-api-default'` 时返回上面这个 entry
-  - 错误提示中"打开 dashboard"按钮一律跳转到 `dashboardUrl`（即 console/token）
+  - 错误提示中"打开 dashboard"按钮一律跳转到 `dashboardUrl`（即 /keys）
   - **模型清单/定价 URL** 不放在上游 `ProviderMetadata` interface 里（避免和上游字段冲突），改为在 `u-api-defaults.ts` 中独立导出 `U_API_PRICING_URL`，由我们的 UI 调用点直接引用
 
 ---
@@ -794,7 +794,7 @@ export function buildDefaultConnection(): LlmConnection {
 ### 7.1 Token 无效 / 过期
 - newapi 通常返回 `401`
 - UI 显示提示："Token 已失效，请到 U-API 控制台检查或重新生成"
-- 按钮："打开 Token 控制台" → `U_API_CONSOLE_URL` (`https://token.u-studio.cn/console/token`)
+- 按钮："打开 Token 控制台" → `U_API_CONSOLE_URL` (`https://token.u-studio.cn/keys`)
 
 ### 7.2 中转站不可达
 - 网络错误 / 5xx
@@ -883,5 +883,5 @@ curl 调试输出 / debug log / 错误堆栈中含上述 header 时会自动替�
 - [ ] **onboarding 不允许 `models` 为空**（前端拦截提交按钮 + IPC handler 强校验，详见 §3.3）
 - [ ] 用户进设置页**手动删光**所有模型后，主界面显示"请先添加模型"引导（边缘场景）
 - [ ] 协议切换：Claude 模型走 anthropic-messages 时能正常对话；GPT 模型走 openai-completions 时能正常对话
-- [ ] Token 错误时 UI 提示中文 + 含跳转 `https://token.u-studio.cn/console/token` 的按钮
+- [ ] Token 错误时 UI 提示中文 + 含跳转 `https://token.u-studio.cn/keys` 的按钮
 - [ ] `provider-metadata.ts` 中的 `u-api` entry 在错误流程中被正确取到（不会显示 "Anthropic" / "OpenAI" 等上游品牌名）
