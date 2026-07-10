@@ -3,16 +3,6 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import { pathToFileURL } from 'url'
-import { getPiModelsForAuthProvider } from '../models-pi.ts'
-
-const PI_ANTHROPIC_OPUS_DEFAULT = getPiModelsForAuthProvider('anthropic').some(m => m.id === 'pi/claude-opus-4-8')
-  ? 'pi/claude-opus-4-8'
-  : 'pi/claude-opus-4-7'
-const PI_ANTHROPIC_OPUS_DEFAULT_NAME = PI_ANTHROPIC_OPUS_DEFAULT.endsWith('4-8') ? 'Opus 4.8' : 'Opus 4.7'
-const PI_BEDROCK_OPUS_DEFAULT = getPiModelsForAuthProvider('amazon-bedrock').some(m => m.id === 'pi/us.anthropic.claude-opus-4-8')
-  ? 'pi/us.anthropic.claude-opus-4-8'
-  : 'pi/us.anthropic.claude-opus-4-7'
-const PI_BEDROCK_OPUS_DEFAULT_NAME = PI_BEDROCK_OPUS_DEFAULT.endsWith('4-8') ? 'Opus 4.8' : 'Opus 4.7'
 
 const STORAGE_MODULE_PATH = pathToFileURL(join(import.meta.dir, '..', 'storage.ts')).href
 const PI_RESOLVER_SETUP_PATH = pathToFileURL(join(import.meta.dir, '..', '..', '..', 'tests', 'setup', 'register-pi-model-resolver.ts')).href
@@ -88,17 +78,29 @@ function runMigration(configDir: string) {
   }
 }
 
-function readPiApiKeyConnection(configPath: string): any {
+function expectUApiOnlyConfig(configPath: string): void {
   const migrated = JSON.parse(readFileSync(configPath, 'utf-8'))
-  return migrated.llmConnections.find((c: any) => c.slug === 'pi-api-key')
+  expect(migrated.defaultLlmConnection).toBe('u-api-default')
+  expect(migrated.llmConnections).toHaveLength(1)
+  expect(migrated.llmConnections[0]).toMatchObject({
+    slug: 'u-api-default',
+    name: 'U-API',
+    providerType: 'pi_compat',
+    baseUrl: 'https://token.u-studio.cn/v1',
+    authType: 'api_key_with_endpoint',
+    customEndpoint: {
+      api: 'anthropic-messages',
+      supportsImages: true,
+    },
+    models: [],
+    modelSelectionMode: 'userDefined3Tier',
+    piAuthProvider: 'anthropic',
+  })
+  expect(migrated.llmConnections[0].defaultModel).toBeUndefined()
 }
 
-function getModelIds(connection: any): string[] {
-  return (connection.models ?? []).map((m: any) => typeof m === 'string' ? m : m.id)
-}
-
-describe('startup migration (integration)', () => {
-  it('repairs broken pi-api-key openai-codex provider on startup migration', () => {
+describe('startup migration removes unsupported provider rows (integration)', () => {
+  it('drops a repaired legacy pi-api-key openai-codex connection after migration', () => {
     const { configDir, workspaceRoot, configPath } = setupWorkspaceConfigDir()
 
     writeRootConfig(configPath, workspaceRoot, [
@@ -116,16 +118,12 @@ describe('startup migration (integration)', () => {
 
     runMigration(configDir)
 
-    const connection = readPiApiKeyConnection(configPath)
-    expect(connection).toBeDefined()
-    expect(connection.piAuthProvider).toBe('openai')
-    expect(connection.authType).toBe('api_key')
+    expectUApiOnlyConfig(configPath)
   })
 
-  it('preserves userDefined3Tier model subsets during startup migration', () => {
+  it('drops a legacy userDefined3Tier model subset after migration', () => {
     const { configDir, workspaceRoot, configPath } = setupWorkspaceConfigDir()
     const userDefinedModels = ['pi/claude-opus-4-6', 'pi/claude-sonnet-4-6', 'pi/claude-haiku-4-5']
-    const migratedModels = [PI_ANTHROPIC_OPUS_DEFAULT, 'pi/claude-sonnet-4-6', 'pi/claude-haiku-4-5']
 
     writeRootConfig(configPath, workspaceRoot, [
       {
@@ -143,14 +141,10 @@ describe('startup migration (integration)', () => {
 
     runMigration(configDir)
 
-    const connection = readPiApiKeyConnection(configPath)
-    expect(connection).toBeDefined()
-    expect(connection.modelSelectionMode).toBe('userDefined3Tier')
-    expect(connection.models).toEqual(migratedModels)
-    expect(connection.defaultModel).toBe(migratedModels[0])
+    expectUApiOnlyConfig(configPath)
   })
 
-  it('normalizes auto mode model set back to provider defaults', () => {
+  it('drops a legacy automatically-synced provider connection after migration', () => {
     const { configDir, workspaceRoot, configPath } = setupWorkspaceConfigDir()
 
     writeRootConfig(configPath, workspaceRoot, [
@@ -169,16 +163,10 @@ describe('startup migration (integration)', () => {
 
     runMigration(configDir)
 
-    const connection = readPiApiKeyConnection(configPath)
-    expect(connection).toBeDefined()
-    expect(connection.modelSelectionMode).toBe('automaticallySyncedFromProvider')
-    const modelIds = getModelIds(connection)
-    expect(modelIds.length).toBeGreaterThan(1)
-    expect(modelIds).toContain(PI_ANTHROPIC_OPUS_DEFAULT)
-    expect(modelIds).toContain(connection.defaultModel)
+    expectUApiOnlyConfig(configPath)
   })
 
-  it('repairs userDefined3Tier lists by removing invalid IDs and fixing default model', () => {
+  it('drops a legacy provider connection with invalid model IDs after migration', () => {
     const { configDir, workspaceRoot, configPath } = setupWorkspaceConfigDir()
 
     writeRootConfig(configPath, workspaceRoot, [
@@ -197,14 +185,10 @@ describe('startup migration (integration)', () => {
 
     runMigration(configDir)
 
-    const connection = readPiApiKeyConnection(configPath)
-    expect(connection).toBeDefined()
-    expect(connection.modelSelectionMode).toBe('userDefined3Tier')
-    expect(connection.models).toEqual([PI_ANTHROPIC_OPUS_DEFAULT, 'pi/claude-haiku-4-5'])
-    expect(connection.defaultModel).toBe(PI_ANTHROPIC_OPUS_DEFAULT)
+    expectUApiOnlyConfig(configPath)
   })
 
-  it('falls back to provider defaults when userDefined3Tier becomes empty after filtering', () => {
+  it('drops a legacy provider connection whose models become empty after filtering', () => {
     const { configDir, workspaceRoot, configPath } = setupWorkspaceConfigDir()
 
     writeRootConfig(configPath, workspaceRoot, [
@@ -223,29 +207,12 @@ describe('startup migration (integration)', () => {
 
     runMigration(configDir)
 
-    const connection = readPiApiKeyConnection(configPath)
-    expect(connection).toBeDefined()
-    expect(connection.modelSelectionMode).toBe('userDefined3Tier')
-    const modelIds = getModelIds(connection)
-    expect(modelIds.length).toBeGreaterThan(1)
-    expect(modelIds).toContain(PI_ANTHROPIC_OPUS_DEFAULT)
-    expect(modelIds).not.toContain('pi/not-real-1')
-    expect(connection.defaultModel).toBe(modelIds[0])
+    expectUApiOnlyConfig(configPath)
   })
 
-  it('normalizes legacy unprefixed userDefined3Tier model IDs instead of resetting', () => {
+  it('drops a legacy OpenRouter connection with unprefixed model IDs after migration', () => {
     const { configDir, workspaceRoot, configPath } = setupWorkspaceConfigDir()
-
-    // Derive currently-valid OpenRouter IDs from the live Pi catalog. The migration
-    // normalizes (pi/-prefixes) known IDs and drops unknown ones, so hardcoding a
-    // specific model here makes the test brittle when models.dev drifts across Pi
-    // SDK uplifts (e.g. x-ai/grok-4 aged out by 0.79.x).
-    const openrouterIds = getPiModelsForAuthProvider('openrouter').map(m => m.id)
-    expect(openrouterIds).toContain('pi/openrouter/auto')
-    const otherPrefixed = openrouterIds.find(id => id !== 'pi/openrouter/auto')
-    if (!otherPrefixed) throw new Error('expected at least two OpenRouter models in catalog')
-    const expectedPrefixed = ['pi/openrouter/auto', otherPrefixed]
-    const legacyUnprefixed = expectedPrefixed.map(id => id.slice('pi/'.length))
+    const legacyUnprefixed = ['openrouter/auto', 'openrouter/example-model']
 
     writeRootConfig(configPath, workspaceRoot, [
       {
@@ -263,12 +230,7 @@ describe('startup migration (integration)', () => {
 
     runMigration(configDir)
 
-    const connection = readPiApiKeyConnection(configPath)
-    expect(connection).toBeDefined()
-    expect(connection.modelSelectionMode).toBe('userDefined3Tier')
-    const modelIds = getModelIds(connection)
-    expect(modelIds).toEqual(expectedPrefixed)
-    expect(connection.defaultModel).toBe(expectedPrefixed[0])
+    expectUApiOnlyConfig(configPath)
   })
 })
 

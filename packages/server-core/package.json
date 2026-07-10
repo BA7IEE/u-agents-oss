@@ -27,7 +27,7 @@
     "@u-agents/core": "workspace:*",
     "@u-agents/shared": "workspace:*",
     "jose": "^6.0.0",
-    "ws": "^8.19.0",
+    "ws": "^8.21.0",
     "sharp": "0.34.5",
     "@earendil-works/pi-ai": "0.79.9"
   },

@@ -17,7 +17,7 @@
     "@u-agents/messaging-whatsapp-worker": "workspace:*",
     "@u-agents/server-core": "workspace:*",
     "@u-agents/shared": "workspace:*",
-    "@larksuiteoapi/node-sdk": "^1.62.1",
+    "@larksuiteoapi/node-sdk": "^1.70.0",
     "grammy": "^1.35.0"
   },
   "devDependencies": {

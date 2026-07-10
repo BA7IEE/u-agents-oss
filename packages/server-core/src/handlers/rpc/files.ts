@@ -8,9 +8,8 @@ import type { StoredAttachment } from '@u-agents/core/types'
 import { readFileAttachment, validateImageForClaudeAPI, IMAGE_LIMITS } from '@u-agents/shared/utils'
 import { getSessionAttachmentsPath, validateSessionId } from '@u-agents/shared/sessions'
 import { getWorkspaceByNameOrId } from '@u-agents/shared/config'
-import { resizeImageForAPI, inspectImageBuffer } from '@u-agents/server-core/services'
+import { resizeImageForAPI, inspectImageBuffer, convertDocumentToMarkdown } from '@u-agents/server-core/services'
 import { sanitizeFilename, validateFilePath, getWorkspaceAllowedDirs } from '@u-agents/server-core/handlers'
-import { MarkItDown } from 'markitdown-js'
 import type { RpcServer } from '@u-agents/server-core/transport'
 import type { HandlerDeps } from '../handler-deps'
 import { requestClientOpenFileDialog } from '@u-agents/server-core/transport'
@@ -388,15 +387,11 @@ export function registerFilesHandlers(server: RpcServer, deps: HandlerDeps): voi
       if (attachment.type === 'office') {
         const mdFileName = `${id}_${safeName}.md`
         const mdPath = join(attachmentsDir, mdFileName)
+        filesToCleanup.push(mdPath)
         try {
-          const markitdown = new MarkItDown()
-          const result = await markitdown.convert(storedPath)
-          if (!result || !result.textContent) {
-            throw new Error('Conversion returned empty result')
-          }
-          await writeFile(mdPath, result.textContent, 'utf-8')
+          // U-API: dependency security — use the bundled Python/uv converter instead of vulnerable markitdown-js.
+          await convertDocumentToMarkdown(storedPath, mdPath, deps.platform)
           markdownPath = mdPath
-          filesToCleanup.push(mdPath)
           deps.platform.logger.info(`Converted Office file to markdown: ${mdPath}`)
         } catch (convertError) {
           // Conversion failed - throw so user knows the file can't be processed
