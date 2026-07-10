@@ -9,7 +9,7 @@
 
 ### 1.1 上游仓库
 
-- URL: `https://github.com/lukilabs/craft-agents-oss`
+- URL: `https://github.com/craft-ai-agents/craft-agents-oss`
 - 主分支: `main`
 - 我们的 git remote: `upstream`（已配置）
 
@@ -30,10 +30,10 @@
 
 每 2 周看一次（推荐周一）：
 
-1. **Release 页面** — `https://github.com/lukilabs/craft-agents-oss/releases`
+1. **Release 页面** — `https://github.com/craft-ai-agents/craft-agents-oss/releases`
    - 看是否有新版本号
    - 读 release notes，识别 breaking changes
-2. **Commits 页面** — `https://github.com/lukilabs/craft-agents-oss/commits/main`
+2. **Commits 页面** — `https://github.com/craft-ai-agents/craft-agents-oss/commits/main`
    - 看主分支自上次同步以来的 commit 数
    - 标题里出现的关键词：`provider`、`onboarding`、`branding`、`auto-update`、`security` 必须重点 review
 3. **CHANGELOG**（如果有）
@@ -176,9 +176,9 @@ grep -c "U-API" apps/electron/src/renderer/pages/settings/AiSettingsPage.tsx
 git add apps/electron/src/renderer/pages/settings/AiSettingsPage.tsx
 
 # 6. 跑全仓 baseline 验证 §3.7（merge 完所有冲突后再跑）
-grep -rEn --exclude-dir=node_modules "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
+grep -rEn --exclude-dir=node_modules --exclude-dir=release "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
   | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
-# 期望 = .planning/14 §0「当前基线」（唯一权威；写作时 82，2026-05 v0.9.6 后已升到 98，务必以 §14 §0 为准）；merge commit 当下浮动允许扩到 ±5，第一个 follow-up commit 后回到 ±2
+# 期望 = .planning/14 §0「当前基线」（唯一权威，不在本 SOP 复制硬编码数字）；merge commit 当下浮动允许扩到 ±5，第一个 follow-up commit 后回到 ±2
 
 # 7. (v0.9.1+) 验证 mid-stream 类型完整进入（08 §9 哨兵）
 grep -nE "MidStreamBehavior|defaultMidStreamBehavior|resolveMidStreamBehavior" packages/shared/src/config/llm-connections.ts | wc -l
@@ -288,13 +288,13 @@ grep -nA3 "if \(isCompatProvider" packages/server-core/src/model-fetchers/index.
 # **必须使用全格式 grep**——旧版 `// U-API:|/\* U-API (START|END)` 漏 HTML 注释（<!-- -->）+
 # JSX 行内注释（{/* */}），同步时会假报数低（v9/v10 review 期间 REVIEW-3 修正过的"基线 47 而非 44"
 # 就是这个根因）。CLAUDE.md §3.7 已改全格式，本节同步对齐。
-echo "U-API 改造标记总数（期望 = .planning/14 §0 当前基线 [写作时 82，现 98，以 §14 §0 为准]，允许 ±2 浮动；超出范围必须停下逐项核对；详见 .planning/14 §5 历次基线演进，原 CLAUDE.md §3.7）:"
-grep -rEn --exclude-dir=node_modules "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
+echo "U-API 改造标记总数（期望 = .planning/14 §0 当前基线，允许 ±2 浮动；超出范围必须停下逐项核对；详见 .planning/14 §5 历次基线演进，原 CLAUDE.md §3.7）:"
+grep -rEn --exclude-dir=node_modules --exclude-dir=release "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
   | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
 
-echo "U-API START/END 配对数（必须相等且 = 9）:"
-grep -rE --exclude-dir=node_modules "/\* U-API START" packages apps --include="*.ts" --include="*.tsx" | wc -l
-grep -rE --exclude-dir=node_modules "/\* U-API END" packages apps --include="*.ts" --include="*.tsx" | wc -l
+echo "U-API START/END 配对数（必须相等，期望值见 .planning/14 §0）:"
+grep -rE --exclude-dir=node_modules --exclude-dir=release "/\* U-API START" packages apps --include="*.ts" --include="*.tsx" | wc -l
+grep -rE --exclude-dir=node_modules --exclude-dir=release "/\* U-API END" packages apps --include="*.ts" --include="*.tsx" | wc -l
 
 echo "Build 脚本 marker（B1-B7 build-* + scripts/ stub + M3-Sentry，期望 ≥13；2026-05-29 v0.9.6 后实测 21）:"
 grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_modules | wc -l
@@ -1050,14 +1050,8 @@ echo "server.handle calls:"; grep -c "server\.handle(" "$F"
 
 ## 6. 长期版本号策略
 
-我们的版本号**与上游解耦**：
+U Agents 的基础版本号**跟随上游 release tag**。同步 `vX.Y.Z` 时根与 workspace `package.json` 使用同一 `X.Y.Z`，方便判断代码基线、生成更新清单和定位上游差异。
 
-| 我们的版本 | 含义 |
-|---|---|
-| 1.0.0 | M1 首发版本 |
-| 1.x.y | M2/M3 阶段，上游小版本同步 + 我们的功能演进 |
-| 2.0.0 | 重大重构（如自建 OAuth relay 完成）|
+fork 自有 hotfix 若需要区分，优先使用构建元数据或发布说明标识，例如 `0.11.0+u-agents.1`；不要另起一套与上游无映射关系的 `1.x/2.x` 版本序列。
 
-上游的版本号（`0.9.x`）只在我们的"关于"对话框 / sync report 中作为参考标注，不影响我们的对外版本号。
-
-`package.json` 的 `version` 字段由我们维护，发版时手动 bump（详见 `05-build-release.md` §发版流程）。
+每次同步时接受上游 version bump，但必须保留 `@u-agents/*` package name、U Agents description/homepage、依赖安全下限与根 `overrides`。版本决策与 `01-branding-spec.md §4.1`、`08-conflict-zones.md §3.1` 保持一致。

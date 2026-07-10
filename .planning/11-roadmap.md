@@ -5,12 +5,25 @@
 
 ---
 
+## 当前状态快照（2026-07-10）
+
+- 当前源码版本：`0.10.5`；M1 已完成。
+- macOS arm64 与 Windows x64 已有安装/对话实测；Linux 与 macOS 正式签名/公证仍未闭环。
+- `bun run validate:ci` 当前全绿；迁移集成测试已与 U-API-only 启动合同对齐。
+- 依赖安全基线已从 161 项降到 40 项，剩余唯一 critical 为跨 Pi/飞书/WhatsApp 的 `protobufjs`，详见 [`M2-DEPENDENCY-SECURITY-AUDIT-2026-07-10.md`](M2-DEPENDENCY-SECURITY-AUDIT-2026-07-10.md)。
+- 品牌与文档治理核查见 [`M2-BRAND-AUDIT-2026-07-10.md`](M2-BRAND-AUDIT-2026-07-10.md)。
+- 上游 v0.11.0 已完成预分析，结论为“有条件接收、尚未合并”，见 [`UPSTREAM-PREVIEW-v0.11.0-2026-07-10.md`](sync-reports/UPSTREAM-PREVIEW-v0.11.0-2026-07-10.md)。
+
+下文 M1 长任务表保留为历史实施账本；判断当前是否完成应优先看本快照、M2 出口条件和最新 sync report。
+
+---
+
 ## 阶段总览
 
 | 阶段 | 目标 | 完成判据（出口）| 估期 |
 |---|---|---|---|
 | **M1** | 最小可白标桌面端 | 自购 macOS 上能装能用，对话能走通 U-API | 第 1 优先 |
-| **M2** | 多平台稳定 + 可分发 | Windows/Linux 安装包齐全，自动更新走通，国内 5 个种子用户使用无大 bug | M1 完成后 |
+| **M2** | 多平台稳定 + 可分发 | macOS 公证、Linux、三平台自动更新和用户文档闭环 | 进行中 |
 | **M3** | 自主权扩展 | 自建 OAuth relay，消除 craft.do 残留瑕疵 | M2 完成后 |
 | **M4+** | 长期维护 | 每月按 SOP 同步上游，跟随版本节奏迭代 | 持续 |
 
@@ -27,44 +40,23 @@
 
 **本地环境约束**：
 - **Bun（强制，不可换 npm/yarn/pnpm）**：
-  - 建议与上游锁定版本保持一致或更高（上游 `scripts/build/common.ts` 中 `BUN_VERSION = 'bun-v1.3.9'`，这是**构建产物中要 bundle 的 bun 版本**——不是说本地 bun 必须严格 ≥ 1.3.9 才能跑 typecheck，但低于此版本时若构建/typecheck 异常，第一优先级是对齐到 1.3.9）
+  - CI 当前使用 Bun 1.3.10；本轮本地验证使用 1.3.12。低版本遇到 lockfile/typecheck 异常时，先对齐 CI 或更高兼容版本。
   - **绝不要**用 `npm install` / `yarn install` / `pnpm install` 替代 `bun install`：上游 monorepo 用 `bun.lock`（不是 `package-lock.json`），换包管理会破坏 lockfile + 部分 npm scripts 用 `bun run tsc` 形式找不到 binary
   - 包管理唯一允许命令：`bun install` / `bun run <script>` / `bun test`
   - M1 执行前先 `bun --version` 记录版本，遇到诡异错误时回这里对齐
 - Node.js ≥ 18（Electron 39 要求）
-- macOS arm64 或 x64（M1 仅出 macOS DMG）
+- macOS arm64（自 v0.10.3 起不再生产 Intel x64）
 - 磁盘空间 ≥ 10GB（monorepo + node_modules + electron 打包产物）
 
-**⚠️ OSS 已剥离脚本清单（执行 AI 必读，避免跑命令立即撞墙）**：
+**当前验证入口**：
 
-上游 OSS 版本剥离了 8 个 scripts/* 文件，但 `package.json` 仍保留对它们的引用。**M1 阶段绝不要**跑下面这些 npm script：
-
-| ❌ 不要跑的 npm script | 调用的缺失文件 | 影响 |
-|---|---|---|
-| `bun run lint` | `scripts/check-raw-sends.sh`（`lint:ipc-sends` 链）| 立即 exit 127 → 整个 lint 失败 |
-| `bun run lint:ipc-sends` | 同上 | 同上 |
-| `bun run lint:i18n:staged` | `scripts/lint-i18n-staged.sh` | 同上 |
-| `bun run typecheck:staged` | `scripts/typecheck-staged.sh` | 同上 |
-| `bun run build` | `scripts/build.ts` | 同上 |
-| `bun run release` | `scripts/release.ts` | 同上 |
-| `bun run check-version` | `scripts/check-version.ts` | 同上 |
-| `bun run oss:sync` | `scripts/oss-sync.ts` | 同上 |
-| `bun run fresh-start` / `fresh-start:token` | `scripts/fresh-start.ts` | 同上（详见 `04-feature-cuts.md` §8 中 i18n 文案修复 #26b）|
-
-**M1 阶段允许跑的 npm scripts**（已在 M1 出口条件中明确）：
-- ✅ `bun install`
-- ✅ `bun run typecheck:all`（不调 typecheck:staged）
-- ✅ `bun run lint:i18n:parity`（不调 lint:ipc-sends）
-- ✅ `bun run lint:electron` / `lint:shared` / `lint:ui`（单独跑某个 lint 子任务可以，但**不**通过组合的 `bun run lint`）
-- ✅ `bun run electron:clean`
-- ✅ `bun run electron:build`
-- ✅ `bun run electron:dist:adhoc:mac`（M1 任务 #27 新加的脚本，**SDK 缺失，对 U-API 路径透明**——见 `05-build-release.md` §3.2.0）
-- ✅ `cd apps/electron && bun run dist:mac` / `dist:mac:x64` / `dist:win`（**M2 推荐——含 SDK 复制**）
-
-**为什么不修复缺失脚本**：M1 阶段不接管这些工具链；保持上游 package.json 不动，减少同步冲突。M2/M3 阶段如真需要 lint:ipc-sends 等检查，再自建对应脚本。
+- `bun run validate:ci` 是主闸，包含全量 typecheck、shared config tests、19 个文档工具 smoke tests 与 i18n 三道检查。
+- `scripts/check-raw-sends.sh`、`scripts/lint-i18n-staged.sh`、`scripts/typecheck-staged.sh` 已存在，旧版“CI 死引用”说明已失效。
+- `bun run build`、`release`、`check-version`、`oss:sync`、`fresh-start*` 仍引用 OSS 未公开脚本，不作为本 fork 的日常入口。
+- 打包只按 `05-build-release.md` 的当前平台命令执行；不要根据本历史账本里的旧命令猜测。
 
 **核心交付物**：
-- macOS arm64 + x64 DMG 安装包
+- macOS arm64 DMG 安装包（自 v0.10.3 起不再生产 Intel x64）
 - 安装后流程能跑完：启动 → onboarding 输 Token → 选协议 → 添加模型 → 发第一条对话
 
 **M1 任务清单**（由用户/外部 AI 在另会话执行，本仓库 AI 只产出规格指引）：
@@ -243,12 +235,12 @@
 - [x] **`09-test-checklist.md` §3.5 后端 setup 流程端到端验证通过**（防止 #17b 改了但没接入）
 - [x] **M1 性能基准已记录**到 `.planning/perf-baseline-M1.md`
 - [x] 自动更新指向 `update.u-agents.u-studio.cn`，能拉到自建的 latest.yml
-- [x] 网站下载页显著位置展示"首次启动指引"（已上线 https://agents.u-studio.cn ，2026-05-05）
+- [ ] 下载页迁移到当前产品主域并展示"首次启动指引"（官网工作暂缓，不在本轮处理）
 - [x] Sentry DSN 未被注入（`SENTRY_ELECTRON_INGEST_URL` 不设置）
 
 **已知 M1 不做的事**（推迟到后续阶段）：
 - ❌ macOS 正式签名 + Apple 公证（M2，需要 Apple Developer 账号 $99/年）
-- ❌ Windows / Linux 打包（M2）
+- ✅ Windows x64 打包与首条对话已验证；Linux 打包仍属 M2 待办
 - ❌ 自动更新增量包（M2）
 - ❌ 自建 OAuth relay（M3）
 - ❌ 自建文档站、官网（M3）
@@ -284,6 +276,7 @@
 | Web 端 | `apps/webui` 与 `apps/viewer` 品牌替换、构建产物部署；Viewer 禁用或自托管 Plausible/Google Fonts | `01-branding-spec.md` §2.36 + §3 + 新增 `12-web-deploy.md`（M2 时再写） |
 | 法务 | 用户协议、隐私政策、ICP 备案、生成式 AI 算法备案（如需）| `LEGAL.md` §6 |
 | **安全** | ✅ **M2 安全主线 4/4 完成**（2026-05-05）：TLS 严格 (`c516e4d2`) + atomicWriteFileSync 11 处 (`25d38ab9`) + dir 0o700 + Token 长度 (`2972d8f4`） | `LEGAL.md` §5.4 + `M2-TLS-FIX-SPEC.md` + `M2-ATOMIC-WRITES-SPEC.md` + `M2-SECURITY-CLEANUP-SPEC.md` |
+| **依赖安全** | ✅ 两轮收口完成：移除 `markitdown-js` 与无引用 Copilot/DevTools 链，审计 161→40；剩余 `protobufjs` 待上游 SDK 升级 | `M2-DEPENDENCY-SECURITY-AUDIT-2026-07-10.md` |
 | **CLI 改造** | ✅ **apps/cli rename craft-cli → u-agents-cli**（commit `1a49d128`，2026-05-05；4 处改 + 6 处 e2e fixture 保留）| `M2-CLI-RENAME-SPEC.md` |
 
 **出口条件**：
@@ -291,18 +284,14 @@
 - [x] **apps/cli rename craft-cli → u-agents-cli**（commit `1a49d128`，详见 [`M2-CLI-RENAME-SPEC.md`](M2-CLI-RENAME-SPEC.md)）
 - [ ] **macOS 切到正式签名 + 公证**（按 `09-test-checklist.md` §1.3 验收）
 - [ ] **macOS 用户从 M1 adhoc 版本自动更新到 M2 公证版本之后，启动不再被 Gatekeeper 拦截**
-- [ ] 三平台安装包均通过 `09-test-checklist.md`
-- [ ] Windows/Linux 构建脚本和 `scripts/build/common.ts` 生成的 artifact name 不再使用 `Craft-Agents-*`
-- [ ] 三平台自动更新均能从 N→N+1
-- [ ] zh-Hans.json 中无 "Craft" 字面量
+- [~] macOS arm64、Windows x64 已通过关键安装/对话实测；Linux 仍待 `09-test-checklist.md`
+- [~] Windows artifact 已验证；Linux 构建脚本和产物仍需最终品牌核对
+- [~] macOS/Windows 更新清单已存在；Linux N→N+1 仍未验证
+- [x] zh-Hans.json 中无用户可见 "Craft" 品牌残留
 - [ ] 用户协议 + 隐私政策上线
-- [ ] 至少 1 次成功的上游同步（按 `07-upstream-sync.md`）
+- [x] 已按 `07-upstream-sync.md` 成功同步至 v0.10.5；v0.11.0 尚未合并
 - [ ] **`perf-baseline-M2.md` 重测**（M1 perf-baseline 是 hotfix 时点快照；M2 4 项安全 fix + v0.9.1 Pi SDK 0.72.1 + mid-stream 类型必然影响性能。M1 cold-start 已触线 298/300 MB 期望值，M2 应重新建立基线，避免外部 AI 误读 M1 数据为现状。详见 [`perf-baseline-M1.md`](perf-baseline-M1.md) 顶部"历史快照"声明）
-- [~] **R2 重打 + 重传**（让 R2 生产产物含 M2 安全主线 4/4 fix）：
-  - [x] **macOS arm64 DMG 重打**（2026-05-05，含 SDK + 4 项 M2 fix；本地 verify：atomicWriteFileSync ×12 / `tlsRejectUnauthorized ?? true` 默认严格 / MIN_LLM_API_KEY_LENGTH ×4 / mode:448 ×4）
-  - [ ] macOS x64 DMG 重打（待跑 `CSC_IDENTITY_AUTO_DISCOVERY=false bun run dist:mac:x64`）
-  - [x] Windows EXE 重打（2026-05-06 完成；事故 #3 fix `8cc943e6` 实测 verify，详见 [`12-subprocess-build-pipeline.md`](12-subprocess-build-pipeline.md) §0.3）
-  - [ ] R2 上传 + CDN 刷新（三平台齐了一次性传，避免 `latest-mac.yml` / `latest.yml` 版本号漂移）
+- [x] **R2 历史重打链路已由 v0.10.3 双平台发布取代**：macOS arm64 与 Windows x64 清单/产物已上线；Intel x64 已停止生产，Linux 另按 M2 新链路验收。
 
 ---
 
@@ -314,10 +303,10 @@
 - 自建 OAuth relay 服务（消除 `agents.craft.do` 残留瑕疵）
   - ⚠️ **v0.9.1 上游影响**：commit `70828cbc` / `34521a7d` 把 Google OAuth 推荐配置从 "Desktop app" 改为 "Web application"（详见 [`apps/online-docs/source-guides/google-oauth-setup.mdx`](../apps/online-docs/source-guides/google-oauth-setup.mdx)）。两个 redirect URI：`http://localhost:6477/callback`（desktop loopback）+ `https://agents.craft.do/auth/callback`（WebUI/headless）。**M3 自建 relay 时**必须考虑 Web app client 类型——意味着需要稳定的 HTTPS 回调域名（即 `auth.u-agents.u-studio.cn` 或 `agents.u-studio.cn/auth/callback`）+ 可能影响 desktop 流程的端口策略（loopback 仍 OK，但 callback 域名注册要含两个）
 - 自建文档站（`u-agents.u-studio.cn/docs/*`）
-  - ⚠️ **M1 14/14 已上线 `https://agents.u-studio.cn`** = 简单下载页（Next.js 静态站）。**M3 文档站升级 vs 重建 vs 加路径**边界未定：
+  - 当前产品主域为 `https://u-agents.u-studio.cn`。**M3 文档站升级 vs 重建 vs 加路径**边界未定：
     - 选项 A：在现有站点加 `/docs` 路径（最小改动，复用 Next.js stack）
     - 选项 B：另起 `docs.u-agents.u-studio.cn` 子域（完全独立，可换 Mintlify / VitePress / Docusaurus）
-    - 选项 C：把 `agents.u-studio.cn` 整体重写为文档+下载混合（重做工作量大）
+    - 选项 C：把 `u-agents.u-studio.cn` 整体重写为文档+下载混合（重做工作量大）
     - 决策时机：M3 入口（M2 完成 + 50+ 活跃用户）；M2 期间不动现有下载页
 - 自建会话分享 viewer（`u-agents.u-studio.cn/s/*` 或 `share.u-agents.u-studio.cn`，避免与文档站路径冲突）
 - 自建 Sentry（或 Plausible / Umami 等隐私友好的错误上报）

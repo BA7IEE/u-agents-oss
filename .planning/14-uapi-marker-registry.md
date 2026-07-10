@@ -8,9 +8,9 @@
 
 ## 0. 当前基线（速查）
 
-| 指标 | 基线（2026-06-28 v0.10.5 sync 后确认，数字未变）| 下次同步允许浮动 |
+| 指标 | 基线（2026-07-10 治理复核）| 下次同步允许浮动 |
 |---|---|---|
-| U-API 标记总数（含全部注释格式）| **118** | ±2 |
+| U-API 标记总数（含全部注释格式）| **120** | ±2 |
 | `/* U-API START */` 块数 | **10** | 必须等于 END |
 | `/* U-API END */` 块数 | **10** | 必须等于 START |
 
@@ -19,14 +19,14 @@
 ```bash
 # 全部 U-API 标记（含 // 单行 / /* 块 / <!-- HTML / {/* JSX 行内）
 # SOP-REHEARSAL 2026-05-05 改进：用 --exclude-dir 替代 grep -v 过滤，
-# 抗 build-dmg.sh 中间态把 SDK 包复制到 apps/electron/node_modules/ 让数字暂时虚高的情况
-grep -rEn --exclude-dir=node_modules "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
+# 同时排除 apps/electron/release/ 下的历史打包副本；否则当前 checkout 会把 120 误报为 208
+grep -rEn --exclude-dir=node_modules --exclude-dir=release "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
   | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
-# 期望：118（基线，允许 116-120）
+# 期望：120（基线，允许 118-122）
 
 # 块标记 START/END 配对（数量必须相等）
-grep -rE --exclude-dir=node_modules "/\* U-API START" packages apps --include="*.ts" --include="*.tsx" | wc -l
-grep -rE --exclude-dir=node_modules "/\* U-API END" packages apps --include="*.ts" --include="*.tsx" | wc -l
+grep -rE --exclude-dir=node_modules --exclude-dir=release "/\* U-API START" packages apps --include="*.ts" --include="*.tsx" | wc -l
+grep -rE --exclude-dir=node_modules --exclude-dir=release "/\* U-API END" packages apps --include="*.ts" --include="*.tsx" | wc -l
 # 期望：均 = 10
 ```
 
@@ -229,6 +229,12 @@ if (!apiKey && connection.baseUrl) {
 | 64 | 数据目录品牌统一 — `messagingGatewayLogPath` 补登记（既有 `.u-agents` 路径早已改但漏 marker，本次回补）| `apps/electron/src/main/logger.ts` | 注释 `数据目录品牌统一为 ~/.u-agents/（不在 Electron logs 目录内，故单独写死）` | 单行 | UPSTREAM-PREVIEW-v0.10.4 §5 |
 | 65 | merge 整合 — `writeRootConfig` 测试 helper 兼容上游 v0.10.4 新增迁移测试的数组传参（我方既有 helper 取 config 对象 spread，上游新测试按数组传 llmConnections；helper 加 `Array.isArray` 归一化两种调用）| `packages/shared/src/config/__tests__/storage-startup-migration.test.ts` | 注释 `兼容两种调用约定——上游 v0.10.4 新增迁移测试按数组传 llmConnections` | 单行 | 本次 sync 整合（typecheck 修复）|
 
+**M2 依赖安全收口（2026-07-10，详见 [`M2-DEPENDENCY-SECURITY-AUDIT-2026-07-10.md`](M2-DEPENDENCY-SECURITY-AUDIT-2026-07-10.md)）**：
+
+| # | 改造类别 | 文件 | 定位（用 `grep` 找）| 标记 | 关联规格 |
+|---|---|---|---|---|---|
+| 66 | Office 附件转换移除高危 `markitdown-js`，改为 `convertDocumentToMarkdown` 调用受控 Python/uv 工具链 | `packages/server-core/src/handlers/rpc/files.ts` | `convertDocumentToMarkdown(storedPath, mdPath, deps.platform)` | 单行 | M2 dependency audit §3.1；路径解析单测见 `packages/server-core/src/services/markitdown.test.ts` |
+
 ---
 
 ## 4. Build 脚本 marker（M2 后期补充，不计入主基线）
@@ -300,6 +306,8 @@ grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_mod
 - **v0.10.3 sync（2026-06-10 合并 upstream `a512da7a`，跨 v0.10.1/2/3 三版本）：115 处**（净 +6 from 109：#60a-d D2 模型迁移豁免 ×4+测试 #60t + #61 D4 预设清单 − #53 旧形态退役换 `.catch` 兜底；START/END 9→**10** 对，新增 #60d workspace no-op 块；#62 D1 yml 注释不计入 grep）。上游 105 文件 / +2223 −613；主题 = Opus 4.8 默认 + **Fable 5** + `uiLanguage` 机制 + **Pi prompt-cache 修复(#862)** + SDK **0.2.123→0.3.170** 两连跳 + esbuild externalize + **macOS Intel 停产**（D1 跟随）。27 冲突（14 package.json C11 + bun.lock + 12 源码/docs）；**上游仓库迁移 org：`lukilabs` → `craft-ai-agents`**（remote 已更新）。验证：typecheck:all 0 errors / i18n parity 6×1466 / lint:electron 0 errors（114 warnings，+2 上游）/ **lint:shared 0 errors（上游自修了 4 个 baseline errors，#59 的 C13 follow-up 自动关闭）** / 测试 0 新增 regression（electron 9 fail = browser 8 基线 + transport-banner 1 处 **v0.9.1 起 pre-existing**（上游测试断言 `CRAFT_SERVER_TOKEN` vs 我方更早文案清洗，本次新发现入账）；shared 1 fail send-developer-feedback = pre-existing latent，临时 worktree 基线实测确认）。**打包装机实测 deferred**（SDK externalize 后冷启动为第一道哨兵）。详见 [`sync-reports/SYNC-v0.10.3-20260610.md`](sync-reports/SYNC-v0.10.3-20260610.md)。
 - **v0.10.4 sync（2026-06-27 合并 upstream `556c59a7`，单 squash 提交）：118 处**（净 +3 from 115：#63 `autoUpdateLogPath` `.craft-agent`→`.u-agents` + marker（上游 v0.10.4 新增的 always-on auto-update 诊断日志路径）+ #64 `messagingGatewayLogPath` 补 marker（既有 `.u-agents` 路径漏登记回补）+ #65 `writeRootConfig` 测试 helper 兼容上游新迁移测试数组传参（merge 整合，typecheck 修复）；START/END 维持 10/10，新增均为单行 `//`）。上游 52 文件 / +568 −807；主题 = **Pi SDK scope 迁移 `@mariozechner/*`→`@earendil-works/*`（0.73.1→0.79.9）** + config 启动备份（`backupConfigFile`）+ 会话标题跟随语言（`uiLanguage` 直读，修上游 #885）+ Copilot `onDeviceCode`。20 冲突（14 package.json C11 全部"我方 `@u-agents` 名/描述 + 版本升 0.10.4" + bun.lock + storage.ts/auto-update.ts/index.ts/SessionManager.ts 5 源码 import/逻辑 + storage-startup-migration.test.ts 加 upstream 新迁移测试，保我方 U-API lockdown 测试块）；**§3.3 高冲突区 0 命中**；C11 clean（`@craft-agent/` scope = 0、`@mariozechner` = 0）；C13 未触发。**bun.lock 踩坑（lockfile 重生成陷阱）**：直接对冲突态 `bun install` 会从头解析、拉到比 pin 更新的 `@sentry`（10.60+10.62 **dup**）致 electron `main.tsx` typecheck 断（我方 v0.10.3 与上游 v0.10.4 lock **均 pin `@sentry/core@10.36.0` 单版本**）；正解 = **先 `git checkout upstream/main -- bun.lock` 以上游 lock 为基底，再 `bun install` 调和我方 `@u-agents` 工作区名** → @sentry 回 10.36.0 deduped、工作区名全 `@u-agents`（`@craft-agent` = 0）。验证：**118/10/10 ✓ + `@mariozechner`/`@craft-agent`/`.craft-agent` 残留均 0 ✓ + `bun run typecheck:all` EXIT=0 全绿 ✓**。**装机实测通过（2026-06-28，arm64 adhoc DMG 272 MB）**：Pi 对话正常 + "获取 Token" → `/keys` + 中文标题 + onboarding 品牌锁定，均 OK；koffi `not found` 警告**确认无害**（上游 v0.10.4 锁文件同样 koffi=0 且照常发版——新 `@earendil-works` Pi SDK 已弃 koffi；`--external koffi` + trustedDependencies koffi 属上游也有的死配置，不清以免增分歧）。merge sync→main 仅剩用户执行。详见 [`sync-reports/SYNC-v0.10.4-20260628.md`](sync-reports/SYNC-v0.10.4-20260628.md)（终评）+ [`sync-reports/UPSTREAM-PREVIEW-v0.10.4-2026-06-27.md`](sync-reports/UPSTREAM-PREVIEW-v0.10.4-2026-06-27.md)（预分析）。
 - **v0.10.5 sync（2026-06-28 合并 upstream `c9d9a26f`，merge `35fed047`）：118 处不变**（无新增改造点；START/END 维持 10/10）。上游 22 文件 / +122 −51（fork 史上最小）；主题 = **Claude Sonnet 5 上架**（`claude-sonnet-5`，1M context，registry + Bedrock 三区映射 + `PI_PREFERRED_DEFAULTS`）+ **Claude Agent SDK 0.3.170→0.3.197**。15 冲突全机械（14 package.json C11 + bun.lock）；§3.3 仅 `llm-connections.ts` 被上游改但我方与基线逐字节一致 → 零冲突照收（anthropic/bedrock Pi provider 我方隐藏，dead-ish path；D2 豁免保 U-API 模型清单）。**bun.lock 按 C15 程序**（取上游 lock 基底 + `bun install` 调和；@sentry 保持 10.36.0 单版本、workspace 名 `@u-agents`×80 / `@craft-agent`=0）。**本次唯一实质工作 = i18n 值同步**：上游改 `model.sonnetDesc` 英文值，parity 抓不到值变化，手动同步 6 个非英语 locale（zh-Hans「速度与智能的最佳结合」等）；上游小瑕疵记录：Sonnet 4.6 与 Sonnet 5 共用 `descriptionKey`，i18n UI 两代同句（C13 类 cosmetic，我方不可达，不处理）。release-notes 0.10.5.md 中文化三件套照做。验证：typecheck:all EXIT=0 / 118/10/10 / 三残留全 0 / i18n sorted+parity+coverage 全过（6×1466）+ **装机实测通过（2026-06-28，arm64 adhoc DMG 272 MB）：App 启动 + Pi 对话正常**（SDK 0.3.197 升级后 C14 真测；koffi 警告同 v0.10.4 无害）。详见 [`sync-reports/SYNC-v0.10.5-20260628.md`](sync-reports/SYNC-v0.10.5-20260628.md)（终评）+ [`sync-reports/UPSTREAM-PREVIEW-v0.10.5-2026-06-28.md`](sync-reports/UPSTREAM-PREVIEW-v0.10.5-2026-06-28.md)（预分析）。
+- **治理复核（2026-07-10）：119 处 / START 10 / END 10**。本轮没有新增源码 marker；把校验命令补上 `--exclude-dir=release` 后，排除历史 packaged source 副本并对当前源码重新计数，确认后续同步前基线应使用 119。旧命令在当前 checkout 会误报 207，不能再作为基线。
+- **M2 依赖安全收口（2026-07-10）：120 处 / START 10 / END 10**。新增 #66 单行 marker；Office 附件转换从 `markitdown-js` 切到受控 Python/uv 工具链，并补 `markitdown.test.ts` 4 个 runtime 路径解析测试。旧命令因 `release/` 历史副本会误报 208。
 
 ---
 

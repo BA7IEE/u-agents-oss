@@ -8,18 +8,16 @@ description: 核对 U Agents fork 的 // U-API: 代码改造点标记与同步�
 > 登记表正本：[`.planning/14-uapi-marker-registry.md`](../../../.planning/14-uapi-marker-registry.md)。
 > 标记的"约束力"在 `CLAUDE.md` §3.7。本 skill 只做核查/定位/登记，不改源码。
 
-## 当前基线（下面是写作时数值，**实际永远以 §14 §0 为准**）
-- U-API 标记总数 **98**（允许 96–100）
-- `/* U-API START */` = **9**，`/* U-API END */` = **9**（必须相等）
+## 当前基线
 
-> 别把这里的数字当权威——同步后基线变了只更新 §14 §0，这段保持"以 §14 §0 为准"即可。
+实际数字永远以 §14 §0 为准；skill 不再复制一份硬编码数字，避免每次同步后出现双源漂移。
 
 ## 校验 grep（只读）
 ```bash
-grep -rEn --exclude-dir=node_modules "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
-  | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l   # 期望 98
-grep -rE --exclude-dir=node_modules "/\* U-API START" packages apps --include="*.ts" --include="*.tsx" | wc -l  # 9
-grep -rE --exclude-dir=node_modules "/\* U-API END"   packages apps --include="*.ts" --include="*.tsx" | wc -l  # 9
+grep -rEn --exclude-dir=node_modules --exclude-dir=release "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
+  | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
+grep -rE --exclude-dir=node_modules --exclude-dir=release "/\* U-API START" packages apps --include="*.ts" --include="*.tsx" | wc -l
+grep -rE --exclude-dir=node_modules --exclude-dir=release "/\* U-API END"   packages apps --include="*.ts" --include="*.tsx" | wc -l
 ```
 
 ## 用法

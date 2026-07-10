@@ -19,9 +19,9 @@ description: 核查 U Agents fork 的品牌替换是否遗漏。当任务涉及�
 ## 快速反向核查（只读 grep）
 ```bash
 # 用户可见品牌残留（应为 0；FEATURE_FLAG 门控/系统 prompt 例外见 01 规格）
-grep -rIn --exclude-dir=node_modules -E "Craft Agents|craft\.do|lukilabs|craft-ai-agents" packages apps --include="*.ts" --include="*.tsx" | grep -v "U-API"
+grep -rIn --exclude-dir=node_modules --exclude-dir=release -E "Craft Agents|craft\.do|lukilabs|craft-ai-agents" packages apps --include="*.ts" --include="*.tsx" | grep -v "U-API"
 # 旧 NPM scope（同步后必须 0，命中即 C11）
-grep -rIn --exclude-dir=node_modules "@craft-agent/" packages apps
+grep -rIn --exclude-dir=node_modules --exclude-dir=release "@craft-agent/" packages apps
 ```
 命中项逐条对照 `01-branding-spec.md` 判断"该替换/可保留"，写进核查清单 .md；不要直接改源码。
 

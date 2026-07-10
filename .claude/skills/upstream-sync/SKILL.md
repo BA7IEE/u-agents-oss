@@ -19,7 +19,7 @@ description: U Agents fork 与上游 craft-agents-oss 每月同步时使用。�
 `git fetch upstream` → `git checkout -b sync/upstream-YYYYMMDD` → `git merge upstream/main` → 解冲突（§3.3 文件优先保我方再挑上游逻辑）→ 品牌核对 → 跑回归 → merge 回主分支。
 
 ## 合并完成后 AI 要做的（产出 .md）
-1. **跑 §14 校验 grep**（只读）：核对标记总数 vs §14 §0 当前基线（写作时 115）、`START`/`END` 配对相等（写作时各 10）；超 ±2 停下逐项核对。
+1. **跑 §14 校验 grep**（只读）：核对标记总数 vs §14 §0 当前基线、`START`/`END` 配对相等；超 ±2 停下逐项核对。命令必须排除 `node_modules` 与 `release`。
 2. **过 C1–C14 踩坑表**（见 §14 §6）：重点 C11（新文件旧 NPM scope `@craft-agent/` 必须 = 0）、C12（上游自带 lint 违规）、C13（上游自带 test fail）。
 3. **release-notes 中文化（必做，勿只清洗）**：上游新增的 `apps/electron/resources/release-notes/X.Y.Z.md` 三件套——①整篇翻译成中文（风格对照既有 0.9.x/0.10.x 中文版：中文正文 + 英文标识符 + 去 commit hash + 加"备注"产品化小结）②品牌清洗（Craft→U Agents）③issue 链接降裸号。⚠️ **只做②③不做① = v0.9.6 与 v0.10.3 两次踩坑**（应用内"更新日志"直接展示给用户，英文残留要等装机实测才被发现）。
 4. 写 `.planning/sync-reports/SYNC-vX.Y.Z-YYYYMMDD.md` 差异报告。
