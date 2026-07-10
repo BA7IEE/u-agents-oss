@@ -98,6 +98,9 @@ mac:
   # The value must match --app-icon used in actool (see afterPack.js)
   extendInfo:
     CFBundleIconName: AppIcon
+    # Required for macOS to list the app under Privacy & Security > Local Network
+    # and prompt for permission. Without it the app is silently denied LAN access.
+    NSLocalNetworkUsageDescription: "U Agents uses your local network to reach LAN addresses and devices you ask an agent to access, such as local servers or APIs."
   # U-API: D1 (2026-06-10) — 跟随上游 v0.10.1 macOS Intel 停产，仅出 arm64
   # （v0.10.0 为最后 Intel 版；详见 .planning/05-build-release.md §3）
   target:

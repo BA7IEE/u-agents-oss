@@ -10,7 +10,7 @@
 
 | 指标 | 基线（2026-07-10 治理复核）| 下次同步允许浮动 |
 |---|---|---|
-| U-API 标记总数（含全部注释格式）| **120** | ±2 |
+| U-API 标记总数（含全部注释格式）| **123** | ±2 |
 | `/* U-API START */` 块数 | **10** | 必须等于 END |
 | `/* U-API END */` 块数 | **10** | 必须等于 START |
 
@@ -19,10 +19,10 @@
 ```bash
 # 全部 U-API 标记（含 // 单行 / /* 块 / <!-- HTML / {/* JSX 行内）
 # SOP-REHEARSAL 2026-05-05 改进：用 --exclude-dir 替代 grep -v 过滤，
-# 同时排除 apps/electron/release/ 下的历史打包副本；否则当前 checkout 会把 120 误报为 208
+# 同时排除 apps/electron/release/ 下的历史打包副本；否则会重复统计已打包源码副本
 grep -rEn --exclude-dir=node_modules --exclude-dir=release "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
   | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
-# 期望：120（基线，允许 118-122）
+# 期望：123（基线，允许 121-125）
 
 # 块标记 START/END 配对（数量必须相等）
 grep -rE --exclude-dir=node_modules --exclude-dir=release "/\* U-API START" packages apps --include="*.ts" --include="*.tsx" | wc -l
@@ -234,6 +234,9 @@ if (!apiKey && connection.baseUrl) {
 | # | 改造类别 | 文件 | 定位（用 `grep` 找）| 标记 | 关联规格 |
 |---|---|---|---|---|---|
 | 66 | Office 附件转换移除高危 `markitdown-js`，改为 `convertDocumentToMarkdown` 调用受控 Python/uv 工具链 | `packages/server-core/src/handlers/rpc/files.ts` | `convertDocumentToMarkdown(storedPath, mdPath, deps.platform)` | 单行 | M2 dependency audit §3.1；路径解析单测见 `packages/server-core/src/services/markitdown.test.ts` |
+| 67 | v0.11.0 后台代理跨 turn 常驻改为默认 OFF；优先读取 `U_AGENTS_KEEP_BG_AGENTS_ALIVE`，兼容旧 `CRAFT_*` 变量 | `packages/shared/src/agent/backend/claude/persistent-input.ts` | `metered-token safety — default OFF` | 单行 | SYNC-v0.11.0 D2 |
+| 67t | #67 防回归测试：默认关闭、U Agents 主变量开启/关闭、旧变量兼容、主变量优先级 | `packages/shared/src/agent/backend/claude/persistent-input.test.ts` | `background agents must be explicit opt-in` | 单行 | SYNC-v0.11.0 D2 |
+| 68 | v0.11.0 上游 `send-agent-message` 测试适配本 fork 的 `noUncheckedIndexedAccess` 严格基线 | `packages/session-tools-core/src/handlers/send-agent-message.test.ts` | `strict noUncheckedIndexedAccess baseline` | 单行 | SYNC-v0.11.0 C13 |
 
 ---
 
@@ -308,6 +311,7 @@ grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_mod
 - **v0.10.5 sync（2026-06-28 合并 upstream `c9d9a26f`，merge `35fed047`）：118 处不变**（无新增改造点；START/END 维持 10/10）。上游 22 文件 / +122 −51（fork 史上最小）；主题 = **Claude Sonnet 5 上架**（`claude-sonnet-5`，1M context，registry + Bedrock 三区映射 + `PI_PREFERRED_DEFAULTS`）+ **Claude Agent SDK 0.3.170→0.3.197**。15 冲突全机械（14 package.json C11 + bun.lock）；§3.3 仅 `llm-connections.ts` 被上游改但我方与基线逐字节一致 → 零冲突照收（anthropic/bedrock Pi provider 我方隐藏，dead-ish path；D2 豁免保 U-API 模型清单）。**bun.lock 按 C15 程序**（取上游 lock 基底 + `bun install` 调和；@sentry 保持 10.36.0 单版本、workspace 名 `@u-agents`×80 / `@craft-agent`=0）。**本次唯一实质工作 = i18n 值同步**：上游改 `model.sonnetDesc` 英文值，parity 抓不到值变化，手动同步 6 个非英语 locale（zh-Hans「速度与智能的最佳结合」等）；上游小瑕疵记录：Sonnet 4.6 与 Sonnet 5 共用 `descriptionKey`，i18n UI 两代同句（C13 类 cosmetic，我方不可达，不处理）。release-notes 0.10.5.md 中文化三件套照做。验证：typecheck:all EXIT=0 / 118/10/10 / 三残留全 0 / i18n sorted+parity+coverage 全过（6×1466）+ **装机实测通过（2026-06-28，arm64 adhoc DMG 272 MB）：App 启动 + Pi 对话正常**（SDK 0.3.197 升级后 C14 真测；koffi 警告同 v0.10.4 无害）。详见 [`sync-reports/SYNC-v0.10.5-20260628.md`](sync-reports/SYNC-v0.10.5-20260628.md)（终评）+ [`sync-reports/UPSTREAM-PREVIEW-v0.10.5-2026-06-28.md`](sync-reports/UPSTREAM-PREVIEW-v0.10.5-2026-06-28.md)（预分析）。
 - **治理复核（2026-07-10）：119 处 / START 10 / END 10**。本轮没有新增源码 marker；把校验命令补上 `--exclude-dir=release` 后，排除历史 packaged source 副本并对当前源码重新计数，确认后续同步前基线应使用 119。旧命令在当前 checkout 会误报 207，不能再作为基线。
 - **M2 依赖安全收口（2026-07-10）：120 处 / START 10 / END 10**。新增 #66 单行 marker；Office 附件转换从 `markitdown-js` 切到受控 Python/uv 工具链，并补 `markitdown.test.ts` 4 个 runtime 路径解析测试。旧命令因 `release/` 历史副本会误报 208。
+- **v0.11.0 sync（2026-07-10）：123 处 / START 10 / END 10**。新增 #67/#67t（后台代理默认关闭与兼容变量测试）和 #68（严格 TypeScript 测试适配）；其余 8 个 marker-bearing 交叉文件逐项复核后保持既有语义。
 
 ---
 

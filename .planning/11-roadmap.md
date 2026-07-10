@@ -7,12 +7,12 @@
 
 ## 当前状态快照（2026-07-10）
 
-- 当前源码版本：`0.10.5`；M1 已完成。
+- 当前同步分支源码版本：`0.11.0`；M1 已完成，v0.11.0 尚未合回 `main`。
 - macOS arm64 与 Windows x64 已有安装/对话实测；Linux 与 macOS 正式签名/公证仍未闭环。
-- `bun run validate:ci` 当前全绿；迁移集成测试已与 U-API-only 启动合同对齐。
+- `bun run validate:ci` 当前全绿；迁移集成测试已与 U-API-only 启动合同对齐，v0.11.0 重点测试 118 项与 messaging / WhatsApp 237 项全绿。
 - 依赖安全基线已从 161 项降到 40 项，剩余唯一 critical 为跨 Pi/飞书/WhatsApp 的 `protobufjs`，详见 [`M2-DEPENDENCY-SECURITY-AUDIT-2026-07-10.md`](M2-DEPENDENCY-SECURITY-AUDIT-2026-07-10.md)。
-- 品牌与文档治理核查见 [`M2-BRAND-AUDIT-2026-07-10.md`](M2-BRAND-AUDIT-2026-07-10.md)。
-- 上游 v0.11.0 已完成预分析，结论为“有条件接收、尚未合并”，见 [`UPSTREAM-PREVIEW-v0.11.0-2026-07-10.md`](sync-reports/UPSTREAM-PREVIEW-v0.11.0-2026-07-10.md)。
+- 品牌与文档治理核查见 [`M2-BRAND-AUDIT-2026-07-10.md`](M2-BRAND-AUDIT-2026-07-10.md)；v0.11.0 同步后复核见 [`M2-BRAND-AUDIT-v0.11.0-2026-07-10.md`](M2-BRAND-AUDIT-v0.11.0-2026-07-10.md)。
+- 上游 v0.11.0 已在独立分支完成有条件接收、冲突处理、验证与 macOS DMG 打包，见 [`SYNC-v0.11.0-20260710.md`](sync-reports/SYNC-v0.11.0-20260710.md)。真实 U-API 消息与 WhatsApp 真人收发仍按报告 §5 待补。
 
 下文 M1 长任务表保留为历史实施账本；判断当前是否完成应优先看本快照、M2 出口条件和最新 sync report。
 
@@ -52,6 +52,7 @@
 
 - `bun run validate:ci` 是主闸，包含全量 typecheck、shared config tests、19 个文档工具 smoke tests 与 i18n 三道检查。
 - `scripts/check-raw-sends.sh`、`scripts/lint-i18n-staged.sh`、`scripts/typecheck-staged.sh` 已存在，旧版“CI 死引用”说明已失效。
+- `lint:i18n:strings` 仍指向缺失的 `scripts/lint-i18n-strings.sh`；它不是当前 CI 闸门，职责边界待单独收口。
 - `bun run build`、`release`、`check-version`、`oss:sync`、`fresh-start*` 仍引用 OSS 未公开脚本，不作为本 fork 的日常入口。
 - 打包只按 `05-build-release.md` 的当前平台命令执行；不要根据本历史账本里的旧命令猜测。
 
@@ -289,7 +290,7 @@
 - [~] macOS/Windows 更新清单已存在；Linux N→N+1 仍未验证
 - [x] zh-Hans.json 中无用户可见 "Craft" 品牌残留
 - [ ] 用户协议 + 隐私政策上线
-- [x] 已按 `07-upstream-sync.md` 成功同步至 v0.10.5；v0.11.0 尚未合并
+- [~] 已按 `07-upstream-sync.md` 在独立分支成功同步至 v0.11.0；代码与 DMG 验证完成，真实 U-API 消息 / WhatsApp 真人收发待补后再决定合回 `main`
 - [ ] **`perf-baseline-M2.md` 重测**（M1 perf-baseline 是 hotfix 时点快照；M2 4 项安全 fix + v0.9.1 Pi SDK 0.72.1 + mid-stream 类型必然影响性能。M1 cold-start 已触线 298/300 MB 期望值，M2 应重新建立基线，避免外部 AI 误读 M1 数据为现状。详见 [`perf-baseline-M1.md`](perf-baseline-M1.md) 顶部"历史快照"声明）
 - [x] **R2 历史重打链路已由 v0.10.3 双平台发布取代**：macOS arm64 与 Windows x64 清单/产物已上线；Intel x64 已停止生产，Linux 另按 M2 新链路验收。
 
