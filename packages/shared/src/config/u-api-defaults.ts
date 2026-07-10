@@ -27,7 +27,7 @@ export function buildDefaultConnection(): LlmConnection {
       supportsImages: true,
     },
     models: [],
-    modelSelectionMode: 'userDefined3Tier',
+    modelSelectionMode: 'automaticallySyncedFromProvider',
     createdAt: Date.now(),
   };
 }

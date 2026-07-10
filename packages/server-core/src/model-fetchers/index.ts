@@ -17,13 +17,16 @@ import {
   getLlmConnection,
   updateLlmConnection,
   isCompatProvider,
+  isUApiSlug,
   getModelsForProviderType,
 } from '@u-agents/shared/config'
 import { MODEL_FETCHERS } from './registry'
 import { handlerLog } from './runtime'
+import { discoverUApiModels, resolveUApiRefreshSelection } from '../domain/u-api-model-discovery'
 
 /** Copilot models are server-managed — refresh every 10 minutes to pick up policy changes. */
 const COPILOT_REFRESH_INTERVAL_MS = 10 * 60 * 1000
+const U_API_REFRESH_INTERVAL_MS = 60 * 60 * 1000
 
 // ============================================================
 // Types
@@ -73,8 +76,32 @@ class ModelRefreshService {
       return
     }
 
-    // Skip compat providers — users configure models manually
+    // U-API: unlike arbitrary compat endpoints, U-API owns a token-scoped model catalog that can be refreshed safely
     if (isCompatProvider(connection.providerType)) {
+      if (isUApiSlug(connection.slug)) {
+        const credentials = await this.getCredentials(slug)
+        if (!credentials.apiKey) {
+          handlerLog.warn(`Model refresh [${slug}]: U-API credential is missing`)
+          return
+        }
+
+        const discovery = await discoverUApiModels(credentials.apiKey)
+        const currentModelIds = (connection.models ?? []).map(model => typeof model === 'string' ? model : model.id)
+        const selection = resolveUApiRefreshSelection(discovery, {
+          defaultModel: connection.defaultModel,
+          modelIds: currentModelIds,
+          customEndpointApi: connection.customEndpoint?.api,
+        })
+
+        updateLlmConnection(slug, {
+          models: selection.models,
+          defaultModel: selection.defaultModel,
+          customEndpoint: selection.customEndpoint,
+          piAuthProvider: selection.piAuthProvider,
+          modelSelectionMode: 'automaticallySyncedFromProvider',
+        })
+        handlerLog.info(`Model refresh [${slug}]: refreshed ${selection.models.length} token-scoped U-API models; default=${selection.defaultModel}`)
+      }
       return
     }
 
@@ -158,7 +185,15 @@ class ModelRefreshService {
     const connections = getLlmConnections()
 
     for (const conn of connections) {
-      if (isCompatProvider(conn.providerType)) continue
+      if (isCompatProvider(conn.providerType)) {
+        if (isUApiSlug(conn.slug)) {
+          this.refreshConnection(conn.slug).catch(err => {
+            handlerLog.warn(`Initial U-API model refresh failed for ${conn.slug}: ${err instanceof Error ? err.message : err}`)
+          })
+          this.startTimer(conn.slug, U_API_REFRESH_INTERVAL_MS)
+        }
+        continue
+      }
 
       const providerType = conn.providerType as FetchableProvider
       const fetcher = this.fetchers[providerType]
@@ -202,7 +237,13 @@ class ModelRefreshService {
 
     // Ensure periodic timer is running
     const connection = getLlmConnection(slug)
-    if (!connection || isCompatProvider(connection.providerType)) return
+    if (!connection) return
+    if (isCompatProvider(connection.providerType)) {
+      if (isUApiSlug(connection.slug) && !this.timers.has(slug)) {
+        this.startTimer(slug, U_API_REFRESH_INTERVAL_MS)
+      }
+      return
+    }
 
     const providerType = connection.providerType as FetchableProvider
     const fetcher = this.fetchers[providerType]
@@ -211,6 +252,29 @@ class ModelRefreshService {
       this.startTimer(slug, COPILOT_REFRESH_INTERVAL_MS)
     } else if (fetcher && fetcher.refreshIntervalMs > 0 && !this.timers.has(slug)) {
       this.startTimer(slug, fetcher.refreshIntervalMs)
+    }
+  }
+
+  /** Ensure a newly created connection participates in periodic refreshes without an immediate second fetch. */
+  startConnection(slug: string): void {
+    const connection = getLlmConnection(slug)
+    if (!connection || this.timers.has(slug)) return
+
+    if (isUApiSlug(connection.slug)) {
+      this.startTimer(slug, U_API_REFRESH_INTERVAL_MS)
+      return
+    }
+
+    if (connection.providerType === 'pi' && connection.piAuthProvider === 'github-copilot') {
+      this.startTimer(slug, COPILOT_REFRESH_INTERVAL_MS)
+      return
+    }
+
+    if (!isCompatProvider(connection.providerType)) {
+      const fetcher = this.fetchers[connection.providerType as FetchableProvider]
+      if (fetcher && fetcher.refreshIntervalMs > 0) {
+        this.startTimer(slug, fetcher.refreshIntervalMs)
+      }
     }
   }
 

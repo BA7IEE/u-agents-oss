@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import {
+  buildUApiSubmitPayload,
   resolveCustomEndpointPayload,
   resolvePiAuthProviderForSubmit,
   resolvePresetStateForBaseUrlChange,
@@ -11,6 +12,17 @@ const MODELS = [
   { id: 'pi/zai-balanced', name: 'Balanced', costInput: 5, costOutput: 10, contextWindow: 200000, reasoning: true },
   { id: 'pi/zai-fast', name: 'Fast', costInput: 1, costOutput: 2, contextWindow: 128000, reasoning: false },
 ]
+
+describe('U-API token-only submit payload', () => {
+  // U-API: regression coverage ensures onboarding never reintroduces a hardcoded model or protocol
+  it('submits only the trimmed token and fixed endpoint for automatic discovery', () => {
+    expect(buildUApiSubmitPayload('  temporary-token  ')).toEqual({
+      apiKey: 'temporary-token',
+      baseUrl: 'https://token.u-studio.cn/v1',
+      modelSelectionMode: 'automaticallySyncedFromProvider',
+    })
+  })
+})
 
 describe('ApiKeyInput tier hydration helpers', () => {
   it('resolveTierModels keeps saved tier selections when all are valid', () => {

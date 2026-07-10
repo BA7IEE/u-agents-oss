@@ -8,9 +8,9 @@
 
 ## 0. 当前基线（速查）
 
-| 指标 | 基线（2026-07-10 治理复核）| 下次同步允许浮动 |
+| 指标 | 基线（2026-07-10 Token-only 自动模型发现）| 下次同步允许浮动 |
 |---|---|---|
-| U-API 标记总数（含全部注释格式）| **123** | ±2 |
+| U-API 标记总数（含全部注释格式）| **134** | ±2 |
 | `/* U-API START */` 块数 | **10** | 必须等于 END |
 | `/* U-API END */` 块数 | **10** | 必须等于 START |
 
@@ -22,7 +22,7 @@
 # 同时排除 apps/electron/release/ 下的历史打包副本；否则会重复统计已打包源码副本
 grep -rEn --exclude-dir=node_modules --exclude-dir=release "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
   | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
-# 期望：123（基线，允许 121-125）
+# 期望：134（基线，允许 132-136）
 
 # 块标记 START/END 配对（数量必须相等）
 grep -rE --exclude-dir=node_modules --exclude-dir=release "/\* U-API START" packages apps --include="*.ts" --include="*.tsx" | wc -l
@@ -83,7 +83,7 @@ if (!apiKey && connection.baseUrl) {
 | # | 改造类别 | 文件 | 定位（用 `grep` 找）| 标记 | 关联规格 |
 |---|---|---|---|---|---|
 | 1 | baseUrl 锁定 + 多连接重写 | `packages/shared/src/config/storage.ts` | 函数 `enforceUApiBaseUrl` 整体 | 块 | 02 §4.3 + §6.2.1 |
-| 2 | model 列表保护 loop | `packages/shared/src/config/storage.ts` | 注释 `user-managed model lists must not be overwritten` | 单行 | 02 §6.2.2 |
+| 2 | model 列表保护 loop | `packages/shared/src/config/storage.ts` | 注释 `token-scoped model catalogs must not be overwritten` | 单行 | 02 §6.2.2 |
 | 3 | startup lock | `packages/shared/src/config/storage.ts` | 注释 `continuous startup lock, not a one-shot migration` | 单行 | 02 §4.3 |
 | 4 | 凭证 keyless 特判 | `packages/shared/src/auth/state.ts` | 函数 `hasCredentials` 内 `if (!apiKey && connection.baseUrl)` 块 | 单行 | 02 §4.1 |
 | 5 | BUILT_IN_CONNECTION_TEMPLATES `'u-api'` 模板 | `packages/server-core/src/domain/connection-setup-logic.ts` | 注释 `multi-connection soft lockdown — base 'u-api' template` | 块 | 03 §1.10.1 |
@@ -215,8 +215,8 @@ if (!apiKey && connection.baseUrl) {
 | 59 | F1 — token-refresh-manager `craft-shared/no-inline-source-auth-check` 误报豁免（规则不区分读/写：2 处赋值写 in-memory mirror + 2 处测试字段断言，均非 gating 读；同 #38/#39 模式）| `packages/shared/src/sources/token-refresh-manager.ts`（×2）+ `packages/shared/src/sources/__tests__/token-refresh-manager.test.ts`（×2）| 注释 `非 gating 读` / `验证 reset 语义` + `eslint-disable-next-line craft-shared/no-inline-source-auth-check` | 单行（×4）| C12 + lint:shared baseline（**merge 前 `87ffbeb7` 即 4 errors，非 v0.10.0 引入**）|
 | 60a | D2 — 启动序列顺序约定（enforce 先于上游 Phase 1k normalize；第一道防线）| `packages/shared/src/config/storage.ts`（启动迁移序列）| 注释 `enforceUApiBaseUrl 必须先于 Phase 1k`（×2 行命中）| 单行（注释 2 行）| 02 §6.2.2 + SYNC-v0.10.3 §D2 |
 | 60b | D2 — 新建连接路径同顺序约定 | `packages/shared/src/config/storage.ts`（`createConnectionsFromLegacy` 尾部）| 注释 `enforce 先于 normalize` | 单行 | 同上 |
-| 60c | D2 — `migrateLegacyOpusToDefaultOpus` 连接级 `isUApiSlug` 豁免（第二道防线）| `packages/shared/src/config/storage.ts` | 注释 `U-API 连接的模型清单是 newapi 路由名` + `if (isUApiSlug(connection.slug)) continue;` | 单行 | 同上 |
-| 60d | D2 — `migrateWorkspaceLegacyOpusToDefaultOpus` 整体 no-op（fork 全连接皆 U-API，workspace 默认模型即用户自管路由名；上游原实现还会把 4-7 强升 4-8）| `packages/shared/src/config/storage.ts` | `/* U-API START: D2 ... */`（**新增 START/END 第 10 对**）| 块 | 同上 |
+| 60c | D2 — `migrateLegacyOpusToDefaultOpus` 连接级 `isUApiSlug` 豁免（第二道防线）| `packages/shared/src/config/storage.ts` | 注释 `U-API 连接的模型清单是 newapi 动态路由名` + `if (isUApiSlug(connection.slug)) continue;` | 单行 | 同上 |
+| 60d | D2 — `migrateWorkspaceLegacyOpusToDefaultOpus` 整体 no-op（fork 全连接皆 U-API，workspace 默认模型为 U-API 路由名；上游原实现还会把 4-7 强升 4-8）| `packages/shared/src/config/storage.ts` | `/* U-API START: D2 ... */`（**新增 START/END 第 10 对**）| 块 | 同上 |
 | 60t | D2 防回归测试（U-API 连接 `claude-opus-4-6`/`deepseek-v4-pro` 清单经 runMigration 后逐字节不变）| `packages/shared/src/config/__tests__/storage-startup-migration.test.ts` | it `exempts U-API connections from upstream deprecated-model normalization` + 注释 `the U-API exemption must keep` | 单行 | 同上 |
 | 61 | D4 — 按协议预设候选清单（OpenAI 侧 `gpt-5.5, deepseek-v4-pro, MiniMax-M3`；Anthropic 侧决策性回退自动合并引入的 `claude-opus-4-8`，不展示 4-8/Fable）| `apps/electron/src/renderer/components/apisetup/ApiKeyInput.tsx` | 注释 `D4 (2026-06-10, 02 §3.3)` | 单行 | 02 §3.3 |
 | 62 | D1 — mac 打包仅 arm64（跟随上游 v0.10.1 Intel 停产）。**yml `#` 注释，不计入 .ts/.tsx grep 基线** | `apps/electron/electron-builder.yml` | 注释 `# U-API: D1 (2026-06-10)` | 单行（yml）| 05 §3 |
@@ -237,6 +237,16 @@ if (!apiKey && connection.baseUrl) {
 | 67 | v0.11.0 后台代理跨 turn 常驻改为默认 OFF；优先读取 `U_AGENTS_KEEP_BG_AGENTS_ALIVE`，兼容旧 `CRAFT_*` 变量 | `packages/shared/src/agent/backend/claude/persistent-input.ts` | `metered-token safety — default OFF` | 单行 | SYNC-v0.11.0 D2 |
 | 67t | #67 防回归测试：默认关闭、U Agents 主变量开启/关闭、旧变量兼容、主变量优先级 | `packages/shared/src/agent/backend/claude/persistent-input.test.ts` | `background agents must be explicit opt-in` | 单行 | SYNC-v0.11.0 D2 |
 | 68 | v0.11.0 上游 `send-agent-message` 测试适配本 fork 的 `noUncheckedIndexedAccess` 严格基线 | `packages/session-tools-core/src/handlers/send-agent-message.test.ts` | `strict noUncheckedIndexedAccess baseline` | 单行 | SYNC-v0.11.0 C13 |
+| 69 | Token-scoped 自动模型发现：解析 `/v1/models`、过滤非聊天模型、动态版本排序、协议映射与降级边界 | `packages/server-core/src/domain/u-api-model-discovery.ts` | `token-scoped automatic model discovery` | 单行 | 02 §0 + §3.3 |
+| 69t | #69 回归测试：动态新版本优先、能力过滤、服务端推荐、认证错误与按序降级 | `packages/server-core/src/domain/u-api-model-discovery.test.ts` | `automatic discovery regression coverage` | 单行 | C5 + 02 §10 |
+| 70 | Onboarding U-API renderer payload 收敛为 Token + 固定 endpoint + 自动同步模式 | `apps/electron/src/renderer/components/apisetup/submit-helpers.ts` | `onboarding submits only the token` | 单行 | 03 §1.6 + §1.8 |
+| 70t | #70 回归测试：禁止在 U-API renderer payload 重新硬编码模型或协议 | `apps/electron/src/renderer/components/apisetup/__tests__/ApiKeyInput.test.ts` | `never reintroduces a hardcoded model or protocol` | 单行 | C5 + 03 §5.1 |
+| 71 | Setup IPC 自动发现目录并按推荐序列实测，返回完整 `resolvedSetup` | `packages/server-core/src/handlers/rpc/llm-connections.ts` | `discover the token-scoped catalog` | 单行 | 02 §3.3 + §4.2 |
+| 72 | Token-only 编辑安全：留空保持原凭据；设置页不预填/提交掩码 Token | `apps/electron/src/renderer/hooks/useOnboarding.ts` + `apps/electron/src/renderer/pages/settings/AiSettingsPage.tsx` | `token-only edit` / `masked placeholder` | 单行（2 处） | 03 §2.2 |
+| 73 | U-API 模型目录后台刷新：启动与每小时使用已存 Token 同步目录、默认模型与协议 | `packages/server-core/src/model-fetchers/index.ts` | `token-scoped model catalog` | 单行 | 02 §6.2.2 |
+| 74 | 启动迁移把历史 U-API 手动模型模式归一为 provider 自动同步模式 | `packages/shared/src/config/storage.ts` | `catalog owns model/default selection` | 单行 | 02 §4.3 |
+| 75 | utility model 关键词按完整 token 匹配，避免把 `MiniMax` 品牌误判为 `mini` 模型 | `packages/shared/src/config/llm-connections.ts` | `MiniMax brand names` | 单行 | 02 §3.3 |
+| 75t | #75 回归测试：MiniMax 不误判；真实 `-mini` token 仍可选 | `packages/shared/src/config/__tests__/mini-model-selection.test.ts` | `MiniMax brand names and exact utility-model tokens` | 单行 | C5 + 02 §10 |
 
 ---
 
@@ -312,6 +322,7 @@ grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_mod
 - **治理复核（2026-07-10）：119 处 / START 10 / END 10**。本轮没有新增源码 marker；把校验命令补上 `--exclude-dir=release` 后，排除历史 packaged source 副本并对当前源码重新计数，确认后续同步前基线应使用 119。旧命令在当前 checkout 会误报 207，不能再作为基线。
 - **M2 依赖安全收口（2026-07-10）：120 处 / START 10 / END 10**。新增 #66 单行 marker；Office 附件转换从 `markitdown-js` 切到受控 Python/uv 工具链，并补 `markitdown.test.ts` 4 个 runtime 路径解析测试。旧命令因 `release/` 历史副本会误报 208。
 - **v0.11.0 sync（2026-07-10）：123 处 / START 10 / END 10**。新增 #67/#67t（后台代理默认关闭与兼容变量测试）和 #68（严格 TypeScript 测试适配）；其余 8 个 marker-bearing 交叉文件逐项复核后保持既有语义。
+- **Token-only 自动模型发现（2026-07-10）：134 处 / START 10 / END 10**。从 123 基线新增 #69–#75t 共 11 个单行 marker，覆盖目录发现、动态推荐/模型与协议双层降级、Token-only UI、编辑安全、后台刷新、自动同步迁移与 MiniMax 回归。
 
 ---
 

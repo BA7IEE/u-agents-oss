@@ -1,6 +1,20 @@
 import type { CustomEndpointApi, CustomEndpointConfig } from '@config/llm-connections'
+import { U_API_BASE_URL } from '@config/u-api-defaults'
 
 export type PresetKey = string
+
+// U-API: onboarding submits only the token; model, protocol and fallback order are resolved by the main process
+export function buildUApiSubmitPayload(apiKey: string): {
+  apiKey: string
+  baseUrl: string
+  modelSelectionMode: 'automaticallySyncedFromProvider'
+} {
+  return {
+    apiKey: apiKey.trim(),
+    baseUrl: U_API_BASE_URL,
+    modelSelectionMode: 'automaticallySyncedFromProvider',
+  }
+}
 
 /**
  * Preset keys that are regional variants of a canonical Pi auth provider.

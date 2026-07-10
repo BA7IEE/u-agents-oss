@@ -831,12 +831,15 @@ export default function AiSettingsPage() {
   }, [apiSetupOnboarding, openApiSetup])
 
   const handleEditConnection = useCallback(async (connection: LlmConnectionWithStatus) => {
-    // Fetch stored API key (best-effort — if IPC not available yet, skip pre-fill)
+    // Fetch stored API key (best-effort — if IPC not available yet, skip pre-fill).
+    // U-API: token-only auto-discovery edits start empty so a masked placeholder is never sent as a real credential
     let apiKey: string | undefined
-    try {
-      apiKey = (await window.electronAPI.getLlmConnectionApiKey(connection.slug)) ?? undefined
-    } catch {
-      // IPC method may not exist if app wasn't restarted after code change
+    if (!isUApiSlug(connection.slug)) {
+      try {
+        apiKey = (await window.electronAPI.getLlmConnectionApiKey(connection.slug)) ?? undefined
+      } catch {
+        // IPC method may not exist if app wasn't restarted after code change
+      }
     }
 
     // Build model string from connection's models array
@@ -1159,7 +1162,7 @@ export default function AiSettingsPage() {
                   )}
                 </SettingsCard>
                 {/* U-API START: multi-connection soft lockdown — restore Add Connection button removed by 540509b.
-                    Click opens the same U-API onboarding form (Token + protocol + model id), NOT a provider picker.
+                    Click opens the same Token-only U-API onboarding form, NOT a provider/model picker.
                     New connections get slug u-api-2 / u-api-3 via resolveSlugForMethod (02 §6.2.2). */}
                 <div className="pt-0">
                   <button

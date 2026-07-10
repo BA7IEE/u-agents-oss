@@ -62,6 +62,33 @@ describe('apiSetupMethodToConnectionSetup', () => {
     expect(setup.models).toEqual(['model-a'])
   })
 
+  it('u_api persists the model configuration resolved from token discovery', () => {
+    const setup = apiSetupMethodToConnectionSetup(
+      'u_api',
+      {
+        credential: 'temporary-token',
+        baseUrl: 'https://token.u-studio.cn/v1',
+        connectionDefaultModel: 'gpt-5.6-sol',
+        models: ['gpt-5.6-sol', 'gpt-5.5'],
+        piAuthProvider: 'openai',
+        modelSelectionMode: 'automaticallySyncedFromProvider',
+        customEndpoint: { api: 'openai-completions', supportsImages: true },
+      },
+      null,
+      new Set(),
+    )
+
+    expect(setup).toMatchObject({
+      slug: 'u-api',
+      credential: 'temporary-token',
+      defaultModel: 'gpt-5.6-sol',
+      models: ['gpt-5.6-sol', 'gpt-5.5'],
+      piAuthProvider: 'openai',
+      modelSelectionMode: 'automaticallySyncedFromProvider',
+      customEndpoint: { api: 'openai-completions', supportsImages: true },
+    })
+  })
+
   it('claude_oauth includes only credential', () => {
     const setup = apiSetupMethodToConnectionSetup(
       'claude_oauth',

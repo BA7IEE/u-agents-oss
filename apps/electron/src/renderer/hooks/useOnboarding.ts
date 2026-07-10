@@ -173,6 +173,7 @@ export function apiSetupMethodToConnectionSetup(
         customEndpoint: options.customEndpoint ?? { api: 'anthropic-messages', supportsImages: true },
         defaultModel: options.connectionDefaultModel,
         models: options.models,
+        piAuthProvider: options.piAuthProvider,
         modelSelectionMode: options.modelSelectionMode ?? 'userDefined3Tier',
       }
       /* U-API END */
@@ -437,6 +438,11 @@ export function useOnboarding({
 
       // When editing an existing connection, API key is optional (empty = keep existing credential)
       if (!data.apiKey.trim() && editingSlug) {
+        if (isUApiFlow) {
+          // U-API: token-only edit with an empty value has no mutable fields; keep the stored credential and resolved catalog unchanged
+          setState(s => ({ ...s, credentialStatus: 'success', step: 'complete' }))
+          return
+        }
         const saved = await handleSaveConfig(undefined, {
           baseUrl: data.baseUrl,
           connectionDefaultModel: data.connectionDefaultModel,
@@ -479,7 +485,7 @@ export function useOnboarding({
 
       // Validate connection by spawning a lightweight subprocess test.
       // Custom endpoint protocol routes through PiAgent at runtime, so test with Pi too.
-      const setupTestProvider = data.customEndpoint ? 'pi' : (isPiApiKeyFlow ? 'pi' : 'anthropic')
+      const setupTestProvider = data.customEndpoint || isPiApiKeyFlow || isUApiFlow ? 'pi' : 'anthropic'
       const testResult = await window.electronAPI.testLlmConnectionSetup({
         provider: setupTestProvider,
         apiKey: data.apiKey,
@@ -498,13 +504,23 @@ export function useOnboarding({
         return
       }
 
+      const resolvedSetup = isUApiFlow ? testResult.resolvedSetup : undefined
+      if (isUApiFlow && !resolvedSetup) {
+        setState(s => ({
+          ...s,
+          credentialStatus: 'error',
+          errorMessage: 'U-API did not return a usable model configuration',
+        }))
+        return
+      }
+
       const saved = await handleSaveConfig(data.apiKey, {
         baseUrl: data.baseUrl,
-        connectionDefaultModel: data.connectionDefaultModel,
-        models: data.models,
-        piAuthProvider: data.piAuthProvider,
-        modelSelectionMode: data.modelSelectionMode,
-        customEndpoint: data.customEndpoint,
+        connectionDefaultModel: resolvedSetup?.defaultModel ?? data.connectionDefaultModel,
+        models: resolvedSetup?.models ?? data.models,
+        piAuthProvider: resolvedSetup?.piAuthProvider ?? data.piAuthProvider,
+        modelSelectionMode: resolvedSetup?.modelSelectionMode ?? data.modelSelectionMode,
+        customEndpoint: resolvedSetup?.customEndpoint ?? data.customEndpoint,
       })
 
       if (saved) {

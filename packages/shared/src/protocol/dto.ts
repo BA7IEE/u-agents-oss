@@ -614,6 +614,14 @@ export interface TestLlmConnectionParams {
 export interface TestLlmConnectionResult {
   success: boolean
   error?: string
+  /** Resolved automatically for U-API after token-scoped model discovery and probing. */
+  resolvedSetup?: {
+    defaultModel: string
+    models: string[]
+    piAuthProvider: 'openai' | 'anthropic'
+    modelSelectionMode: 'automaticallySyncedFromProvider'
+    customEndpoint: CustomEndpointConfig
+  }
 }
 
 // ---------------------------------------------------------------------------

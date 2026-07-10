@@ -3,6 +3,15 @@
 > **本文件是产品核心差异化规格**。每次会话修改 LLM 相关代码前必读。
 > 与 `CLAUDE.md` §3.1 配套阅读。
 
+## 0. 当前产品决策（2026-07-10）
+
+- U-API 首次配置与设置页新增连接均只让用户输入 Token；不再暴露协议和模型 ID。
+- 主进程固定请求 `GET https://token.u-studio.cn/v1/models`，按该 Token 的真实权限获取模型，renderer 不持有额外 HTTP 发现逻辑。
+- U-API 若返回 `default_model` / `fallback_models` / `utility_model`，客户端按服务端顺序执行；当前接口没有这些字段时，按模型 ID 的数字版本动态降序，不硬编码 `gpt-5.5` 等具体默认值。
+- 图片生成、embedding、rerank、audio 等非聊天模型必须过滤；模型必须同时声明当前客户端支持的 OpenAI 或 Anthropic endpoint type。
+- 推荐模型须通过最小真实连接测试；模型不存在、通道不可用或 5xx 时按推荐顺序降级。`401` / `403` / `429`、余额、权限、网络和超时错误不得用换模型掩盖。
+- `modelSelectionMode` 固定为 `automaticallySyncedFromProvider`；已保存的 U-API 连接按小时刷新 Token-scoped catalog。
+
 ---
 
 ## 1. 中转站基本信息
@@ -38,47 +47,43 @@
   baseUrl: 'https://token.u-studio.cn/v1',       // 固定，不可改
   authType: 'api_key_with_endpoint',             // 上游已有的认证类型
   customEndpoint: {
-    api: 'openai-completions' | 'anthropic-messages',  // ← 用户可选
+    api: 'openai-completions' | 'anthropic-messages',  // 主进程按选中模型自动解析
     supportsImages: true,                        // 默认支持，模型不支持时用户自己关
   },
-  models: ['gpt-5.5'],                           // M1 占位；onboarding 期间用户可改
-  defaultModel: 'gpt-5.5',                       // pi_compat 必须有值（详见 §3.3 设计约束）
-  modelSelectionMode: 'userDefined3Tier',
+  models: ['<token-scoped discovered models>'],  // /v1/models 过滤后的同协议聊天模型
+  defaultModel: '<first working recommendation>',// 动态推荐 + 探活降级，不写死具体 ID
+  modelSelectionMode: 'automaticallySyncedFromProvider',
   createdAt: ...,
   // piAuthProvider: 由上游 setupLlmConnection 流程根据 customEndpoint.api 自动注入
   // ('anthropic-messages' → 'anthropic'; 'openai-completions' → 'openai')
   // 见 packages/server-core/src/domain/connection-setup-logic.ts:121
-  // 持久化 config.json 中此字段会有值；用户切换协议时此字段也会跟着变
+  // 持久化 config.json 中此字段会有值；模型发现选中协议时同步更新
 }
 ```
 
 ---
 
-## 3. 用户可选项（必须暴露给用户的设置）
+## 3. 用户输入与自动解析
 
 ### 3.1 Token / API Key
 - 字段：`apiKey`（保存在系统凭证管理器，加密存储）
 - UI：标准 API Key 输入框，输入框旁附两个并列链接：
   - "获取 Token" → `U_API_CONSOLE_URL` (`https://token.u-studio.cn/keys`)
-  - "充值" → `U_API_TOPUP_URL` (`https://token.u-studio.cn/console/topup`)
-- 校验：沿用上游现有 setup/test 链路（renderer 调 `window.electronAPI.testLlmConnectionSetup(...)`，后端走 `testBackendConnection(...)`）；M1 不新增前端直连 `GET /v1/models` 认证路径
+  - "查看可用模型与定价" → `U_API_PRICING_URL` (`https://token.u-studio.cn/pricing`)
+- 校验：renderer 只把 Token 交给现有 `testLlmConnectionSetup(...)`；主进程先发现模型，再对推荐候选调用 `testBackendConnection(...)`，最后才保存凭证与模型配置。
 
-### 3.2 协议（关键决策项）
-- 字段：`customEndpoint.api`
-- UI：单选按钮组或下拉框
-- 选项：
-  - **`openai-completions`** ——"OpenAI 兼容协议（推荐用于 GPT 系列模型）"
-  - **`anthropic-messages`** ——"Anthropic 协议（推荐用于 Claude 系列模型，保留 thinking、prompt cache 等特性）"
-- **默认值（M1 固定）**：`anthropic-messages`
-  - 理由：M1 阶段默认模型清单为空，无法在 onboarding 时根据"用户选择的默认模型"派生协议；固定 anthropic-messages 与 02 §5 `buildDefaultConnection()` 和 09 §2 验收一致
-  - 用户首次添加模型并发现协议不匹配（如选了 GPT 模型但协议是 anthropic-messages）时，可在设置页**手动**切换协议
-  - **不**做"添加模型时根据 model ID 自动改协议"的隐式行为——这种隐式行为会在用户跨模型切换时让协议莫名变动，是体验隐患
+### 3.2 协议（自动解析，不向用户暴露）
 
-### 3.3 模型清单（**onboarding 阶段强制至少 1 个 + 全程不允许空——P0**）
+- 字段：`customEndpoint.api`。
+- 模型的 `supported_endpoint_types` 含 `openai` 时优先使用 `openai-completions`；失败类型允许降级时，同一模型再尝试 `anthropic-messages`，之后才换下一模型。
+- 一个连接只保存一个协议，因此 `models[]` 只保留与最终探活成功模型使用同一协议的候选，避免用户切换模型后协议失配。
+- 协议切换按钮已从 `ApiKeyInput` 的 U-API 模式删除；通用第三方 custom endpoint 流程仍保留原协议选择能力。
+
+### 3.3 模型清单（Token-scoped 自动发现 + 全程不允许空——P0）
 
 ⚠️ **设计约束（来自上游代码事实）**：上游 `setupLlmConnection` IPC handler 在 `pi_compat` 模式下**必须**有 `defaultModel`，否则返回 `error: "Default model is required for compatible endpoints."` —— 见 `packages/server-core/src/handlers/rpc/llm-connections.ts:213-215`。
 
-因此 onboarding 期间用户**必须**至少添加 1 个模型，且 `defaultModel` 必须有值，否则 setup 失败、整个 onboarding 卡死。
+因此主进程必须在保存前完成模型发现与探活，并把非空 `models` + `defaultModel` 回填到 setup payload。用户不再负责填写这两个字段，但后端强约束继续保留。
 
 #### 3.3.1 P0：发送消息前的模型清单前置校验（**v27 review O1 升级，待实施触发条件**）
 
@@ -87,14 +92,11 @@
 > 2. **支持成本**：你/客服收到此类问题超过 1 次/周
 > 3. **下次 sync 顺手做**：上游若改 chat 入口，借力做
 >
-> **触发前的兜底**：onboarding 阶段的校验依然在；用户**主动**删光模型才会触发——非默认路径；后端报错信息至少能引导（虽是英文）。
+> **触发前的兜底**：onboarding 阶段不允许保存空目录；只有未认证骨架、外部手工破坏配置或异常迁移才可能触发。后端报错信息至少能引导（虽是英文）。
 > **预估实施成本**：~2-3 小时（chat hook + 阻塞对话框 + 7 locale × 5 keys）。
 > **触发记录**：v27 review O1 提出（[`REVIEW-27-FULL-2026-05-08.md`](sync-reports/REVIEW-27-FULL-2026-05-08.md) P0-3）；闭环延后（[`REVIEW-27-EXECUTION-COMPLETE-2026-05-08.md`](sync-reports/REVIEW-27-EXECUTION-COMPLETE-2026-05-08.md) §2）。
 
-**问题背景**：onboarding 校验只挡住了"首次配置"路径，但用户进入主界面后可以：
-1. 进设置页 → "AI Connections" → 编辑 U-API 连接 → 删光所有模型
-2. 直接编辑 `~/.u-agents/config.json` 把 `models` 数组清空
-3. 然后回到主聊天界面发对话
+**问题背景**：Token-only 设置页不提供删除模型入口，但用户仍可能直接编辑 `~/.u-agents/config.json` 清空 `models`，或处于尚未认证的空骨架状态，然后进入聊天路径。
 
 当前行为（**未实现前置校验**）：用户发对话 → 后端 IPC handler 返回 `Default model is required` → UI 显示英文错误，用户看不懂、也不知道去哪修。
 
@@ -134,80 +136,55 @@ if (!gate.ok) {
 
 **i18n keys（待 03-ui-lockdown-spec § i18n 表新增）**：
 - `chat.cannot_send.title` → `无法发送消息`
-- `chat.cannot_send.no_models` → `当前 U-API 连接没有可用模型，请到「AI 连接」设置中添加至少 1 个模型 ID`
-- `chat.cannot_send.no_default_model` → `当前 U-API 连接没有设置默认模型，请到「AI 连接」设置中选择一个默认模型`
+- `chat.cannot_send.no_models` → `当前 U-API 连接没有可用模型，请到「AI 连接」重新输入 Token 自动同步`
+- `chat.cannot_send.no_default_model` → `当前 U-API 连接没有默认模型，请到「AI 连接」重新输入 Token 自动修复`
 - `chat.cannot_send.no_connection` → `没有可用的 LLM 连接，请重启应用让 U-API 默认连接自动恢复`
 - `chat.cannot_send.go_to_settings` → `去设置页修改`
 
 **为什么是 P0 而不是 P1**：
 1. **用户感知**：英文 `Default model is required` 对中文用户是黑话——前置校验把错误时机从"发完看 ERROR"提前到"按发送按钮立即给中文引导"
-2. **首次启动覆盖盲区**：onboarding 校验只挡 setup 路径；但用户在 onboarding 完成后可以进设置页删光、或直接改 config.json，绕过 onboarding 的所有 guard
-3. **支撑 §4.4 toast 自愈**：即使 enforceUApiBaseUrl 注入了空骨架（无 models），用户立即发消息会被本 P0 gate 挡住，引导他完成"补 model" 流程
+2. **首次启动覆盖盲区**：onboarding 校验只挡 setup 路径；用户仍可直接改 config.json，绕过 onboarding guard
+3. **支撑 §4.4 toast 自愈**：即使 enforceUApiBaseUrl 注入了空骨架（无 models），用户立即发消息也会被本 P0 gate 挡住，引导他重新输入 Token 自动修复
 
 **与现有 onboarding `models.length >= 1` 校验的关系**：本节是"运行时持续校验"，onboarding 校验是"首次设置时一次性校验"——**两个都要**，前置校验不能替代 onboarding 校验（onboarding 阶段还没进 chat 界面，没法触发 sendMessage）。
 
 **验收（加进 09-test-checklist §13.x）**：
-1. 完成 onboarding 后进入主界面 → 进设置页 → 删光所有模型 → 回主界面发消息 → 应弹出阻塞对话框「当前 U-API 连接没有可用模型，请到「AI 连接」设置中添加至少 1 个模型 ID」+ "去设置页修改"按钮
+1. 完成 onboarding 后关闭应用 → 手工清空 config 中该连接的模型目录且阻断后台刷新 → 回主界面发消息 → 应弹出阻塞对话框，引导到「AI 连接」重新输入 Token
 2. 点 "去设置页修改" → 自动跳转到 `/settings/ai-connections`
-3. 添加 1 个模型 → 回主界面 → 可以正常发消息
+3. 输入有效 Token 自动恢复目录 → 回主界面 → 可以正常发消息
 
 #### 3.3.2 字段说明（原 3.3 内容继承）
 
 **字段**：`models: Array<string | ModelDefinition>`（上游 schema 兼容两种形态，详见 `packages/shared/src/config/validators.ts:89`）
 
-> **M1 onboarding 只提交 `string[]`** —— ApiKeyInput 的 onSubmit 传 `models: [<model ID 字符串>]`。
-> **M2+ 设置页**未来可扩展为 `ModelDefinition[]`（含 displayName / contextWindow 等元数据）。
-> **执行 AI 在 M1 阶段不要过度实现对象模型**——只用 string 数组。
+> renderer 的初始 Token payload 不提交模型；主进程返回的 `resolvedSetup.models` 使用 `string[]`。
+> 未来若 `/v1/models` 提供稳定 capability 元数据，可扩展为 `ModelDefinition[]`；当前不要由 renderer 猜测对象字段。
 
-**初始预填值（M1）**：
-- 输入框预填 `gpt-5.5` 作为占位模型 ID（用户在 newapi 后台已预设）
-- 用户可以接受预填值直接进入下一步，也可以改成自己想要的模型 ID（如 `claude-sonnet-4-5`、`gpt-4o-mini` 等）
+**自动发现与排序**：
 
-**按协议预填的候选清单（D4 决策，2026-06-10，随 v0.10.3 同步落地）**：
+1. `discoverUApiModels()` 用 Bearer Token 请求固定 `/v1/models`。
+2. 按 `supported_endpoint_types` 和模型能力过滤，只保留当前客户端可用的聊天模型。
+3. 服务端推荐字段优先；缺失时比较模型 ID 中的数字版本，较新版本优先，因此未来 `gpt-5.6-sol`、`gpt-5.7` 会自然排到旧版本前面。
+4. `selectWorkingUApiModel()` 从第一候选开始真实探活；可降级失败时先尝试该模型声明的下一协议，再尝试下一候选。
+5. 成功候选写入 `defaultModel`，同协议候选写入 `models[]`；`utility_model` 若存在则放在列表末尾供摘要/轻量任务使用。
 
-对应 `apps/electron/src/renderer/components/apisetup/ApiKeyInput.tsx` 的两个常量（设置页添加/编辑 U-API 连接时按所选协议预填）：
-
-| 常量 | 现值 | 目标值（D4） |
-|---|---|---|
-| `COMPAT_OPENAI_DEFAULTS`（L152） | `openai/gpt-5.2-codex, openai/gpt-5.1-codex-mini` | **`gpt-5.5, deepseek-v4-pro, MiniMax-M3`** |
-| `COMPAT_ANTHROPIC_DEFAULTS`（L151） | `claude-opus-4-7, claude-sonnet-4-6, claude-haiku-4-5` | **保持不变**（不加 `claude-opus-4-8` / `claude-fable-5`——上游 v0.10.1/v0.10.3 注册表照收，但不进 U-API 预设展示） |
-
-- **newapi 侧机制（2026-06-10 用户澄清）**：这三个 ID 是 newapi 后台的**自定义模型**（管理员在渠道配置中自行添加并命名），不依赖 newapi 预置清单；应用端清单字符串与后台自定义模型名**完全一致即可**（含大小写）。现值带 `openai/` 前缀是旧命名习惯，新清单直接按目标值书写
-- 两处常量改动均登记 `// U-API:` marker（14 号规格）
-- onboarding 预填仍为单值 `gpt-5.5`（即新清单第一项，本节上文不变）
-- 决策出处：[`sync-reports/UPSTREAM-PREVIEW-v0.10.3-2026-06-10.md`](sync-reports/UPSTREAM-PREVIEW-v0.10.3-2026-06-10.md) §8 D4
-
-**UI（onboarding 阶段）**：
-- 协议二选一**之后**显示"模型 ID"输入框，预填 `gpt-5.5`
-- 输入框旁三个并列链接（同 §3.1）：
-  - "查看可用模型与定价" → `U_API_PRICING_URL`
-  - "管理我的 Token" → `U_API_CONSOLE_URL`
-  - "充值" → `U_API_TOPUP_URL`
-- 提交按钮触发校验：`models.length >= 1 && defaultModel != null`，否则禁用提交
-- 不在 onboarding 内做"添加多个模型"——M1 只让用户输入 1 个；进主界面后可在设置页 §2.3 添加更多
-
-**用户视角**：
-- 90% 用户按推荐占位 `gpt-5.5` 直接通过 onboarding，对话能跑通
-- 10% 用户自己改 model ID（如熟悉 Claude 的用户填 `claude-sonnet-4-5`）
-
-> ⚠️ **协议-模型匹配建议**（M1 不强制校验，让用户自己负责）：
-> - 协议 `anthropic-messages` 推荐配 `claude-*` 系列模型
-> - 协议 `openai-completions` 推荐配 `gpt-*` / `o*` / `kimi-*` 等
-> - 不匹配时 newapi 通常仍能路由（中转层做协议转换），但表现可能不如原生协议——这是 newapi 的能力问题，非我们 onboarding 设计问题
+当前 U-API `/v1/models` 只有 `supported_endpoint_types`，不能可靠区分 chat / image-generation，也没有推荐与 utility 元数据。桌面端当前用保守 token 过滤兜底；服务端后续应补 `default_model` / `fallback_models` / `utility_model` 与能力字段，避免长期依赖模型名启发式。
 
 ### 3.4 默认模型
 - 字段：`defaultModel`
-- 初始值：等于 onboarding 阶段用户填写/接受的那个 model ID（M1 默认 `gpt-5.5`）
-- 用户后续在设置页可改默认（详见 §6.2 + `03-ui-lockdown-spec.md` §2.3）
+- 初始值：当前 Token 的第一项真实探活成功推荐模型；客户端不得写死具体 ID。
+- 模型列表刷新时跟随当前推荐排序；用户无需理解版本号与协议。
 
 ### 3.5 Token 校验与模型拉取边界
 
-M1 的 Token 校验必须复用现有 setup/test IPC 链路：`CredentialsStep` / `ApiKeyInput` 提交前触发 `window.electronAPI.testLlmConnectionSetup(...)`，后端 `llm-connections.ts` 构造临时连接并调用 `testBackendConnection(...)`。这样可以复用上游错误处理、credential 形态和 `customEndpoint` 路由，不新增一套前端 HTTP 认证逻辑。
+Token 校验仍复用现有 setup/test IPC 链路：`CredentialsStep` / `ApiKeyInput` 触发 `window.electronAPI.testLlmConnectionSetup(...)`；后端先调用 `discoverUApiModels()`，再构造临时连接并调用 `testBackendConnection(...)`。`GET /v1/models` 证明 Token 可读取目录，真实最小对话探活证明推荐模型能沿运行时链路使用，两层缺一不可。
 
-`GET https://token.u-studio.cn/v1/models` 只作为**自动模型拉取**能力：
-- M1 可不做；用户手填 model ID 是必备兜底
-- 若 M1/M2 做自动拉取，必须走同一 Token/baseUrl/customEndpoint 输入上下文，失败时回退手填
-- 不要把“能拉到模型列表”写成 onboarding 唯一认证依据，否则会与当前上游 setup/test 流程分叉，错误提示和后端连接测试结果可能不一致
+自动拉取只能发生在主进程/server-core：
+
+- renderer 不直接携带 Token 发 HTTP 请求。
+- URL 固定为 `U_API_BASE_URL`，不接受 renderer 传任意发现 URL。
+- Token 不进入日志；模型 ID、协议、耗时和成功状态可以记录。
+- 拉取失败保留已持久化模型，不能把空列表覆盖到配置。
 
 ---
 
@@ -318,7 +295,7 @@ function enforceUApiBaseUrl(config: StoredConfig): StoredConfig {
 
 ⚠️ **第 3 步的 `buildDefaultConnection()` 注入是"启动时无连接"的骨架 fallback——绝不等于"onboarding 提交时允许空 models"**：
 - 这个骨架配置仅在用户**首次启动 + 还没完成 onboarding** 时短暂存在；onboarding 完成后会被 setupLlmConnection 覆盖为有 models 的真实配置
-- onboarding setup 流程**仍必须**传 `models` + `defaultModel`（详见 §3.3 + `03-ui-lockdown-spec.md` §1.10.3）
+- onboarding setup 流程**仍必须**传 `models` + `defaultModel`，但两者由主进程自动发现与探活后回填（详见 §3.3）
 - 上游 IPC handler `pi_compat` 强校验 `defaultModel` 非空——绕过这个骨架不能绕过 IPC 校验
 
 ### 4.1 ⚠️ 关键陷阱：上游 keyless 判定会让 U-API 骨架"误判已认证"（**P0 必修**）
@@ -445,7 +422,7 @@ const setupValidation = validateSetupTestInput({ provider, baseUrl, piAuthProvid
 |---|---|---|---|
 | TEST handler 凭证判定 | `server-core/handlers/rpc/llm-connections.ts:479-508` | 用 `validateStoredBackendConnection` → `hasLlmCredentials`（严格判定，不走 keyless） | 上游若改用 keyless 判定会破坏（同 §4.1）|
 | `validateStoredBackendConnection` | `shared/agent/backend/factory.ts:448-490` | `hasLlmCredentials` 严格判定 | 上游若引入 keyless 副作用需重新评估 |
-| ModelRefreshService `_doRefresh` | `server-core/model-fetchers/index.ts:71-74` | `if (isCompatProvider) return` 跳过 pi_compat | 上游若改成对 pi_compat 也拉模型，会让用户手填模型被覆盖 |
+| ModelRefreshService `_doRefresh` | `server-core/model-fetchers/index.ts` | 任意 compat 仍跳过；仅 `isUApiSlug()` 命中的连接走固定 U-API Token-scoped catalog 刷新 | 上游若重构 compat fetcher registry，必须保留“任意 custom endpoint 不自动拉取、U-API 例外”的边界 |
 | TokenRefreshManager / isRefreshableSource | `shared/sources/types.ts:234` | 是 Sources 模块，**不**作用于 LLM connections | 上游若让 LLM connections 也用此 manager，需评估 OAuth refresh 对 U-API 的影响 |
 | `migrateOpus45ToOpus46` 等 model migrations | `shared/config/storage.ts:1742-1865` | 都有 `if (providerType !== 'anthropic') continue` | 上游新增 migration 必须保持此 convention（见 `07-upstream-sync.md` §2.5 步骤 4）|
 | `resolveAuthEnvVars` | `shared/config/llm-connections.ts:847-877` | line 857 `if (!isAnthropicProvider) return early`——pi_compat 不注入 ANTHROPIC_* env vars | 上游若改成对 pi_compat 也注入，需评估冲突 |
@@ -549,7 +526,7 @@ const setupValidation = validateSetupTestInput({ provider, baseUrl, piAuthProvid
 
 > ⚠️ 这张表**不是**"M1 不需要做的事"——是"M1 不需要主动改、但必须每次同步审查"的事。`07-upstream-sync.md` §2.5 步骤 4-8 已包含这些审查命令的 grep 模板。
 
-**注意**：协议字段 `customEndpoint.api` 和 `models` 不重置，让用户保留自己的选择。
+**注意**：`enforceUApiBaseUrl()` 只锁定连接身份与入口；Token-scoped `models` / `defaultModel` / `customEndpoint.api` 由 `ModelRefreshService` 负责刷新。若 `defaultModel === models[0]`，视为仍跟随上次自动推荐，可随新推荐升级；若用户在高级下拉中改成其它已发现模型，则后台刷新在该模型仍有效时保留选择。
 
 ### 4.4 用户感知 SOP — `enforceUApiBaseUrl` 触发时必须 toast 提示（**P0 待实施，等触发条件**）
 
@@ -655,20 +632,19 @@ export function buildDefaultConnection(): LlmConnection {
     baseUrl: U_API_BASE_URL,
     authType: 'api_key_with_endpoint',
     customEndpoint: {
-      api: 'anthropic-messages',  // 默认 Claude 协议
+      api: 'anthropic-messages',  // 未认证骨架占位；真实配置由模型发现覆盖
       supportsImages: true,
     },
-    models: [],                  // 启动期未认证骨架允许为空；onboarding 提交时必须覆盖（详见 §3.3）
+    models: [],                  // 启动期未认证骨架允许为空；主进程发现后覆盖（详见 §3.3）
     // LlmConnection.defaultModel 是可选字段；启动期未认证骨架直接省略，避免被 UI 误判为已配置模型
-    modelSelectionMode: 'userDefined3Tier',
+    modelSelectionMode: 'automaticallySyncedFromProvider',
     createdAt: Date.now(),
   };
 }
 ```
 
 > `buildDefaultConnection()` 只用于 `enforceUApiBaseUrl` 在“无连接、未完成 onboarding”时注入未认证骨架；它不代表已完成配置。
-> M1 onboarding 表单仍预填 `gpt-5.5`，提交时必须把用户接受/修改后的 model ID 写入 `models` + `defaultModel`（详见 §3.3）。
-> 进入主界面后可在设置页 §2.3 添加更多模型并切换默认。
+> onboarding 表单只提交 Token；主进程必须把自动发现与探活结果写入 `models` + `defaultModel`（详见 §3.3）。
 
 ---
 
@@ -684,17 +660,17 @@ export function buildDefaultConnection(): LlmConnection {
 - `apps/electron/src/renderer/components/onboarding/APISetupStep.tsx`
   - 作为 `ApiSetupMethod` 类型源 / legacy selector 同步新增 `'u_api'`，但 M1 主流程不渲染旧 method 选择页
 - `apps/electron/src/renderer/components/onboarding/CredentialsStep.tsx` + `apisetup/ApiKeyInput.tsx`
-  - U-API 模式只显示：Token 输入框 + 协议二选一（默认 anthropic-messages）+ **模型 ID 输入框**（必填，预填 `gpt-5.5` 占位，可改）
-  - **不再使用**"去添加模型"延后引导——M1 强制 onboarding 内必须填模型 ID（详见 §3.3 + `03-ui-lockdown-spec.md` §1.6）
-  - 提交按钮禁用规则：Token 空 / 模型 ID 空时灰显
+  - U-API 模式只显示 Token 输入框与“获取 Token / 查看可用模型与定价”链接。
+  - 协议、模型 ID 和推荐顺序均不向用户暴露；提交后显示既有 validating 状态，等待主进程发现与探活。
+  - Token 为空时由现有 setup 校验返回错误；不得用硬编码模型绕过发现流程。
 
 ### 6.2 设置页
 - **主文件**：`apps/electron/src/renderer/pages/settings/AiSettingsPage.tsx`（1078 行，详见 `03-ui-lockdown-spec.md` §2.1）
 - 其他 `apps/electron/src/renderer/components/settings/` 下的子组件（SettingsRow、SettingsCard 等）以实时 grep 为准——它们是通用基础组件，不是 AI 连接专属页面
 - **改造内容（M1 v0.9.1 软锁定 — 多连接版本，自 commit `8ebe8c0` 之后修订）**：
-  - "AI Connections" 设置页：**保留"Add new connection"按钮**。点击后弹出与 onboarding 一致的 U-API 表单（Token + 协议二选一 + 模型 ID）—— **不弹 provider 选择菜单**。新连接 slug 由 `useOnboarding.ts:resolveSlugForMethod` 生成 `u-api-2` / `u-api-3`...（首装连接保持 `u-api-default`）
+  - "AI Connections" 设置页：**保留"Add new connection"按钮**。点击后弹出与 onboarding 一致的 Token-only U-API 表单—— **不弹 provider / 协议 / 模型选择菜单**。新连接 slug 由 `useOnboarding.ts:resolveSlugForMethod` 生成 `u-api-2` / `u-api-3`...（首装连接保持 `u-api-default`）
   - "Default connection" 选择器：**保留**——用户在所有 U-API 连接里选默认。写入 `config.defaultLlmConnection`
-  - 编辑现有连接时：隐藏 baseUrl 输入框、隐藏 providerType 切换、显示协议二选一、**新增 Connection name 可改**（用户给每个 Key 起识别名，如 "国产模型 Key"）
+  - 编辑现有连接时：隐藏 baseUrl、providerType、协议与模型输入；Token 输入框不预填掩码值，留空提交表示保持现有凭证与已解析 catalog。
   - **辅助链接（仅 Token 输入框下方一组，2026-05-04 UI 简化后的最终形态）**：
     - "获取 Token" (`uapi.linkGetToken`) → `U_API_CONSOLE_URL`
     - "查看可用模型与定价" (`uapi.linkPricing`) → `U_API_PRICING_URL`
@@ -703,7 +679,7 @@ export function buildDefaultConnection(): LlmConnection {
       - "管理 Token" 链接（旧 i18n key `uapi.linkConsole`）
       - "充值" 链接（旧 i18n key `uapi.linkTopup`）
       - 上述 3 个 i18n key 已从所有 7 个 locale 删除；同步上游若引入新 lockNotice / 充值入口，必须保持删除状态
-  - "管理模型"区块：列表 + 添加按钮 + 上述两个链接
+  - 默认模型下拉使用自动发现目录；不提供手填、添加或删除模型入口
   - **删除连接按钮**：**多连接时可见可点击**；当前连接是最后一个 U-API 连接时 disabled（保护"至少留一个连接"约束 — 与 §3.1 LLM 入口锁定一致，避免用户删光后无可用连接）
 
 #### 6.2.1 多连接的合规约束（不能松动）
@@ -718,7 +694,7 @@ export function buildDefaultConnection(): LlmConnection {
 | slug 命名 | `'u-api-default'`（首装）或 `'u-api-N'`（N≥2，由 `resolveSlugForMethod` 生成）| `useOnboarding.ts:apiSetupMethodToConnectionSetup` |
 | `slug` 识别 | helper `isUApiSlug(slug)` 在 `u-api-defaults.ts`：匹配 `'u-api-default'` 或 `/^u-api-\d+$/` | 全部判定点（见 §6.2.2）|
 
-**用户可自由配置的字段**：`apiKey`、`name`（连接名）、`customEndpoint.api`（协议二选一）、`customEndpoint.supportsImages`、`models[]`、`defaultModel`、`piAuthProvider`（按 api 自动派生）。
+**用户可自由配置的字段**：`apiKey`、`name`（连接名），以及设置页高级下拉中的 `defaultModel`。`customEndpoint.api`、`models[]`、`piAuthProvider` 与 `modelSelectionMode` 由 Token-scoped 发现流程管理；用户选择的 `defaultModel` 只要仍在目录中就由后台刷新保留。
 
 > **`supportsImages` 字段语义（v21 P2 精确化）**：U-API 体系内有两层 `supportsImages`：
 > - **连接级**：`customEndpoint.supportsImages`（boolean，默认 `true`）—— endpoint 整体的 image 支持默认值，决定 UI 是否暴露图片上传按钮入口；
@@ -875,13 +851,16 @@ curl 调试输出 / debug log / 错误堆栈中含上述 header 时会自动替�
 
 ## 10. 验收标准（M1 完成判定）
 
-- [ ] 全新启动应用，onboarding 让用户输入：Token + 选协议 + **填写至少 1 个 model ID**（预填 `gpt-5.5` 占位，可改）
-- [ ] 进入应用后，"AI Connections" 设置页只显示一个连接：U-API
+- [ ] 全新启动应用，onboarding 只让用户输入 Token；不显示协议与模型 ID
+- [ ] 有效 Token 能从 `/v1/models` 自动获取并过滤聊天模型，动态推荐列表中第一项真实探活成功后写入 `defaultModel`
+- [ ] 推荐模型出现 model/channel/5xx 不可用错误时自动尝试下一项；`401` / `403` / `429`、余额、网络和超时错误不降级
+- [ ] 进入应用后，"AI Connections" 设置页只显示 U-API 连接（可有多个 Token 对应的连接）
 - [ ] 编辑连接时看不到 baseUrl 输入框
 - [ ] 用户手动编辑 `~/.u-agents/config.json` 把 baseUrl 改成 `https://api.openai.com`，重启后 baseUrl 自动恢复为 `https://token.u-studio.cn/v1`（配置文件位置由 `paths.ts:CONFIG_DIR` 决定，详见 `01-branding-spec.md` §2.15）
 - [ ] 用户手动添加一个 `slug: 'anthropic-direct'` 的连接到 config.json，重启后这个连接被自动删除
-- [ ] **onboarding 不允许 `models` 为空**（前端拦截提交按钮 + IPC handler 强校验，详见 §3.3）
-- [ ] 用户进设置页**手动删光**所有模型后，主界面显示"请先添加模型"引导（边缘场景）
-- [ ] 协议切换：Claude 模型走 anthropic-messages 时能正常对话；GPT 模型走 openai-completions 时能正常对话
+- [ ] **onboarding 不允许最终 `models` 为空**（主进程发现/过滤 + IPC handler 强校验，详见 §3.3）
+- [ ] 设置页没有手填/删除模型入口；后台刷新失败时保留上一次有效目录
+- [ ] 用户主动改过高级默认模型时，只要该模型仍可用就不被后台刷新覆盖；失效后回到当前推荐项
+- [ ] 协议自动解析：OpenAI-capable 推荐模型保存为 `openai-completions`；仅 Anthropic-capable 候选保存为 `anthropic-messages`
 - [ ] Token 错误时 UI 提示中文 + 含跳转 `https://token.u-studio.cn/keys` 的按钮
 - [ ] `provider-metadata.ts` 中的 `u-api` entry 在错误流程中被正确取到（不会显示 "Anthropic" / "OpenAI" 等上游品牌名）

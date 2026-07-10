@@ -1,5 +1,5 @@
-import { RPC_CHANNELS, type LlmConnectionSetup } from '@u-agents/shared/protocol'
-import { getLlmConnections, getLlmConnection, addLlmConnection, updateLlmConnection, deleteLlmConnection, getDefaultLlmConnection, setDefaultLlmConnection, touchLlmConnection, isCompatProvider, isAnthropicProvider, getDefaultModelsForConnection, getDefaultModelForConnection, type LlmConnection, type LlmConnectionWithStatus, toBedrockNativeId, deriveBedrockRegionPrefix } from '@u-agents/shared/config'
+import { RPC_CHANNELS, type LlmConnectionSetup, type TestLlmConnectionResult } from '@u-agents/shared/protocol'
+import { getLlmConnections, getLlmConnection, addLlmConnection, updateLlmConnection, deleteLlmConnection, getDefaultLlmConnection, setDefaultLlmConnection, touchLlmConnection, isCompatProvider, isAnthropicProvider, isUApiSlug, getDefaultModelsForConnection, getDefaultModelForConnection, U_API_BASE_URL, type LlmConnection, type LlmConnectionWithStatus, toBedrockNativeId, deriveBedrockRegionPrefix } from '@u-agents/shared/config'
 import { getCredentialManager } from '@u-agents/shared/credentials'
 import { setSetupDeferred } from '@u-agents/shared/config/storage'
 import {
@@ -8,7 +8,7 @@ import {
   validateStoredBackendConnection,
 } from '@u-agents/shared/agent/backend'
 import { getModelRefreshService } from '@u-agents/server-core/model-fetchers'
-import { parseTestConnectionError, createBuiltInConnection, validateModelList, piAuthProviderDisplayName, validateSetupTestInput, setupTestRequiresApiKey, resolveCustomEndpointSetup } from '@u-agents/server-core/domain'
+import { discoverUApiModels, parseTestConnectionError, createBuiltInConnection, validateModelList, piAuthProviderDisplayName, selectWorkingUApiModel, validateSetupTestInput, setupTestRequiresApiKey, resolveCustomEndpointSetup } from '@u-agents/server-core/domain'
 import { getWorkspaceOrThrow, buildBackendHostRuntimeContext } from '@u-agents/server-core/handlers'
 import { pushTyped, type RpcServer } from '@u-agents/server-core/transport'
 import type { HandlerDeps } from '../handler-deps'
@@ -287,12 +287,14 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
       // Awaited so the model selector shows real available models immediately.
       const pendingModels = Array.isArray(pendingConnection.models) ? pendingConnection.models : []
       const isAutoSynced = pendingConnection.modelSelectionMode === 'automaticallySyncedFromProvider'
-      if (!pendingModels.length || isAutoSynced) {
+      if ((!pendingModels.length || isAutoSynced) && !isUApiSlug(setup.slug)) {
         try {
           await getModelRefreshService().refreshNow(setup.slug)
         } catch (err) {
           deps.platform.logger?.warn(`Model refresh after setup failed for ${setup.slug}: ${err instanceof Error ? err.message : err}`)
         }
+      } else if (isUApiSlug(setup.slug)) {
+        getModelRefreshService().startConnection(setup.slug)
       }
 
       // Reinitialize auth for the connection that was just created/updated,
@@ -313,13 +315,55 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
 
   // Unified connection test — uses the agent factory to spawn a real agent subprocess
   // and validate credentials via runMiniCompletion(). Same code path as actual chat.
-  server.handle(RPC_CHANNELS.settings.TEST_LLM_CONNECTION_SETUP, async (_ctx, params: import('@u-agents/shared/protocol').TestLlmConnectionParams): Promise<import('@u-agents/shared/protocol').TestLlmConnectionResult> => {
+  server.handle(RPC_CHANNELS.settings.TEST_LLM_CONNECTION_SETUP, async (_ctx, params: import('@u-agents/shared/protocol').TestLlmConnectionParams): Promise<TestLlmConnectionResult> => {
     const { provider, apiKey, baseUrl, model, piAuthProvider, customEndpoint } = params
     const trimmedKey = apiKey?.trim() ?? ''
     const allowEmptyApiKey = !setupTestRequiresApiKey(baseUrl)
 
     if (!trimmedKey && !allowEmptyApiKey) {
       return { success: false, error: 'API key is required' }
+    }
+
+    const normalizedBaseUrl = baseUrl?.trim().replace(/\/+$/, '')
+    if (provider === 'pi' && normalizedBaseUrl === U_API_BASE_URL) {
+      // U-API: discover the token-scoped catalog, then probe recommended models without exposing model/protocol choices in onboarding
+      const startedAt = Date.now()
+      try {
+        const discovery = await discoverUApiModels(trimmedKey)
+        const selection = await selectWorkingUApiModel(discovery, async (candidate, candidateSelection) => {
+          const hint = resolveSetupTestConnectionHint({
+            provider: 'pi',
+            baseUrl: U_API_BASE_URL,
+            piAuthProvider: candidateSelection.piAuthProvider,
+            customEndpoint: candidateSelection.customEndpoint,
+          })
+          const probeStartedAt = Date.now()
+          const result = await testBackendConnection({
+            provider: 'pi',
+            apiKey: trimmedKey,
+            model: candidate.id,
+            baseUrl: U_API_BASE_URL,
+            timeoutMs: 20_000,
+            hostRuntime: buildBackendHostRuntimeContext(deps.platform),
+            connection: hint,
+          })
+          deps.platform.logger?.info(`[testLlmConnectionSetup] U-API model probe: model=${candidate.id} protocol=${candidateSelection.customEndpoint.api} elapsed=${Date.now() - probeStartedAt}ms success=${result.success}`)
+          return result
+        })
+
+        deps.platform.logger?.info(`[testLlmConnectionSetup] U-API discovery complete: candidates=${discovery.candidates.length} selected=${selection.defaultModel} elapsed=${Date.now() - startedAt}ms`)
+        return {
+          success: true,
+          resolvedSetup: {
+            ...selection,
+            modelSelectionMode: 'automaticallySyncedFromProvider',
+          },
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        deps.platform.logger?.info(`[testLlmConnectionSetup] U-API discovery/probe failed: elapsed=${Date.now() - startedAt}ms error=${message.slice(0, 300)}`)
+        return { success: false, error: parseTestConnectionError(message) }
+      }
     }
 
     const setupValidation = validateSetupTestInput({ provider, baseUrl, piAuthProvider, customEndpoint })

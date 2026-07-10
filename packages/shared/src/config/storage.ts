@@ -1725,7 +1725,7 @@ function backfillAllConnectionModels(config: StoredConfig): boolean {
   if (!config.llmConnections) return false;
   let changed = false;
   for (const connection of config.llmConnections) {
-    // U-API: user-managed model lists must not be overwritten by provider defaults (multi-connection — 02 §6.2.2).
+    // U-API: token-scoped model catalogs must not be overwritten by hardcoded provider defaults (multi-connection — 02 §6.2.2).
     if (isUApiSlug(connection.slug)) continue;
 
     // Repair previously broken API-key migration first.
@@ -1938,7 +1938,7 @@ function migrateLegacyOpusToDefaultOpus(config: StoredConfig): boolean {
   let changed = false;
 
   for (const connection of config.llmConnections) {
-    // U-API: D2 (v0.10.3 sync, 02 §6.2.2) — U-API 连接的模型清单是 newapi 路由名（用户自管，
+    // U-API: D2 (v0.10.3 sync, 02 §6.2.2) — U-API 连接的模型清单是 newapi 动态路由名（
     // 与 Anthropic 官方 deprecation 解耦），不参与 deprecated-ID normalize。第二道防线；
     // 第一道为启动序列中 enforceUApiBaseUrl 先行（归一 pi_compat 后本就不在扫描范围）。
     if (isUApiSlug(connection.slug)) continue;
@@ -2078,7 +2078,7 @@ function migrateWorkspaceSonnet45ToSonnet46(config: StoredConfig): void {
  */
 function migrateWorkspaceLegacyOpusToDefaultOpus(config: StoredConfig): void {
   /* U-API START: D2 (v0.10.3 sync, 02 §6.2.2) — fork 内全部连接皆 U-API（lockdown 保证），
-     workspace defaults.model 必然是用户自管的 newapi 路由名，不参与 deprecated-ID normalize
+     workspace defaults.model 是 U-API 路由名，不参与 deprecated-ID normalize
      （上游此函数还会把 4-7 强升 4-8，对中转站路由同样不适用）。整体 no-op 化；
      上游原实现见 v0.10.3 merge 历史。 */
   void config;
@@ -2254,7 +2254,8 @@ export function enforceUApiBaseUrl(config: StoredConfig): boolean {
     conn.providerType = 'pi_compat';
     conn.baseUrl = U_API_BASE_URL;
     conn.authType = 'api_key_with_endpoint';
-    conn.modelSelectionMode ??= 'userDefined3Tier';
+    // U-API: the token-scoped catalog owns model/default selection; migrate legacy manual U-API rows to automatic sync
+    conn.modelSelectionMode = 'automaticallySyncedFromProvider';
 
     const api = conn.customEndpoint?.api ?? 'anthropic-messages';
     conn.customEndpoint = {

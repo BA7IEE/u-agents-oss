@@ -93,7 +93,7 @@ function expectUApiOnlyConfig(configPath: string): void {
       supportsImages: true,
     },
     models: [],
-    modelSelectionMode: 'userDefined3Tier',
+    modelSelectionMode: 'automaticallySyncedFromProvider',
     piAuthProvider: 'anthropic',
   })
   expect(migrated.llmConnections[0].defaultModel).toBeUndefined()
@@ -263,7 +263,7 @@ describe('startup migration U-API lockdown (integration)', () => {
         supportsImages: true,
       },
       models: [],
-      modelSelectionMode: 'userDefined3Tier',
+      modelSelectionMode: 'automaticallySyncedFromProvider',
       piAuthProvider: 'anthropic',
     })
     expect(migrated.llmConnections[0].defaultModel).toBeUndefined()
@@ -316,7 +316,7 @@ describe('startup migration U-API lockdown (integration)', () => {
       },
       models: ['gpt-5.5', 'claude-sonnet-4-6'],
       defaultModel: 'gpt-5.5',
-      modelSelectionMode: 'userDefined3Tier',
+      modelSelectionMode: 'automaticallySyncedFromProvider',
       piAuthProvider: 'openai',
     })
   })

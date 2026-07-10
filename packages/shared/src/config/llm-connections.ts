@@ -316,8 +316,9 @@ function findSmallModel(
   if (keywords.length > 0) {
     const match = connection.models.find(m => {
       if (!isAllowedModel(m)) return false;
-      const searchStr = toSearchStr(m);
-      return keywords.some(k => searchStr.includes(k));
+      // U-API: match utility keywords as full id/name tokens so the MiniMax brand is not mistaken for a "mini" model
+      const searchTokens = toSearchStr(m).split(/[^a-z0-9]+/).filter(Boolean);
+      return keywords.some(k => searchTokens.includes(k));
     });
     if (match) {
       return toId(match);

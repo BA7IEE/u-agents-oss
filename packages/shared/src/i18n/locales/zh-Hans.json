@@ -1608,7 +1608,7 @@
   "turnCard.stepsCompleted": "步骤已完成",
   "uapi.addModel": "添加模型",
   "uapi.checkStatus": "查看服务状态",
-  "uapi.connectionDescription": "U-API 是 U Agents 的统一大模型接入层，为优智体提供稳定的模型调用能力。",
+  "uapi.connectionDescription": "只需输入 Token，U Agents 会自动获取可用模型并选择当前推荐模型。",
   "uapi.connectionName": "U-API",
   "uapi.error.insufficientBalance": "余额不足，请充值。",
   "uapi.error.modelUnavailable": "所选模型在当前 Token 套餐中不可用，请查看可用模型清单或更换。",

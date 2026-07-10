@@ -1608,7 +1608,7 @@
   "turnCard.stepsCompleted": "Pasos completados",
   "uapi.addModel": "Add a model",
   "uapi.checkStatus": "Check service status",
-  "uapi.connectionDescription": "U-API is the unified LLM gateway for U Agents, providing reliable model access for the desktop app.",
+  "uapi.connectionDescription": "Enter your Token. U Agents will automatically discover available models and select the current recommendation.",
   "uapi.connectionName": "U-API",
   "uapi.error.insufficientBalance": "Insufficient balance. Please top up.",
   "uapi.error.modelUnavailable": "Model not available in your current plan. Please check available models or switch.",

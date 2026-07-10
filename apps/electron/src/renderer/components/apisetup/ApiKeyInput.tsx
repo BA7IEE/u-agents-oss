@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils"
 import { Check, ChevronDown, ExternalLink, Eye, EyeOff, Loader2 } from "lucide-react"
 import { pickTierDefaults, resolveTierModels, type PiModelInfo } from "./tier-models"
 import {
+  buildUApiSubmitPayload,
   resolveCustomEndpointPayload,
   resolvePiAuthProviderForSubmit,
   resolvePresetStateForBaseUrlChange,
@@ -33,7 +34,7 @@ import {
 
 import type { CustomEndpointApi, CustomEndpointConfig } from '@config/llm-connections'
 // U-API: U_API_TOPUP_URL no longer imported — Topup link removed from UI 2026-05-04 (02 §6.2)
-import { U_API_BASE_URL, U_API_CONSOLE_URL, U_API_PRICING_URL } from '@config/u-api-defaults'
+import { U_API_CONSOLE_URL, U_API_PRICING_URL } from '@config/u-api-defaults'
 
 export type ApiKeyStatus = 'idle' | 'validating' | 'success' | 'error'
 
@@ -206,8 +207,8 @@ export function ApiKeyInput({
   const [lastNonCustomPreset, setLastNonCustomPreset] = useState<PresetKey | null>(
     initialPreset !== 'custom' ? initialPreset : defaultPreset.key
   )
-  const [connectionDefaultModel, setConnectionDefaultModel] = useState(initialValues?.connectionDefaultModel ?? (mode === 'u_api' ? 'gpt-5.5' : ''))
-  const [customApi, setCustomApi] = useState<CustomEndpointApi>(initialValues?.customApi ?? (mode === 'u_api' ? 'anthropic-messages' : 'openai-completions'))
+  const [connectionDefaultModel, setConnectionDefaultModel] = useState(initialValues?.connectionDefaultModel ?? '')
+  const [customApi, setCustomApi] = useState<CustomEndpointApi>(initialValues?.customApi ?? 'openai-completions')
   const [modelError, setModelError] = useState<string | null>(null)
 
   // Bedrock auth state
@@ -346,19 +347,7 @@ export function ApiKeyInput({
     e.preventDefault()
 
     if (isUApiMode) {
-      const parsedModels = parseModelList(connectionDefaultModel)
-      if (parsedModels.length === 0) {
-        setModelError('Model ID is required.')
-        return
-      }
-      onSubmit({
-        apiKey: apiKey.trim(),
-        baseUrl: U_API_BASE_URL,
-        customEndpoint: { api: customApi, supportsImages: true },
-        connectionDefaultModel: parsedModels[0],
-        models: parsedModels,
-        modelSelectionMode: 'userDefined3Tier',
-      })
+      onSubmit(buildUApiSubmitPayload(apiKey))
       return
     }
 
@@ -508,60 +497,6 @@ export function ApiKeyInput({
                 </button>
               ))}
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>{t("uapi.protocolLabel")}</Label>
-            <div className={cn(
-              "flex rounded-md shadow-minimal overflow-hidden",
-              "bg-foreground-2",
-              isDisabled && "opacity-50 pointer-events-none"
-            )}>
-              {([
-                { value: 'openai-completions' as const, label: 'OpenAI Chat Completions' },
-                { value: 'anthropic-messages' as const, label: 'Anthropic Messages' },
-              ]).map(({ value, label }) => (
-                <button
-                  key={value}
-                  type="button"
-                  disabled={isDisabled}
-                  onClick={() => setCustomApi(value)}
-                  className={cn(
-                    "flex-1 py-1.5 text-[12px] font-medium transition-colors",
-                    customApi === value
-                      ? "bg-background text-foreground shadow-minimal"
-                      : "text-foreground/50 hover:text-foreground/70"
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="connection-default-model">
-              {t("uapi.modelIdLabel")} <span className="text-foreground/30">· required</span>
-            </Label>
-            <div className={cn(
-              "rounded-md shadow-minimal transition-colors",
-              "bg-foreground-2 focus-within:bg-background",
-              modelError && "ring-1 ring-destructive/40"
-            )}>
-              <Input
-                id="connection-default-model"
-                type="text"
-                value={connectionDefaultModel}
-                onChange={(e) => {
-                  setConnectionDefaultModel(e.target.value)
-                  setModelError(null)
-                }}
-                placeholder="gpt-5.5"
-                className="border-0 bg-transparent shadow-none"
-                disabled={isDisabled}
-              />
-            </div>
-            {modelError && <p className="text-xs text-destructive">{modelError}</p>}
           </div>
 
           {status === 'error' && errorMessage && (

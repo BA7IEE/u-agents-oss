@@ -115,19 +115,18 @@ defaults delete cn.u-studio.u-agents 2>/dev/null
 - [ ] **不出现** Anthropic / OpenAI / Bedrock / Vertex / Copilot / Codex / Ollama / Mistral / DeepSeek / Groq / xAI 等品牌字样
 - [ ] 直接进入 Token 输入页
 - [ ] 输入框旁有 "获取 Token" 链接，点击后浏览器打开 `https://token.u-studio.cn/keys`
-- [ ] 输入框旁有 "充值" 链接，点击后浏览器打开 `https://token.u-studio.cn/console/topup`
-- [ ] 协议二选一可见：OpenAI Chat Completions / Anthropic Messages
-- [ ] 默认选项是 Anthropic Messages
+- [ ] 输入框旁有“查看可用模型与定价”链接，点击后浏览器打开 U-API 定价页
+- [ ] **不显示**协议选择、模型 ID 输入框或固定模型版本
 - [ ] 输入空 Token 提交 → 显示校验失败提示
 - [ ] 输入错误 Token 提交 → 显示 "Token 已失效" + "打开 Token 控制台"按钮
-- [ ] **模型 ID 输入框可见**，预填 `gpt-5.5` 占位（可手动改成其他 model ID）
-- [ ] 模型 ID **必填**——清空后提交按钮置灰/被前端拦截
-- [ ] 输入正确 Token + 协议 + 至少 1 个模型 ID → 显示成功 → 进入 Completion 页
+- [ ] 输入正确 Token → 自动拉取当前 Token 可用模型并按推荐顺序实测
+- [ ] 首选模型的首选协议不可用 → 先尝试该模型的另一受支持协议，再尝试下一推荐项；认证、余额或限流错误 → 停止降级并显示真实原因
+- [ ] 成功后显示成功 → 进入 Completion 页；配置中有完整模型目录与实际通过的默认模型
 - [ ] Completion 页文案不含 "Craft" 字样
 - [ ] 点 "完成" 进入主界面，主界面**不**显示"请先添加模型"空态（因为 onboarding 已添加 ≥1 个）
 
-**反向验证**（确认上游 IPC 的硬约束起作用）：
-- [ ] 跑测试时如果绕过前端拦截发空 models 数组到 IPC，应收到 error: `"Default model is required for compatible endpoints."`
+**反向验证**（确认主进程解析约束起作用）：
+- [ ] `/v1/models` 返回空目录或只含图片/语音/embedding 模型 → setup 失败且不写入连接
 
 详见 `03-ui-lockdown-spec.md` §5.1。
 
@@ -142,8 +141,8 @@ defaults delete cn.u-studio.u-agents 2>/dev/null
 - [ ] 点开 U-API 连接编辑器：
   - [ ] **不显示** baseUrl 输入框
   - [ ] **不显示** providerType 切换
-  - [ ] 显示 API Key 输入框（已填）
-  - [ ] 显示协议二选一（已选）
+  - [ ] 显示空的 API Key 输入框；留空保存不会覆盖原 Token
+  - [ ] **不显示**协议选择与模型 ID 输入框
   - [ ] **不显示** 顶部 Banner 三链接（M1 改造时移除，详见 [`CLAUDE.md` §3.7 #13](../CLAUDE.md)）
   - [ ] **找不到** "删除连接" 按钮
 
@@ -200,7 +199,7 @@ CONFIG="$HOME/.u-agents/config.json"  # M1 改造完成后的位置（详见 01-
 
 ### 3.5.1 onboarding 首次提交端到端
 
-- [ ] 在干净环境装 M1 包，启动 → onboarding 输入 Token + 选协议 + 输入 model ID `gpt-5.5`
+- [ ] 在干净环境装 M1 包，启动 → onboarding 只输入 Token
 - [ ] 点击提交 → **不**报 `Unknown built-in connection slug` 错误
 - [ ] **不**报 `Default model is required for compatible endpoints.` 错误
 - [ ] **不**报 `Custom endpoint in Craft Agents Backend mode requires selecting a provider preset...` 错误（这是 `validateSetupTestInput` 旧逻辑会抛的；M1 必须扩展该函数让它接受 customEndpoint，详见 `02-llm-gateway-spec.md` §4.2）
@@ -209,28 +208,27 @@ CONFIG="$HOME/.u-agents/config.json"  # M1 改造完成后的位置（详见 01-
   - [ ] `llmConnections[0].slug === 'u-api-default'`
   - [ ] `llmConnections[0].providerType === 'pi_compat'`
   - [ ] `llmConnections[0].baseUrl === 'https://token.u-studio.cn/v1'`
-  - [ ] `llmConnections[0].customEndpoint.api` 是用户选的协议
-  - [ ] `llmConnections[0].piAuthProvider` 自动派生（`anthropic` 或 `openai`，根据 customEndpoint.api）
-  - [ ] `llmConnections[0].models[0]` 是用户填的 model ID。**注意类型兼容**：上游 `validateModelList()` 接受 `string` 或 `{ id: string, ... }` 两种形态（详见 `packages/server-core/src/domain/connection-setup-logic.ts:257` + `packages/shared/src/config/validators.ts:89`）。M1 onboarding 只传 `string[]`，但**未来设置页可能扩成对象**——验收时按以下规则：
-    - 若 `models[0]` 是 string → 直接等于用户填的 model ID
-    - 若 `models[0]` 是对象 → 检查 `models[0].id` 等于用户填的 model ID
-  - [ ] `llmConnections[0].defaultModel` 等于该 model ID（无论 models[0] 是哪种形态，defaultModel 都是平铺的 string）
+  - [ ] `llmConnections[0].customEndpoint.api` 是主进程从实际可用模型解析出的协议
+  - [ ] `llmConnections[0].piAuthProvider` 自动派生（`anthropic` 或 `openai`，根据 `customEndpoint.api`）
+  - [ ] `llmConnections[0].models` 与本 Token 的可用聊天模型目录一致，不含图片/语音/embedding 等非聊天模型
+  - [ ] `llmConnections[0].defaultModel` 是推荐序列中首个实测可用模型，不是客户端硬编码版本
+  - [ ] `llmConnections[0].modelSelectionMode === 'automaticallySyncedFromProvider'`
 
 ### 3.5.2 设置页编辑触发降级测试
 
 **用户级测试**（手动操作，必跑）：
-- [ ] 在设置页**只**改 Token（不动协议）→ 点保存
+- [ ] 在设置页输入新 Token → 点保存
 - [ ] 检查 `~/.u-agents/config.json`：
   - [ ] `llmConnections[0].providerType` 仍是 `'pi_compat'`，**不**降级为 `'pi'`
-  - [ ] `llmConnections[0].customEndpoint.api` 仍是用户原选的协议
-- [ ] 在设置页**只**切换协议（不动 Token）→ 点保存
-- [ ] 检查 `config.json`：`baseUrl` 仍是 `https://token.u-studio.cn/v1`（**没**被清空）
+  - [ ] `llmConnections[0].customEndpoint.api`、`models`、`defaultModel` 已按新 Token 重新解析
+- [ ] 再次打开编辑器，不输入 Token 直接保存 → 原凭据、模型目录与默认模型保持不变
+- [ ] 确认 UI 不会把 `••••••••` 等掩码字符串写入凭据文件
 
 **代码 review 检查**（在改造完成后由 reviewer 跑）：
 - [ ] grep 所有调用 `electronAPI.setupLlmConnection` / IPC `'settings:setupLlmConnection'` 的位置
-- [ ] 验证：所有 U-API 路径在传 `setup.baseUrl` 时**始终**同时传 `setup.customEndpoint`
-- [ ] 验证：`useOnboarding.ts:apiSetupMethodToConnectionSetup('u_api')` 的 case 包含 `customEndpoint` 字段（非 `undefined`）
-- [ ] 验证：设置页 Save 流程的 `buildSetupPayload` 函数实现与 `03-ui-lockdown-spec.md` §2.2 伪代码一致
+- [ ] 验证：renderer 的 U-API 初始 test payload 只含 Token、固定 `baseUrl` 与自动同步模式，不硬编码协议/模型
+- [ ] 验证：`useOnboarding` 只使用主进程返回的 `resolvedSetup` 组装最终持久化 payload
+- [ ] 验证：设置页编辑不会预填或提交掩码 Token
 
 > "构造内部 IPC 请求"测试不在 09 范围内——09 是"用户/外部 AI 手动验收清单"。绕过 UI 直接发 IPC 的测试属于自动化测试范围（M2/M3 后再加）。
 >
@@ -240,31 +238,27 @@ CONFIG="$HOME/.u-agents/config.json"  # M1 改造完成后的位置（详见 01-
 
 ## 4. 模型管理
 
-### 4.1 正常路径（onboarding 后已强制有 1 个模型）
+### 4.1 正常路径（onboarding 后自动同步模型目录）
 
-- [ ] **正常 onboarding 完成后**：模型列表已有至少 1 个模型（默认 `gpt-5.5` 或用户在 onboarding 改的 model ID）
-- [ ] 默认模型 = onboarding 阶段填写的那个 model ID
+- [ ] **正常 onboarding 完成后**：模型列表已有至少 1 个聊天模型，且不含图片/语音/embedding 模型
+- [ ] 默认模型 = 推荐序列中首个实测通过的模型
+- [ ] 模型目录新增更高版本后，后台刷新能自动纳入并按动态版本顺序推荐，无需客户端发版
 - [ ] 进入主界面**不**显示"请先添加模型"空态
-- [ ] 设置页"管理模型"区可见已添加的模型条目，能编辑显示名、能删除
+- [ ] 设置页默认模型下拉只展示当前 Token 已发现的同协议聊天模型
 
-### 4.2 设置页添加更多模型
+### 4.2 设置页高级默认模型
 
-- [ ] 设置页点"添加模型"按钮 → 弹窗
-- [ ] 弹窗内有 model ID 输入框（必填）
-- [ ] 弹窗内有显示名输入框（可选）
-- [ ] 弹窗底部 3 个链接（pricing / console / topup）点击都能正确跳转
-- [ ] 添加一个有效 model ID（如你 Token 套餐内的 `claude-sonnet-4-5` 或 `gpt-4o-mini`）→ 列表多一项
-- [ ] 切换默认模型为新加的那个 → 设置页保存生效
+- [ ] 找不到手填 model ID、添加/删除模型或协议切换入口
+- [ ] 从下拉切换到目录内另一模型 → 保存生效，重启后保持
+- [ ] 后台刷新时该模型仍可用 → 保留用户选择，不强制切回推荐项
+- [ ] 该模型从 Token 目录下架 → 自动回到当前推荐项
 
-### 4.3 边缘场景（用户手动删光所有模型）
+### 4.3 边缘场景
 
-- [ ] 设置页删光所有模型 → 模型列表变空
-- [ ] 主界面**显示**"请先添加模型"空态卡片（这是 onboarding 后唯一会触发空态的路径）
-- [ ] 点击空态卡片"添加模型"按钮 → 跳到设置页 + 自动展开"添加模型"弹窗
-- [ ] 添加任意有效 model ID → 空态消失，可以正常发对话
-- [ ] 添加一个不存在的 model ID（如 `nonexistent-model`）→ 保存可以，但发对话时返回 404 错误
-- [ ] 删除模型按钮能用
-- [ ] 至少添加 2 个模型，验证默认模型切换功能
+- [ ] `/v1/models` 只返回非聊天模型 → setup 失败且不写入空目录
+- [ ] 后台刷新网络失败 → 继续保留上一次目录和默认模型
+- [ ] 推荐第一项实测返回模型/通道不可用 → 尝试第二项
+- [ ] 推荐第一项返回认证、余额不足或限流 → 立即停止，不用后续成功掩盖真实错误
 
 ---
 
@@ -283,9 +277,7 @@ CONFIG="$HOME/.u-agents/config.json"  # M1 改造完成后的位置（详见 01-
 
 - [ ] **(packaged) 发首条消息不报 `piServerPath not configured`** —— 事故 #1/#6 防回归，三平台各测一次
 - [ ] 创建新会话
-- [ ] 用 anthropic-messages 协议 + Claude 模型发送 "hello"
-- [ ] 收到响应（流式）
-- [ ] 用 openai-completions 协议 + GPT 模型发送 "hello"（需要切协议或新建会话）
+- [ ] 用自动选出的默认模型发送 "hello"
 - [ ] 收到响应
 - [ ] 切换权限模式（Explore / Ask to Edit / Auto）能用
 - [ ] 上传一张图片（Claude 模型）→ 模型能识别
