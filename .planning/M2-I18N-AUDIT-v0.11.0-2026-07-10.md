@@ -25,7 +25,7 @@ locale 冲突没有整文件选 `ours` 或 `theirs`，而是按三方 key 合并
 |---|---|
 | `bun run lint:i18n:parity` | 通过，6 locales × 1669 keys |
 | `bun run lint:i18n:sorted` | 通过 |
-| `bun run lint:i18n:coverage` | 通过，3162 literal callsites |
+| `bun run lint:i18n:coverage` | 通过，3406 literal callsites |
 | 旧菜单品牌 key | 0 |
 | v0.11.0 release notes | 已中文化 |
 
