@@ -3,7 +3,7 @@
 > 分支：`codex/sync-upstream-v0.11.0-20260710`
 > 上游标签：`v0.11.0`（`f4e172bf372f4ccc7389a189be1e0b0541f96282`）
 > 合并基线：`v0.10.5`（`c9d9a26fbefa3a5165ee9aa50cb30c25466afd81`）
-> 状态：同步、冲突处理、代码验证与 macOS 打包完成；保留在独立分支，未合回 `main`、未推送。
+> 状态：同步、冲突处理、代码验证、macOS 打包与真实 U-API 对话验收完成；保留在独立分支，未合回 `main`、未推送。
 
 ## 1. 结论
 
@@ -18,7 +18,7 @@ U Agents 的产品约束保持不变：
 - `release-notes/0.11.0.md` 已中文化，并移除上游 commit hash、issue 链接和用户可见 Craft 品牌。
 - 依赖安全 `overrides` 与删除链全部保留，生产审计仍为 40 项。
 
-综合评级：**A−，可进入独立分支验收，不直接合回 `main`**。
+综合评级：**A−，U-API 核心链路已完成独立分支验收；WhatsApp 按当前产品决策不使用，不纳入本轮验收门槛。是否合回 `main` 仍由用户 review 决定**。
 
 ## 2. 合并影响
 
@@ -83,25 +83,23 @@ SHA-256：`c7171d28740d16bb41c6370d82909c46080b620f786deeaf34727201eee743b3`
 
 包体核对通过：LICENSE、NOTICE、Assets.car、Pi server、session MCP server、Bun、uv、WhatsApp worker、Claude SDK core 与原生 binary 均存在。
 
-## 5. 实机结果与未闭环项
+## 5. 实机结果与遗留项
 
 ### 已通过
 
 - 打包版冷启动稳定，无 SDK / Pi server / module-not-found 崩溃。
 - 中文主界面、U Agents 菜单、Projects 入口、列表/看板切换和版本 0.11.0 均正常。
 - 实际配置中的 U-API 连接与默认模型能被 v0.11.0 读取。
-- WhatsApp worker 能构建并进入启动/QR 流程；包内 worker 文件存在。
+- 在打包版中新建隔离会话，选择 `gpt-5.5` 并发送最小回显请求，实际收到精确回复 `U-API v0.11.0 OK`；真实 U-API 对话链路通过。
+- 消息绑定页正确显示 WhatsApp `Not connected`；点击连接后 worker 能启动并渲染二维码，包内 worker 文件存在。用户明确当前不使用 WhatsApp，因此未扫码、未发送真人消息，真人收发记为不适用（N/A），不构成本轮验收阻塞。
 
-### 未闭环
+### 遗留项（不阻塞本轮 U-API 验收）
 
-1. **真实 U-API 对话**：准备发送最小测试消息时 macOS 锁屏，Computer Use 按安全策略停止；尚未得到模型回复，不能写成“对话实测通过”。
-2. **WhatsApp 真人收发**：当前运行记录停在 QR / disconnected，账号未配对；只能确认 worker、协议、权限、绑定、媒体和渲染测试 237 项全绿，不能宣称真人收发通过。
-3. **隔离配置编辑错误**：在没有可用凭据的隔离配置中，只补模型并继续时出现 `Cannot convert argument to a ByteString ... 8226`；表明掩码 Token 可能被当成真实值提交。未改真实配置，建议单独修复并补回归测试。
-4. **i18n strings 旧入口**：`bun run lint:i18n:strings` 仍引用不存在的 `scripts/lint-i18n-strings.sh`。该引用在 v0.10.5 已存在，不是本次上游引入；当前 CI 使用 parity / sorted / coverage，不受影响，但治理入口需要后续收口。
+1. **隔离配置编辑错误**：在没有可用凭据的隔离配置中，只补模型并继续时出现 `Cannot convert argument to a ByteString ... 8226`；表明掩码 Token 可能被当成真实值提交。未改真实配置，建议单独修复并补回归测试。
+2. **i18n strings 旧入口**：`bun run lint:i18n:strings` 仍引用不存在的 `scripts/lint-i18n-strings.sh`。该引用在 v0.10.5 已存在，不是本次上游引入；当前 CI 使用 parity / sorted / coverage，不受影响，但治理入口需要后续收口。
 
-## 6. 合回 main 前的最后门槛
+## 6. 合回 main 前的决策点
 
-- 解锁 Mac 后，用本 DMG 新建测试会话并发送一条 U-API 消息，确认模型回复。
-- 如要把 WhatsApp 标为“实机通过”，需完成一次扫码配对、入站消息和回复发送。
+- 真实 U-API 对话门槛已通过；WhatsApp 因当前不使用而记为 N/A，不再作为本轮门槛。
 - 单独决定是否在合回前修复掩码 Token 编辑错误；至少不要把该项误写成通过。
-- 用户 review 本报告和独立分支后，再决定是否 merge 回 `main` 与 push。
+- 从本轮功能验收看，独立分支已具备合回 `main` 的条件；用户 review 本报告和两项非阻塞遗留后，再决定是否 merge 与 push。
