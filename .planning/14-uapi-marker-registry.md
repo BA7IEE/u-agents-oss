@@ -8,7 +8,7 @@
 
 ## 0. 当前基线（速查）
 
-| 指标 | 基线（2026-07-10 Token-only 自动模型发现）| 下次同步允许浮动 |
+| 指标 | 基线（2026-07-11 v0.11.1 同步复核）| 下次同步允许浮动 |
 |---|---|---|
 | U-API 标记总数（含全部注释格式）| **134** | ±2 |
 | `/* U-API START */` 块数 | **10** | 必须等于 END |
@@ -323,6 +323,7 @@ grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_mod
 - **M2 依赖安全收口（2026-07-10）：120 处 / START 10 / END 10**。新增 #66 单行 marker；Office 附件转换从 `markitdown-js` 切到受控 Python/uv 工具链，并补 `markitdown.test.ts` 4 个 runtime 路径解析测试。旧命令因 `release/` 历史副本会误报 208。
 - **v0.11.0 sync（2026-07-10）：123 处 / START 10 / END 10**。新增 #67/#67t（后台代理默认关闭与兼容变量测试）和 #68（严格 TypeScript 测试适配）；其余 8 个 marker-bearing 交叉文件逐项复核后保持既有语义。
 - **Token-only 自动模型发现（2026-07-10）：134 处 / START 10 / END 10**。从 123 基线新增 #69–#75t 共 11 个单行 marker，覆盖目录发现、动态推荐/模型与协议双层降级、Token-only UI、编辑安全、后台刷新、自动同步迁移与 MiniMax 回归。
+- **v0.11.1 sync（2026-07-11）：134 处 / START 10 / END 10**。上游 23 文件 / `+82 −63`，唯一 marker-bearing 交叉文件为 `packages/shared/src/config/llm-connections.ts`；接收 GPT-5.6 原生 provider 推荐顺序但不改变 U-API Token-only 动态发现与探活降级，#75 MiniMax 完整 token 匹配标记保持不变。本轮无新增改造点。
 
 ---
 

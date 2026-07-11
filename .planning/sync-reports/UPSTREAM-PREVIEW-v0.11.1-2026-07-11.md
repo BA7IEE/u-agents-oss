@@ -1,8 +1,10 @@
 # UPSTREAM PREVIEW — v0.11.1（2026-07-11）
 
+> **后续状态**：D1–D6 已在独立分支执行，代码验证、macOS arm64 打包及真实 U-API 对话均通过。正式结果见 [`SYNC-v0.11.1-20260711.md`](SYNC-v0.11.1-20260711.md)；本文件保留为合并前决策依据。
+
 > 任务边界：按仓库 [`upstream-sync`](../../.agents/skills/upstream-sync/SKILL.md) 规则完成上游核查、接收决策与执行手册，不在本会话运行 `git fetch`、`git merge`、`git checkout`、依赖安装或源码修改。
 >
-> 当前状态：**待执行**。本地 `main` / `origin/main` 均为 `0f8ed9ac`；本地 `upstream/main` 仍停在 v0.11.0，远端 `upstream/main` 与 `v0.11.1` 均指向 `4289b16097322e9911d3078d8a64bd8c830717c3`。
+> 当前状态：**已执行**。同步提交为 `5536427b`，保留在 `codex/sync-upstream-v0.11.1-20260711`；尚未合回 `main`、未推送。Windows 源码交接包已生成，等待用户在 Windows x64 实机验证。
 
 ## 1. 结论
 
@@ -14,8 +16,8 @@
 
 - 用户只填写 U-API Token，不输入模型或协议。
 - 模型目录来自 Token-scoped `/v1/models`，不能用静态模型表替代。
-- 默认模型由 [`discoverUApiModels`](../../../packages/server-core/src/domain/u-api-model-discovery.ts) 的动态推荐顺序与 [`selectWorkingUApiModel`](../../../packages/server-core/src/domain/u-api-model-discovery.ts) 的真实探活共同决定；推荐模型不可用时继续按候选模型与协议顺序降级。
-- 上游 [`PI_PREFERRED_DEFAULTS`](../../../packages/shared/src/config/llm-connections.ts) 新增 `gpt-5.6-sol` / `terra` / `luna` 可以接收，但它只服务原生 `openai` / `openai-codex` Pi provider，不能成为 U-API 的硬编码默认值。
+- 默认模型由 [`discoverUApiModels`](../../packages/server-core/src/domain/u-api-model-discovery.ts) 的动态推荐顺序与 [`selectWorkingUApiModel`](../../packages/server-core/src/domain/u-api-model-discovery.ts) 的真实探活共同决定；推荐模型不可用时继续按候选模型与协议顺序降级。
+- 上游 [`PI_PREFERRED_DEFAULTS`](../../packages/shared/src/config/llm-connections.ts) 新增 `gpt-5.6-sol` / `terra` / `luna` 可以接收，但它只服务原生 `openai` / `openai-codex` Pi provider，不能成为 U-API 的硬编码默认值。
 - WhatsApp 没有功能变化；虽然 package 版本随发布统一提升，但不恢复、不新增验收范围。
 
 ## 2. 上游变化
@@ -63,10 +65,10 @@
 
 ### 4.2 U-API marker 交叉
 
-23 个上游改动文件中只有 [`packages/shared/src/config/llm-connections.ts`](../../../packages/shared/src/config/llm-connections.ts) 带现有 U-API marker（#75，MiniMax 与 `mini` token 匹配修复）。上游改动位于后方的 `PI_PREFERRED_DEFAULTS`，预期可自动合并；合并后仍要确认：
+23 个上游改动文件中只有 [`packages/shared/src/config/llm-connections.ts`](../../packages/shared/src/config/llm-connections.ts) 带现有 U-API marker（#75，MiniMax 与 `mini` token 匹配修复）。上游改动位于后方的 `PI_PREFERRED_DEFAULTS`，预期可自动合并；合并后仍要确认：
 
 - #75 marker 和完整 token 匹配逻辑存在。
-- [`u-api-model-discovery.ts`](../../../packages/server-core/src/domain/u-api-model-discovery.ts) 未被替换或旁路。
+- [`u-api-model-discovery.ts`](../../packages/server-core/src/domain/u-api-model-discovery.ts) 未被替换或旁路。
 - `gpt-5.6-sol` 可在 Token 返回时排到 `gpt-5.5` 前，但没有写成 U-API 无条件默认值。
 - 首选模型或首选协议探活失败后，会继续尝试下一项。
 
