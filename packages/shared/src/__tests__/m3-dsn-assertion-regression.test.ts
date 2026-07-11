@@ -89,6 +89,15 @@ describe('M3-Sentry — 三平台 build 脚本 packaging signal', () => {
     expect(src).toMatch(/SENTRY_ELECTRON_INGEST_URL/)
     expect(src).toMatch(/Write-Warning.*\[build-warn\]/)
   })
+
+  // U-API: Windows packaging must stay on Bun's runner; npm 11 turns matching security overrides into EOVERRIDE.
+  it('build-win.ps1 使用 bunx，避免 npm 11 EOVERRIDE', () => {
+    const src = readSource('apps/electron/scripts/build-win.ps1')
+    expect(src).toMatch(/&\s+bunx\s+esbuild\s+@MainArgs/)
+    expect(src).toContain('bunx vite build --config apps/electron/vite.config.ts')
+    expect(src).toContain('bunx electron-builder --win --x64')
+    expect(src).not.toMatch(/\bnpx\s+(esbuild|vite|electron-builder)\b/)
+  })
 })
 
 describe('M3-Sentry — getBuildDefines 仍处理 SENTRY DSN（注入 esbuild）', () => {

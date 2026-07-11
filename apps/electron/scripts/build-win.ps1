@@ -290,7 +290,8 @@ if ($env:MICROSOFT_OAUTH_CLIENT_ID) {
 }
 Push-Location $RootDir
 try {
-    & npx esbuild @MainArgs
+    # U-API: use Bun's local package runner; npm 11 rejects our direct-dependency security overrides with EOVERRIDE.
+    & bunx esbuild @MainArgs
     if ($LASTEXITCODE -ne 0) { throw "Main process build failed" }
 } finally {
     Pop-Location
@@ -319,7 +320,7 @@ try {
 }
 
 # U-API: build-win.ps1 misses electron-build-main.ts:335 buildWhatsAppWorker() step.
-# Windows path uses inline `npx esbuild` for main bundle (instead of `bun run
+# Windows path uses inline `bunx esbuild` for main bundle (instead of `bun run
 # electron:build:main`), so the helper that bundles Baileys + WhatsApp worker
 # never runs. electron-builder.yml extraResources expects worker.cjs at
 # packages/messaging-whatsapp-worker/dist/worker.cjs — without this step the
@@ -371,7 +372,7 @@ try {
     if (Test-Path $RendererDir) { Remove-Item -Recurse -Force $RendererDir }
 
     # Run vite build
-    npx vite build --config apps/electron/vite.config.ts
+    bunx vite build --config apps/electron/vite.config.ts
     if ($LASTEXITCODE -ne 0) { throw "Renderer build failed" }
 
     # Verify renderer was built
@@ -496,7 +497,7 @@ while (-not $builderSuccess -and $builderRetry -lt $maxBuilderRetries) {
         Start-Sleep -Seconds 1
     }
 
-    npx electron-builder --win --x64 2>&1 | Tee-Object -Variable builderOutput
+    bunx electron-builder --win --x64 2>&1 | Tee-Object -Variable builderOutput
 
     if ($LASTEXITCODE -eq 0) {
         $builderSuccess = $true

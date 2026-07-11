@@ -10,7 +10,7 @@
 
 | 指标 | 基线（2026-07-11 v0.11.1 同步复核）| 下次同步允许浮动 |
 |---|---|---|
-| U-API 标记总数（含全部注释格式）| **134** | ±2 |
+| U-API 标记总数（含全部注释格式）| **135** | ±2 |
 | `/* U-API START */` 块数 | **10** | 必须等于 END |
 | `/* U-API END */` 块数 | **10** | 必须等于 START |
 
@@ -22,7 +22,7 @@
 # 同时排除 apps/electron/release/ 下的历史打包副本；否则会重复统计已打包源码副本
 grep -rEn --exclude-dir=node_modules --exclude-dir=release "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
   | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
-# 期望：134（基线，允许 132-136）
+# 期望：135（基线，允许 133-137）
 
 # 块标记 START/END 配对（数量必须相等）
 grep -rE --exclude-dir=node_modules --exclude-dir=release "/\* U-API START" packages apps --include="*.ts" --include="*.tsx" | wc -l
@@ -247,6 +247,8 @@ if (!apiKey && connection.baseUrl) {
 | 74 | 启动迁移把历史 U-API 手动模型模式归一为 provider 自动同步模式 | `packages/shared/src/config/storage.ts` | `catalog owns model/default selection` | 单行 | 02 §4.3 |
 | 75 | utility model 关键词按完整 token 匹配，避免把 `MiniMax` 品牌误判为 `mini` 模型 | `packages/shared/src/config/llm-connections.ts` | `MiniMax brand names` | 单行 | 02 §3.3 |
 | 75t | #75 回归测试：MiniMax 不误判；真实 `-mini` token 仍可选 | `packages/shared/src/config/__tests__/mini-model-selection.test.ts` | `MiniMax brand names and exact utility-model tokens` | 单行 | C5 + 02 §10 |
+| 76 | Windows packaging 的 esbuild / Vite / electron-builder 统一使用 `bunx`，避免 npm 11 对安全 `overrides` 抛 `EOVERRIDE` | `apps/electron/scripts/build-win.ps1` | `use Bun's local package runner` | PowerShell 单行（不计主基线 grep） | C14 + 12 §2.3 |
+| 76t | #76 回归测试：三个 Windows 构建入口必须为 `bunx` 且禁止恢复 `npx` | `packages/shared/src/__tests__/m3-dsn-assertion-regression.test.ts` | `Windows packaging must stay on Bun's runner` | 单行 | C5 + C14 |
 
 ---
 
@@ -324,6 +326,7 @@ grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_mod
 - **v0.11.0 sync（2026-07-10）：123 处 / START 10 / END 10**。新增 #67/#67t（后台代理默认关闭与兼容变量测试）和 #68（严格 TypeScript 测试适配）；其余 8 个 marker-bearing 交叉文件逐项复核后保持既有语义。
 - **Token-only 自动模型发现（2026-07-10）：134 处 / START 10 / END 10**。从 123 基线新增 #69–#75t 共 11 个单行 marker，覆盖目录发现、动态推荐/模型与协议双层降级、Token-only UI、编辑安全、后台刷新、自动同步迁移与 MiniMax 回归。
 - **v0.11.1 sync（2026-07-11）：134 处 / START 10 / END 10**。上游 23 文件 / `+82 −63`，唯一 marker-bearing 交叉文件为 `packages/shared/src/config/llm-connections.ts`；接收 GPT-5.6 原生 provider 推荐顺序但不改变 U-API Token-only 动态发现与探活降级，#75 MiniMax 完整 token 匹配标记保持不变。本轮无新增改造点。
+- **v0.11.1 Windows handoff hotfix（2026-07-11）：135 处 / START 10 / END 10**。Windows 首轮实机打包发现 `build-win.ps1` 的三个 `npx` 入口会被 npm 11 的 `EOVERRIDE` 拦截；新增 #76/#76t，统一改用 `bunx` 并补静态合同测试。PowerShell 源码 marker 不计主基线，测试 marker 使主基线净增 1。
 
 ---
 
