@@ -2,6 +2,7 @@
 
 > 分支：`codex/sync-upstream-v0.11.1-20260711`
 > 同步提交：`5536427b70e0462068c293350b6337fa26cc3a69`
+> Windows handoff hotfix：`4e7b978d47703167c1ad2089cd89db7c214a269a`
 > 上游标签：`v0.11.1`（`4289b16097322e9911d3078d8a64bd8c830717c3`）
 > 合并基线：`v0.11.0`（`f4e172bf372f4ccc7389a189be1e0b0541f96282`）
 > 状态：同步、冲突处理、代码验证、macOS arm64 打包与真实 U-API 对话已完成；Windows 源码交接包已生成，等待用户在 Windows x64 实机测试。尚未合回 `main`、未推送。
@@ -45,7 +46,7 @@ U-API Token-only 路径保持不变：用户只填写 Token，模型目录由 [`
 | GPT-5.6 / thinking / U-API targeted tests | 18 pass / 0 fail |
 | package 版本 | 15 个均为 `0.11.1` |
 | Pi 依赖 | `pi-ai` / `pi-agent-core` / `pi-coding-agent` 均为 `0.80.6` |
-| marker | 134 / START 10 / END 10 |
+| marker | 135 / START 10 / END 10 |
 | NPM scope | 源码与 `bun.lock` 中 `@craft-agent/` 均为 0 |
 | release notes | 全中文；外链、commit hash、`craft` 0 命中 |
 | `bun audit --production` | 40：1 critical / 20 high / 18 moderate / 1 low，与 v0.11.0 基线一致 |
@@ -85,15 +86,17 @@ macOS packaged app 核心门槛通过。
 
 ## 5. Windows 交接
 
-已在仓库上一级目录生成：
+Windows 首轮实机打包发现 npm 11 会在 `build-win.ps1` 的 `npx` 入口检查安全 `overrides`，因 `linkify-it` 的直接依赖范围与固定 override 抛出 `EOVERRIDE`。提交 `4e7b978d` 已把 esbuild、Vite、electron-builder 三个入口统一改为 `bunx`，并新增静态合同测试，12 pass / 0 fail；完整 `validate:ci` 复跑通过。
 
-- `U-Agents-v0.11.1-Windows-handoff-5536427b.zip`
-- `U-Agents-v0.11.1-Windows-handoff-5536427b.zip.sha256`
+已在仓库上一级目录重新生成：
+
+- `U-Agents-v0.11.1-Windows-handoff-4e7b978d.zip`
+- `U-Agents-v0.11.1-Windows-handoff-4e7b978d.zip.sha256`
 - `U-Agents-v0.11.1-Windows打包测试流程.md`
 
-源码归档来自提交 `5536427b`，共 2237 个 Git 文件，不含 `.git`、`node_modules`、`release`、`.env`、`.agents`、`.codex` 或本机配置。
+源码归档来自提交 `4e7b978d`，不含 `.git`、`node_modules`、`release`、`.env`、`.agents`、`.codex` 或本机配置。旧 `5536427b` 交接包作废。
 
-源码包 SHA-256：`427b2d1d4f12ef1a127b655e0d9f09a7bd2da5c255a13600fed9e2af9c52fb01`。
+源码包 SHA-256：`3721cdd8080fb721a6620cc533509f5f2d7c091c6dfc525730d1d6ec1dfd18bd`。
 
 Windows 实测仍需用户完成：x64 NSIS 构建、包内 subprocess 核对、安装启动、Token-only 自动模型发现、真实 U-API 首条对话、卸载与可选正式签名。
 
