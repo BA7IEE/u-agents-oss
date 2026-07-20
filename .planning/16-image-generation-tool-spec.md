@@ -1,8 +1,8 @@
 # 16 — U-API 生图工具落地规格
 
-> **状态**：待实施；2026-07-20 完成开工前全仓联动审查并修正跨包合同，尚未配置生产 marker、实现客户端或完成费用对账。
+> **状态**：客户端P0已实现；targeted tests、`typecheck:all`、lint、`validate:ci`、独立子进程build、Electron production build与WebUI production build已通过；2026-07-20在真实marker目录下完成11组generation /edit /参考图 /合成矩阵，11/11返回有效图片、8/11严格`ok`、3/11安全质量降级；最终macOS DMG中的Electron成功路径已完成真实端侧smoke，凭据隔离修复后的用户安装版也以一句自然语言成功生成并展示`1536x1024`图片。全量`bun test`与两个既有isolated suite仍有仓库基线失败；费用对账、多实例marker一致性、Electron异常态、WebUI live UI及正式签名 /notarization仍未完成，因此不代表生产已启用。
 > **目标**：用户只说一句自然语言，U Agents 即复用当前会话的 U-API Token 完成纯文生图、参考图生成、图片编辑、角色延续或最多三图合成，并在当前回复中直接显示一张新图片。
-> **证据**：目录、29 次真实请求、NewAPI 源码依据与运维门禁见 [`16a-image-api-evidence.md`](16a-image-api-evidence.md)。
+> **证据**：目录、45次客户端观测到的operation请求、NewAPI源码依据、最终DMG端侧smoke、用户安装版复验与运维门禁见 [`16a-image-api-evidence.md`](16a-image-api-evidence.md)。
 > **付费安全**：通用的一次性 invocation、取消和重放边界见 [`16b-paid-tool-lifecycle.md`](16b-paid-tool-lifecycle.md)。本规格只声明生图工具如何接入该最小合同。
 > **关联规格**：LLM 出口服从 [`02-llm-gateway-spec.md`](02-llm-gateway-spec.md)；实施后同步 [`14-uapi-marker-registry.md`](14-uapi-marker-registry.md) 与 [`09-test-checklist.md`](09-test-checklist.md)。
 
@@ -119,7 +119,7 @@ P0 不承诺跨进程 exactly-once。应用崩溃后不恢复旧生图任务；�
 | `server-core` | interactive origin、paid lease、manifest、凭据、Images请求编排、真实解码、安全落盘 | renderer展示 |
 | `ui` | 复用`core` parser后的直显、警告、全屏预览 | 自行猜测ToolResult、读取任意路径 |
 
-实现前仍需对这些符号重新读代码；本文是预期合同，不代表当前源码已经具备能力。
+上述边界已按现状实现；后续上游同步必须按符号和 [`14-uapi-marker-registry.md`](14-uapi-marker-registry.md) #77–#81t复核，不得依赖易漂移行号。
 
 ---
 
@@ -467,24 +467,24 @@ base64 解码后验证：
 ### 10.2 agent暴露与private context
 
 5. [`packages/shared/src/agent/backend/types.ts`](../packages/shared/src/agent/backend/types.ts)：为`ChatOptions` /`CoreBackendConfig`增加不可由renderer写入的窄paid turn context与owner capability；不得加入`SendMessageOptions`或公共IPC DTO。
-6. [`packages/shared/src/agent/session-scoped-tool-callback-registry.ts`](../packages/shared/src/agent/session-scoped-tool-callback-registry.ts)与[`claude-context.ts`](../packages/shared/src/agent/claude-context.ts)：新增按canonical session path + opaque owner绑定的paid image callback，compare-and-delete；不迁移其他callback。
+6. [`packages/shared/src/agent/paid-image-tool-registry.ts`](../packages/shared/src/agent/paid-image-tool-registry.ts)与[`claude-context.ts`](../packages/shared/src/agent/claude-context.ts)：新增独立的canonical session path + opaque owner paid callback，compare-and-delete；不迁移其他callback。
 7. [`packages/shared/src/agent/session-scoped-tools.ts`](../packages/shared/src/agent/session-scoped-tools.ts)：Claude surface / full过滤；cache identity包含agent kind，image callback不固化进跨agent cache。
 8. [`packages/shared/src/agent/backend/pi/session-tool-defs.ts`](../packages/shared/src/agent/backend/pi/session-tool-defs.ts)与[`pi-agent.ts`](../packages/shared/src/agent/pi-agent.ts)：Pi复用同一canonical schema，注册前过滤并在执行时再次验证当前surface /full、owner和nonce。
-9. [`packages/shared/src/agent/claude-agent.ts`](../packages/shared/src/agent/claude-agent.ts)与[`base-agent.ts`](../packages/shared/src/agent/base-agent.ts)：当前turn nonce /manifest volatile context、owner传递与stop失效。不得把SDK `toolUseId`作为paid lease identity。
+9. [`packages/shared/src/agent/claude-agent.ts`](../packages/shared/src/agent/claude-agent.ts)传递owner；当前turn nonce /manifest volatile context与stop失效由[`SessionManager.ts`](../packages/server-core/src/sessions/SessionManager.ts)持有。没有修改`base-agent.ts`，也不把SDK `toolUseId`作为paid lease identity。
 10. [`packages/session-mcp-server/src/index.ts`](../packages/session-mcp-server/src/index.ts)：Codex `ListTools` /`CallTool`双向过滤；陈旧直调仍拒绝。
 
 ### 10.3 server host、transport与图片安全
 
 11. `packages/server-core/src/services/u-api-image-generation.ts`及[`services/index.ts`](../packages/server-core/src/services/index.ts)：唯一Images host service，负责目录resolver、generation /edit transport、同一Token snapshot、响应上限与错误分类。
 12. [`packages/server-core/src/services/image-utils.ts`](../packages/server-core/src/services/image-utils.ts)：复用platform `ImageProcessor`完成PNG /JPEG /WebP真实解码、dimensions与响应安全校验；不在`shared`复制图片parser。
-13. [`packages/server-core/src/handlers/rpc/sessions.ts`](../packages/server-core/src/handlers/rpc/sessions.ts)：只为transport-accepted普通顶层Electron /WebUI payload创建private `interactive` context；renderer字段不能提升origin。
+13. [`packages/server-core/src/sessions/SessionManager.ts`](../packages/server-core/src/sessions/SessionManager.ts)只在现有RPC层传入可信`callerClientId`且消息非hidden时创建private `interactive` context；`sessions.ts`与renderer DTO均未新增付费字段。
 14. [`packages/server-core/src/sessions/SessionManager.ts`](../packages/server-core/src/sessions/SessionManager.ts)：按canonical session path + user `Message.id`维护paid record、frozen manifest、host `leaseToken`、redactor与取消；auth /source recovery在未进入preflight时保留原`Message.id`和context，不能删除后创建新ID。
 
 [`packages/server-core/src/handlers/session-manager-interface.ts`](../packages/server-core/src/handlers/session-manager-interface.ts)与公共`sendMessage()`合同默认保持不变；优先在`SessionManager`内部增加private continuation seam。若实现证明必须改公共接口或renderer DTO，立即触发§10.5停止条件。
 
 ### 10.4 UI、i18n与测试登记
 
-15. [`packages/ui/src/components/chat/turn-utils.ts`](../packages/ui/src/components/chat/turn-utils.ts)与[`TurnCard.tsx`](../packages/ui/src/components/chat/TurnCard.tsx)：消费`core` parser，主回复直显、error-only可见、去重，并把`getToolDisplayName('generate_image')`接入i18n。
+15. [`packages/ui/src/lib/tool-parsers.ts`](../packages/ui/src/lib/tool-parsers.ts)与[`TurnCard.tsx`](../packages/ui/src/components/chat/TurnCard.tsx)：消费`core` parser，主回复直显、error-only可见，并把`getToolDisplayName('generate_image')`接入i18n；未修改`turn-utils.ts`。
 16. [`packages/ui/src/components/markdown/MarkdownImageBlock.tsx`](../packages/ui/src/components/markdown/MarkdownImageBlock.tsx)、[`ImagePreviewOverlay.tsx`](../packages/ui/src/components/overlay/ImagePreviewOverlay.tsx)与[`PreviewOverlay.tsx`](../packages/ui/src/components/overlay/PreviewOverlay.tsx)：对生成图增加`hideFileActions`，隐藏Open /Reveal /Copy Path，内部仍通过现有data URL读取。
 17. [`packages/shared/src/i18n/locales/`](../packages/shared/src/i18n/locales)：七个locale新增固定活动、八类错误与三类降级文案；同步更新[`09-test-checklist.md`](09-test-checklist.md)中的真实key count与生图回归项。
 18. 相邻`__tests__`、package index /exports与fixture：每个新增U-API改造点同时有marker和测试，完成后刷新[`14-uapi-marker-registry.md`](14-uapi-marker-registry.md) §0 /§3；不得预填实施前marker数量。
@@ -539,36 +539,56 @@ bun test
 
 实施时按实际脚本核对，不得把 targeted tests表述成全量通过。`session-mcp-server`独立bundle必须重新构建并验证不暴露 `generate_image`。
 
+#### 11.2.1 2026-07-20 实施与安装包证据
+
+- 最终生图 /路径 /UI组合回归：**70 pass / 0 fail / 199 expects**，覆盖10个测试文件；其中包含realpath根目录规范化、strict result parser、重复附件清理、生命周期与工具隔离。
+- 真实字节fixture：测试内由`sharp`生成PNG、JPEG、WebP并走headless真实decoder；multipart顺序、MIME与neutral filename通过。
+- `bun run typecheck:all`、`bun run lint`、`bun run validate:ci`均exit 0；i18n为en + 6个非英语locale，parity /sorted /coverage全绿。
+- `bun run server:build:subprocess`与`bun run scripts/copy-subprocess-servers.ts`通过，session MCP与Pi独立bundle成功生成/复制。
+- `bun run electron:build`与`bun run webui:build`均exit 0；production renderer、main、preload、resources和WebUI bundle均可构建。
+- 全量`bun test`（凭据隔离修复后最终复跑）：**5791 pass / 12 skip / 29 fail / 5 errors**，共5832 tests、463 files。失败集中于既有browser-pane /WebUI /developer-feedback基线及被误扫的`apps/electron/release/`源码副本；本次生图、凭据隔离与headless suite没有失败。故“完整repo gates全绿”仍为未完成，不能用targeted结果替代。
+- 顶层`test`脚本会在上述全量失败后停止，故另行逐个执行5个源码侧`*.isolated.ts`：`pre-tool-use-checks` 69 pass、`notifications-routing` 2 pass、`sessions-annotations` 3 pass；`prerequisite-manager`为13 pass /20 fail（其`node:fs` mock使新增的config defaults读取固定失败），`session-branch-rollback`为0 pass /1 fail /1 error（`packages/shared/src/config/index.ts`既有`CONFIG_DIR`导出缺失）。两组失败均不在本次生图write-set，但仍阻塞完整repo gates。
+- 本轮使用用户授权的临时Token先验证缺marker fail-closed；用户修正后台后，真实目录只让exact `gpt-image-2`同时满足三个必需marker。完整矩阵每次重新GET目录，11个invocation各一次claim、一次POST，全部HTTP 200且无retry /fallback。
+- 纯文standard三画幅、PNG /JPEG /WebP单图编辑、两图与三图合成共8项返回`ok`；high纯文、角色延续与style reference共3项返回有效图片但被客户端正确标为`degraded + quality_downgraded`。11张图均通过字节 /MIME /尺寸检查和逐张人工查看。详细耗时、字节数、multipart和视觉边界见16A §8.2。
+- v0.11.1 macOS DMG完成完整build、`hdiutil verify`、adhoc codesign校验，并从只读挂载包启动真实Pi subprocess。端侧一次operation返回exact `gpt-image-2`的`ok` PNG `1254x1254`；持久化重载、工具卡直显、全屏与缩放通过，且不暴露服务端路径。首次运行发现的`/tmp -> /private/tmp`误拒绝和重复附件 /空回复卡已修复、重新打包并以原图零新增POST复验。
+- 后续用户安装发现§8.3的`U_AGENTS_CONFIG_DIR`没有隔离`SecureStorageBackend`：临时Token曾覆盖正式`~/.u-agents/credentials.enc`。现已让凭据复用`CONFIG_DIR`，新增主变量 /旧变量 /默认路径三组子进程回归，并隔离headless smoke。修复后的最终DMG SHA-256为`8d955394e16abb97bfd6eb520b6dcd324cef3ee78eeb8eb42d73b5ebdc71f25a`；bundle确认`CREDENTIALS_DIR = CONFIG_DIR`且不含临时Token。详见16A §8.4。
+- 用户安装上述修复后最终DMG，在正常桌面会话中用一句自然语言生成小猫趴在牛背上的图片；单个工具卡正确显示`1536x1024`结果与已保存文件链接，没有重复破图或空回复卡。本次新增1次客户端观测到的operation调用，累计数为45；route /Debug、费用归属与Token轮换仍按发布门禁处理。详见16A §8.5。
+- 当前单Token目录配置、客户端主链和Electron成功路径已获真实证据，但没有开放普通流量、完成跨实例cache回读、后台费用对账、Electron异常态或WebUI live UI smoke；当前包为adhoc且未notarize。严格发布门禁仍未通过，临时Token必须轮换。
+
 ### 11.3 发布顺序
 
-1. 用生产等价受控 Token直接对 exact `gpt-image-2`完成 generation、PNG edit、JPEG edit、WebP edit和用量对账；此时客户端尚不依赖marker。
-2. 暂停生图流量，审计全节点channel、route、`model_mapping`、retry /failover、timeout和Debug。
-3. 只给 exact `gpt-image-2`同时配置 `uapi-image-edit-v1 + uapi-image-default-v1`。
-4. 失效cache /等待真实refresh周期，逐实例或cache domain回读到唯一default。
-5. 临时开放受控canary；用户当次授权后，经实现后的U Agents分别执行一次 `1:1 + standard`纯文生成和一次单图standard编辑。
-6. 验证UI、保存、客户端POST数、U-API /上游用量及 `contract_status = ok`。
-7. 全部通过后开放普通流量；任一失败暂停流量并同时撤两个自定义marker，不尝试其他模型。
+1. [x] 缺marker时验证resolver fail-closed；用仓库外临时注入验证transport，但不把注入当成生产能力。
+2. [x] 只给 exact `gpt-image-2`配置 `uapi-image-edit-v1 + uapi-image-default-v1`；当前Token目录回读到唯一eligible model。
+3. [x] 经实现后的U Agents service完成11组受控真实矩阵；PNG /JPEG /WebP编辑及standard三画幅通过，high与两项参考图case暴露quality降级。
+4. [ ] 暂停普通生图流量，审计全节点channel、route、`model_mapping`、retry /failover、timeout和Debug；失效cache并逐实例 /cache domain回读唯一default。
+5. [ ] 核对客户端本轮11个POST、NewAPI 11条operation记录和上游用量；调查3次`quality_downgraded`，直到相关canary均为`contract_status = ok`或产品明确修改质量门禁。
+6. [x] 用最终macOS DMG验证Electron成功路径：真实operation、保存、历史重载、当前回复直显、全屏缩放和隐藏服务端路径；修复真实端侧发现的路径别名与重复渲染问题并重新打包复验。
+7. [x] 修复端侧测试凭据隔离事故：`credentials.enc`与config /workspace /server lock统一服从`CONFIG_DIR`；三路径回归、headless隔离、最终bundle与临时Token零命中通过。
+8. [ ] 用Electron安装包验证degraded、error-only与`possibly_charged`提示；完成WebUI live UI smoke，并复核用户协议与隐私政策。
+9. [ ] 配置正式macOS发布证书并完成notarization；当前adhoc包只用于开发验收。
+10. [ ] 轮换临时Token。上述门禁全部通过后才开放普通流量；任一失败保持quiesced，必要时同时撤两个自定义marker，不尝试其他模型。
 
-具体marker JSON、历史矩阵、运维门禁与记录模板见 [`16a-image-api-evidence.md`](16a-image-api-evidence.md) §2—§7。
+具体marker JSON、历史矩阵、运维门禁与smoke记录见 [`16a-image-api-evidence.md`](16a-image-api-evidence.md) §2—§9。
 
 ---
 
 ## 12. P0 完成判定
 
 - [ ] 用户对纯文、编辑、角色延续和最多三图合成可一句话完成；只有真实歧义、非支持画幅或高品质编辑各问一次最短问题。
-- [ ] 同一 U-API connection / Token；没有新配置和模型选择。
-- [ ] 每次目录读取actual ID；唯一三marker条目才能POST，客户端不按名称猜模型。
-- [ ] generation与edit共用一个adapter；固定一张、三画幅、纯文两品质、edit standard。
-- [ ] PNG/JPEG/WebP实际buffer、MIME与neutral filename一致并通过真实canary。
-- [ ] 一个 user `Message.id`最多一个operation POST；参数无费用错误可有限自修正，POST后无retry /fallback。
-- [ ] host `leaseToken`而非SDK `toolUseId`承担preflight /claim identity；auth /source recovery不改写原invocation identity。
-- [ ] 安全的质量 /画幅降级图片仍显示并警告；危险或损坏图片不保存。
-- [ ] Electron /WebUI主回复直显、全屏预览、error-only与possibly charged提示通过；生成图不暴露服务端路径。
-- [ ] host与UI复用`core` strict parser；`tool_start`持久化前已redact内部nonce /lease /owner。
-- [ ] full /mini /Codex过滤，Claude /Pi parity，取消、旧turn和旧process重放测试通过。
+- [x] 同一 U-API connection / Token；没有新配置和模型选择。
+- [x] 每次目录读取actual ID；唯一三marker条目才能POST，客户端不按名称猜模型。
+- [x] generation与edit共用一个adapter；固定一张、三画幅、纯文两品质、edit standard。
+- [x] PNG/JPEG/WebP实际buffer、MIME与neutral filename一致并通过真实canary。
+- [x] 一个 user `Message.id`最多一个operation POST；参数无费用错误可有限自修正，POST后无retry /fallback。
+- [x] host `leaseToken`而非SDK `toolUseId`承担preflight /claim identity；auth /source recovery不改写原invocation identity。
+- [x] 安全的质量 /画幅降级图片仍显示并警告；危险或损坏图片不保存。
+- [ ] Electron /WebUI主回复直显、全屏预览、error-only与possibly charged提示通过；生成图不暴露服务端路径。当前Electron成功路径的直显、重载、全屏缩放与路径隐藏已通过，异常态和WebUI live UI仍未完成。
+- [x] host与UI复用`core` strict parser；`tool_start`持久化前已redact内部nonce /lease /owner。
+- [x] 测试 /多实例配置覆盖时，`credentials.enc`与全部状态共同服从`CONFIG_DIR`；不得写入正式`~/.u-agents`。
+- [x] full /mini /Codex过滤，Claude /Pi parity，取消、旧turn和旧process重放自动化测试通过。
 - [ ] marker配置、逐实例一致性、route、Debug、费用对账与两次实现后smoke通过。
 - [ ] 用户协议 /隐私政策已覆盖图片数据流；临时Token已轮换。
 - [ ] targeted、完整repo gates和独立bundle均如实通过。
-- [ ] 所有实际新增 `// U-API:`改造点已登记，交付明确列出“本次未做”。
+- [x] 所有实际新增 `// U-API:`改造点已登记，交付明确列出“本次未做”。
 
-本文是待实施合同，不代表功能已实现、marker已配置、费用已对账或目录长期稳定。
+本文的客户端P0代码已经落地，当前Token下的生产marker已单节点回读并完成真实矩阵，最终macOS DMG的Electron成功路径也已验收；但这不代表多实例cache一致、费用已对账、异常态与WebUI已验收、正式签名 /notarization完成或目录长期稳定。全部发布门禁通过前不得对普通流量宣称可用。

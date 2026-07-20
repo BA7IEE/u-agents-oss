@@ -43,6 +43,16 @@ describe('session tool filtering helpers', () => {
     expect(names.includes('send_developer_feedback')).toBe(false);
   });
 
+  // U-API: generate_image 只在 full Claude/Pi 可见，Codex/mini fail closed（16 §0）。
+  it('filters paid image generation by surface and agent kind', () => {
+    expect(getSessionToolNames({ surface: 'claude', agentKind: 'full' }).has('generate_image')).toBe(true);
+    expect(getSessionToolNames({ surface: 'pi', agentKind: 'full' }).has('generate_image')).toBe(true);
+    expect(getSessionToolNames({ surface: 'claude', agentKind: 'mini' }).has('generate_image')).toBe(false);
+    expect(getSessionToolNames({ surface: 'codex', agentKind: 'full' }).has('generate_image')).toBe(false);
+    expect(getSessionToolRegistry({ surface: 'codex', agentKind: 'full' }).has('generate_image')).toBe(false);
+    expect(getToolDefsAsJsonSchema({ surface: 'codex', agentKind: 'full' }).some(def => def.name === 'generate_image')).toBe(false);
+  });
+
   it('all canonical session tools declare safeMode metadata', () => {
     for (const def of SESSION_TOOL_DEFS) {
       expect(def.safeMode === 'allow' || def.safeMode === 'block').toBe(true);

@@ -71,11 +71,13 @@ export type { SessionToolContext, SessionToolCallbacks } from '@u-agents/session
  * Options for creating a Claude context
  */
 export interface ClaudeContextOptions {
+  // U-API: canonical handler receives only the host callback, never token/path/model access (16 §10.2).
   sessionId: string;
   workspacePath: string;
   workspaceId: string;
   onPlanSubmitted: (planPath: string) => void;
   onAuthRequest: (request: unknown) => void;
+  generateImage?: SessionToolContext['generateImage'];
 }
 
 /**
@@ -89,7 +91,7 @@ export interface ClaudeContextOptions {
  * - Icon management
  */
 export function createClaudeContext(options: ClaudeContextOptions): SessionToolContext {
-  const { sessionId, workspacePath, workspaceId, onPlanSubmitted, onAuthRequest } = options;
+  const { sessionId, workspacePath, workspaceId, onPlanSubmitted, onAuthRequest, generateImage } = options;
 
   // File system implementation
   const fs: FileSystemInterface = {
@@ -224,6 +226,7 @@ export function createClaudeContext(options: ClaudeContextOptions): SessionToolC
     fs,
     validators,
     credentialManager,
+    generateImage,
     updatePreferences: (updates: Record<string, unknown>) => {
       updatePreferencesImpl(updates as any);
     },

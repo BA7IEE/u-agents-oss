@@ -1,7 +1,7 @@
 /**
  * Secure Storage Backend
  *
- * Stores credentials in an encrypted file at ~/.u-agents/credentials.enc
+ * Stores credentials in an encrypted file at <CONFIG_DIR>/credentials.enc
  * Uses AES-256-GCM for authenticated encryption.
  *
  * Encryption key is derived from OS-native hardware UUID using PBKDF2:
@@ -39,9 +39,11 @@ import { join, dirname } from 'path';
 import type { CredentialBackend } from './types.ts';
 import type { CredentialId, StoredCredential } from '../types.ts';
 import { credentialIdToAccount, accountToCredentialId } from '../types.ts';
+import { CONFIG_DIR } from '../../config/paths.ts';
 
 // File location
-const CREDENTIALS_DIR = join(homedir(), '.u-agents');
+// U-API: credentials must follow CONFIG_DIR so test/multi-instance overrides cannot overwrite the real profile.
+const CREDENTIALS_DIR = CONFIG_DIR;
 const CREDENTIALS_FILE = join(CREDENTIALS_DIR, 'credentials.enc');
 
 // File format constants

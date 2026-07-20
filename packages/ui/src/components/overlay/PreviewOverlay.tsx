@@ -24,6 +24,8 @@ import { FullscreenOverlayBaseHeader } from './FullscreenOverlayBaseHeader'
 import { OverlayErrorBanner } from './OverlayErrorBanner'
 import type { PreviewBadgeVariant } from '../ui/PreviewHeader'
 
+// U-API: allow callers to suppress Open/Reveal affordances for host-private generated files (16 §8.3).
+
 /** Badge color variants - re-export for backwards compatibility */
 export type BadgeVariant = PreviewBadgeVariant
 
@@ -47,6 +49,8 @@ export interface PreviewOverlayProps {
 
   /** File path — shows dual-trigger menu badge with "Open" + "Reveal in {file manager}" */
   filePath?: string
+  /** Hide Open/Reveal path affordances for host-private generated files. */
+  hideFileActions?: boolean
   /** Title — displayed as badge. Fallback when no file path. */
   title?: string
   /** Callback when title badge is clicked (only used when no filePath) */
@@ -79,6 +83,7 @@ export function PreviewOverlay({
   theme = 'light',
   typeBadge,
   filePath,
+  hideFileActions = false,
   title,
   onTitleClick,
   subtitle,
@@ -114,7 +119,7 @@ export function PreviewOverlay({
     <FullscreenOverlayBaseHeader
       onClose={onClose}
       typeBadge={typeBadge}
-      filePath={filePath}
+      filePath={hideFileActions ? undefined : filePath}
       title={title}
       onTitleClick={onTitleClick}
       subtitle={subtitle}
@@ -172,7 +177,7 @@ export function PreviewOverlay({
         isOpen={isOpen}
         onClose={onClose}
         typeBadge={typeBadge}
-        filePath={filePath}
+        filePath={hideFileActions ? undefined : filePath}
         title={title}
         onTitleClick={onTitleClick}
         subtitle={subtitle}

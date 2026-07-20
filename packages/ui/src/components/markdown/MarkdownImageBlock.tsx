@@ -30,6 +30,8 @@ import { usePlatform } from '../../context/PlatformContext'
 import { ImageCardStack } from './ImageCardStack'
 import { useTranslation } from 'react-i18next'
 
+// U-API: generated images reuse the established data-URL preview while hiding host path actions (16 §8.3).
+
 interface PreviewItem {
   src: string
   label?: string
@@ -60,6 +62,8 @@ class ImageBlockErrorBoundary extends React.Component<
 export interface MarkdownImageBlockProps {
   code: string
   className?: string
+  /** Generated paid results must not expose server-side path actions. */
+  hideFileActions?: boolean
   onCreateRegionAnnotation?: (region: { x: number; y: number; w: number; h: number; unit: 'pixel' | 'percent' }) => void
 }
 
@@ -78,7 +82,7 @@ function detectImageRatio(src: string): Promise<number | null> {
   })
 }
 
-export function MarkdownImageBlock({ code, className, onCreateRegionAnnotation: _onCreateRegionAnnotation }: MarkdownImageBlockProps) {
+export function MarkdownImageBlock({ code, className, hideFileActions = false, onCreateRegionAnnotation: _onCreateRegionAnnotation }: MarkdownImageBlockProps) {
   const { t } = useTranslation()
   const { onReadFileDataUrl } = usePlatform()
 
@@ -277,6 +281,7 @@ export function MarkdownImageBlock({ code, className, onCreateRegionAnnotation: 
         initialIndex={activeIndex}
         loadDataUrl={handleLoadDataUrl}
         title={spec.title}
+        hideFileActions={hideFileActions}
       />
     </ImageBlockErrorBoundary>
   )

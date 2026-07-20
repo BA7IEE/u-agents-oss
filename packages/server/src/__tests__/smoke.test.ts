@@ -9,6 +9,8 @@
  */
 
 import { describe, it, expect, afterEach } from 'bun:test'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Subprocess } from 'bun'
 import WebSocket from 'ws'
@@ -27,12 +29,15 @@ interface SpawnedServer {
 
 async function spawnTestServer(extraEnv?: Record<string, string>): Promise<SpawnedServer> {
   const token = crypto.randomUUID() + crypto.randomUUID() // 72 chars, well above 16 minimum
+  const configDir = mkdtempSync(join(tmpdir(), 'u-agents-headless-smoke-'))
   const { CLAUDECODE: _, ...parentEnv } = process.env
 
   const proc = Bun.spawn(['bun', 'run', SERVER_ENTRY], {
     env: {
       ...parentEnv,
       ...extraEnv,
+      // U-API: headless smoke must not share credentials or the server lock with the desktop profile.
+      U_AGENTS_CONFIG_DIR: configDir,
       CRAFT_SERVER_TOKEN: token,
       CRAFT_RPC_PORT: '0',
       CRAFT_RPC_HOST: '127.0.0.1',
@@ -45,6 +50,7 @@ async function spawnTestServer(extraEnv?: Record<string, string>): Promise<Spawn
   return new Promise<SpawnedServer>((resolve, reject) => {
     const timer = setTimeout(() => {
       proc.kill()
+      rmSync(configDir, { recursive: true, force: true })
       reject(new Error(`Server did not start within ${STARTUP_TIMEOUT}ms`))
     }, STARTUP_TIMEOUT)
 
@@ -68,6 +74,7 @@ async function spawnTestServer(extraEnv?: Record<string, string>): Promise<Spawn
             stop: async () => {
               proc.kill('SIGTERM')
               await proc.exited
+              rmSync(configDir, { recursive: true, force: true })
             },
           })
           return
@@ -90,6 +97,7 @@ async function spawnTestServer(extraEnv?: Record<string, string>): Promise<Spawn
       }
       clearTimeout(timer)
       if (!url) {
+        rmSync(configDir, { recursive: true, force: true })
         reject(new Error('Server exited before printing CRAFT_SERVER_URL'))
       }
     })()
@@ -150,10 +158,12 @@ describe('headless server smoke test', () => {
 
   it('rejects short token at startup', async () => {
     const token = 'short'
+    const configDir = mkdtempSync(join(tmpdir(), 'u-agents-headless-smoke-'))
     const { CLAUDECODE: _, ...parentEnv } = process.env
     const proc = Bun.spawn(['bun', 'run', SERVER_ENTRY], {
       env: {
         ...parentEnv,
+        U_AGENTS_CONFIG_DIR: configDir,
         CRAFT_SERVER_TOKEN: token,
         CRAFT_RPC_PORT: '0',
         CRAFT_RPC_HOST: '127.0.0.1',
@@ -162,8 +172,12 @@ describe('headless server smoke test', () => {
       stderr: 'pipe',
     })
 
-    const exitCode = await proc.exited
-    expect(exitCode).not.toBe(0)
+    try {
+      const exitCode = await proc.exited
+      expect(exitCode).not.toBe(0)
+    } finally {
+      rmSync(configDir, { recursive: true, force: true })
+    }
   }, TEST_TIMEOUT)
 
   it('shuts down cleanly on SIGTERM', async () => {

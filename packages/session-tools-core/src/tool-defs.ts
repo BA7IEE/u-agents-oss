@@ -41,6 +41,9 @@ import { handleListSessions } from './handlers/list-sessions.ts';
 import { handleListBackgroundTasks } from './handlers/list-background-tasks.ts';
 import { handleSendAgentMessage } from './handlers/send-agent-message.ts';
 import { handleListMessagingChannels, handleUnbindMessagingChannel } from './handlers/messaging.ts';
+import { handleGenerateImage } from './handlers/generate-image.ts';
+import { GenerateImageSchema } from './generate-image-contract.ts';
+export { GenerateImageSchema, validateGenerateImageInput } from './generate-image-contract.ts';
 
 // ============================================================
 // Canonical Zod Schemas
@@ -502,6 +505,12 @@ Shows which external chat apps are connected and can send/receive messages.`,
 
   unbind_messaging_channel: `Disconnect a messaging channel from the current session.
 Messages will no longer be forwarded between the chat app and this session.`,
+
+  generate_image: `Generate or edit exactly one image only when the user explicitly asks for an image.
+
+Use no input_images for text-to-image. Use 1-3 manifest refs for editing, character/product consistency, style/composition reference, or compositing. Roles: edit_target (max one), subject_reference, style_reference, composition_reference, insert. Do not invent refs, paths, model IDs, providers, URLs, or credentials.
+
+Defaults: aspect_ratio 1:1 and preset standard. Use 3:2 for landscape/banner and 2:3 for portrait/poster. Image edits support standard only. Ask one short clarification when image roles or a non-supported canvas are ambiguous. Never call proactively, compare multiple paid variants, retry a possibly charged request, or call from mini/internal tasks.`,
 } as const;
 
 // ============================================================
@@ -525,6 +534,11 @@ interface SessionToolDefBase {
   safeMode: SessionToolSafeMode;
   /** Whether this tool only reads data (no side effects). Enables parallel execution in backends that support it. */
   readOnly?: boolean;
+  /** Optional fail-closed visibility metadata for restricted tools. */
+  availability?: {
+    agentKinds?: Array<'full' | 'mini'>;
+    surfaces?: Array<'claude' | 'pi' | 'codex'>;
+  };
 }
 
 /** Tool executed from the canonical registry (requires a concrete handler). */
@@ -578,11 +592,17 @@ export const SESSION_TOOL_DEFS: SessionToolDef[] = [
   // Messaging gateway tools
   { name: 'list_messaging_channels', description: TOOL_DESCRIPTIONS.list_messaging_channels, inputSchema: ListMessagingChannelsSchema, executionMode: 'registry', safeMode: 'allow', readOnly: true, handler: handleListMessagingChannels },
   { name: 'unbind_messaging_channel', description: TOOL_DESCRIPTIONS.unbind_messaging_channel, inputSchema: UnbindMessagingChannelSchema, executionMode: 'registry', safeMode: 'block', handler: handleUnbindMessagingChannel },
+  // U-API: paid image tool is full Claude/Pi only; handler performs a second host-origin gate (16 §0).
+  { name: 'generate_image', description: TOOL_DESCRIPTIONS.generate_image, inputSchema: GenerateImageSchema, executionMode: 'registry', safeMode: 'allow', handler: handleGenerateImage, availability: { agentKinds: ['full'], surfaces: ['claude', 'pi'] } },
 ];
 
 export interface SessionToolFilterOptions {
   /** Include the experimental send_developer_feedback tool. */
   includeDeveloperFeedback?: boolean;
+  /** Current backend surface. Restricted tools are excluded when explicitly incompatible. */
+  surface?: 'claude' | 'pi' | 'codex';
+  /** Current agent kind. Restricted tools are excluded when explicitly incompatible. */
+  agentKind?: 'full' | 'mini';
 }
 
 /**
@@ -596,6 +616,12 @@ export function getSessionToolDefs(options?: SessionToolFilterOptions): SessionT
 
   return SESSION_TOOL_DEFS.filter(def => {
     if (!includeDeveloperFeedback && def.name === 'send_developer_feedback') {
+      return false;
+    }
+    if (options?.surface && def.availability?.surfaces && !def.availability.surfaces.includes(options.surface)) {
+      return false;
+    }
+    if (options?.agentKind && def.availability?.agentKinds && !def.availability.agentKinds.includes(options.agentKind)) {
       return false;
     }
     return true;
@@ -709,9 +735,15 @@ export interface JsonSchemaToolDef {
 export function getToolDefsAsJsonSchema(opts?: {
   prefix?: string;
   includeDeveloperFeedback?: boolean;
+  surface?: 'claude' | 'pi' | 'codex';
+  agentKind?: 'full' | 'mini';
 }): JsonSchemaToolDef[] {
   const prefix = opts?.prefix || '';
-  const defs = getSessionToolDefs({ includeDeveloperFeedback: opts?.includeDeveloperFeedback });
+  const defs = getSessionToolDefs({
+    includeDeveloperFeedback: opts?.includeDeveloperFeedback,
+    surface: opts?.surface,
+    agentKind: opts?.agentKind,
+  });
 
   return defs.map(def => {
     // Explicit `as any` avoids TS2589 ("type instantiation is excessively deep")

@@ -26,6 +26,7 @@
   },
   "dependencies": {
     "@u-agents/core": "workspace:*",
+    "@u-agents/session-tools-core": "workspace:*",
     "@u-agents/shared": "workspace:*",
     "jose": "^6.0.0",
     "ws": "^8.21.0",

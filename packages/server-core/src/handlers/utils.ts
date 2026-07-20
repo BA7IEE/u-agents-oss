@@ -1,4 +1,4 @@
-import { normalize, isAbsolute, sep } from 'path'
+import { dirname, isAbsolute, normalize, parse as parsePath, resolve, sep } from 'path'
 import { homedir, tmpdir } from 'os'
 import { realpath } from 'fs/promises'
 import { getWorkspaceByNameOrId, type Workspace } from '@u-agents/shared/config'
@@ -22,6 +22,23 @@ export function buildBackendHostRuntimeContext(platform: PlatformServices) {
     appRootPath: platform.appRootPath,
     resourcesPath: platform.resourcesPath,
     isPackaged: platform.isPackaged,
+  }
+}
+
+async function canonicalizePathAllowMissing(input: string): Promise<string> {
+  let cursor = normalize(input)
+  const missingSegments: string[] = []
+
+  while (true) {
+    try {
+      const canonicalParent = await realpath(cursor)
+      return resolve(canonicalParent, ...missingSegments.reverse())
+    } catch {
+      const parent = dirname(cursor)
+      if (parent === cursor) return normalize(input)
+      missingSegments.push(parsePath(cursor).base)
+      cursor = parent
+    }
   }
 }
 
@@ -88,13 +105,7 @@ export async function validateFilePath(
   }
 
   // Resolve symlinks to get the real path
-  let realFilePath: string
-  try {
-    realFilePath = await realpath(normalizedPath)
-  } catch {
-    // File doesn't exist or can't be resolved - use normalized path
-    realFilePath = normalizedPath
-  }
+  const realFilePath = await canonicalizePathAllowMissing(normalizedPath)
 
   // Define allowed base directories
   const allowedDirs = [
@@ -103,8 +114,17 @@ export async function validateFilePath(
     ...(additionalAllowedDirs ?? []),
   ].filter(Boolean)
 
+  // Canonicalize both sides of the containment check. On macOS, common roots
+  // such as /tmp resolve to /private/tmp; comparing a real file path against
+  // the unresolved allowed root would reject a legitimate workspace file.
+  // Missing configured roots are kept normalized so callers can still validate
+  // paths that are about to be created.
+  const canonicalAllowedDirs = await Promise.all(allowedDirs.map(async dir => {
+    return canonicalizePathAllowMissing(dir)
+  }))
+
   // Check if the real path is within an allowed directory (cross-platform)
-  const isAllowed = allowedDirs.some(dir => {
+  const isAllowed = canonicalAllowedDirs.some(dir => {
     const normalizedDir = normalize(dir)
     const normalizedReal = normalize(realFilePath)
     return normalizedReal.startsWith(normalizedDir + sep) || normalizedReal === normalizedDir

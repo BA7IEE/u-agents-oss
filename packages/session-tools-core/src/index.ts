@@ -7,6 +7,8 @@
  * @packageDocumentation
  */
 
+// U-API: expose the canonical paid image contract to host adapters (16 §10.1).
+
 // Types
 export type {
   // Credential types
@@ -125,6 +127,8 @@ export type {
   StdioValidationResult,
   McpValidationResult,
   ApiTestResult,
+  GenerateImageRole,
+  GenerateImageToolInput,
   // Session self-management types
   SessionInfo,
   SessionListItem,
@@ -202,6 +206,8 @@ export {
   TransformDataSchema,
   ScriptSandboxSchema,
   RenderTemplateSchema,
+  GenerateImageSchema,
+  validateGenerateImageInput,
   // Browser tool schema
   BrowserToolSchema,
   // Developer feedback schema

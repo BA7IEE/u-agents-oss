@@ -54,6 +54,21 @@ export type {
 } from './message.ts';
 export { generateMessageId } from './message.ts';
 
+// U-API: 生图结果合同由 host 与 UI 共同消费，避免双 parser 漂移（16 §8）。
+export {
+  UAPI_IMAGE_WARNING_VALUES,
+  UAPI_IMAGE_ERROR_CATEGORIES,
+  parseUApiImageToolResult,
+} from './uapi-image-result.ts';
+export type {
+  UApiImageWarning,
+  UApiImageErrorCategory,
+  UApiImageChargeState,
+  UApiGeneratedImageResultV1,
+  UApiImageErrorV1,
+  ParsedUApiImageToolResult,
+} from './uapi-image-result.ts';
+
 // Message persistence mappers
 export { messageToStored, storedToMessage } from './message-mapper.ts';
 
@@ -64,4 +79,3 @@ export type {
   SessionProcessingStatus,
   ActiveSessionInfo,
 } from './server.ts';
-

@@ -1,6 +1,6 @@
 # 16B — 付费工具最小生命周期合同
 
-> **状态**：待实施；2026-07-20 已按Claude /Pi实际执行合同完成开工前修正，首个consumer是 [`generate_image`](16-image-generation-tool-spec.md)。
+> **状态**：首个consumer `generate_image`的进程内生命周期已实现；targeted/focused tests、`typecheck:all`、lint、`validate:ci`与独立子进程build已通过。跨进程exactly-once、durable ledger与网关内部重试控制仍不在本合同范围内。
 > **目标**：在不建设durable billing ledger、不修改公共IPC协议的前提下，保证一个受信顶层用户invocation最多接受一次可能计费的operation POST，并让取消、重放和费用不确定对用户诚实。
 > **范围**：这是可复用的host合同，不是要求P0立即抽象成通用框架。生图实施只增加满足本合同的窄类型和方法。
 
@@ -339,16 +339,17 @@ interface PaidToolErrorV1 {
 
 ## 9. 完成判定
 
-- [ ] context来自持久化 user Message和host认证入口，不来自renderer字段。
-- [ ] current nonce绑定当前process +turn，旧turn /旧process零网络。
-- [ ] 一个invocation只有一个host `leaseToken`和一个claimed POST；SDK `toolUseId`不参与费用授权。
-- [ ] 一次无费用参数错误允许有限自修正；不使用全turn poison。
-- [ ] preflight错误终结并为not sent；claim后错误为possibly charged。
-- [ ] Stop、steer、destroy和app restart不产生第二个POST。
-- [ ] auth /source recovery在允许继承时保持原user `Message.id`、nonce与context。
-- [ ] callback /cache按canonical path、owner和agent kind隔离。
-- [ ] `tool_start`落盘前redact；host /UI共用strict envelope parser。
-- [ ] 对抗性并发、replay、取消、旧agent与跨workspace tests通过。
-- [ ] 实现未扩张为通用付费平台或durable ledger。
+- [x] context来自持久化 user Message和host认证入口，不来自renderer字段。
+- [x] current nonce绑定当前process +turn，旧turn /旧process零网络。
+- [x] 一个invocation只有一个host `leaseToken`和一个claimed POST；SDK `toolUseId`不参与费用授权。
+- [x] 一次无费用参数错误允许有限自修正；不使用全turn poison。
+- [x] preflight错误终结并为not sent；claim后错误为possibly charged。
+- [x] Stop /destroy共用`terminatePaidImageInvocation()`，steer由same-process old-turn nonce拒绝，app restart由old-process nonce拒绝；对应自动化均不产生第二个POST。
+- [x] auth /source recovery在允许继承时保持原user `Message.id`、nonce与context。
+- [x] callback /cache按canonical path、owner和agent kind隔离。
+- [x] `tool_start`落盘前redact；host /UI共用strict envelope parser。
+- [x] 对抗性并发、replay、取消与旧owner /旧agent tests通过。
+- [ ] 仍缺“不同canonical workspace path不能复用callback”的显式负例；当前只有registry按path建键与owner compare-delete合同，不能把结构推导表述成跨workspace测试已通过。
+- [x] 实现未扩张为通用付费平台或durable ledger。
 
 该合同只提供进程内at-most-one accepted POST，不宣称网关内部不会重试；网关放大请求仍由 [`16a-image-api-evidence.md`](16a-image-api-evidence.md) 的运维门禁负责。

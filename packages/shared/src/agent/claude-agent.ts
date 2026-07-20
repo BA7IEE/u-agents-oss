@@ -1079,7 +1079,11 @@ export class ClaudeAgent extends BaseAgent {
       // Build full MCP servers set first, then filter for mini agents
       const fullMcpServers: Options['mcpServers'] = {
         // Session-scoped tools (SubmitPlan, source_test, update_user_preferences, transform_data, etc.)
-        session: getSessionScopedTools(sessionId, this.workspaceRootPath),
+        // U-API: full/mini visibility and paid callback owner are part of the tool cache identity (16 §10.2).
+        session: getSessionScopedTools(sessionId, this.workspaceRootPath, this.config.workspace.id, {
+          agentKind: miniConfig.enabled ? 'mini' : 'full',
+          paidImageTool: this.config.paidImageTool,
+        }),
         // Per-source proxy servers from centralized MCP pool (MCP + API sources)
         // Each source gets its own SDK server keyed by slug (e.g., 'linear', 'github', 'gmail')
         // so the SDK produces correct tool names: mcp__{slug}__{toolName}

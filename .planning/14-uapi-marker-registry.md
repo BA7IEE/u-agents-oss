@@ -8,9 +8,9 @@
 
 ## 0. 当前基线（速查）
 
-| 指标 | 基线（2026-07-11 v0.11.1 同步复核）| 下次同步允许浮动 |
+| 指标 | 基线（2026-07-20 凭据隔离修复复核）| 下次同步允许浮动 |
 |---|---|---|
-| U-API 标记总数（含全部注释格式）| **135** | ±2 |
+| U-API 标记总数（含全部注释格式）| **174** | ±2 |
 | `/* U-API START */` 块数 | **10** | 必须等于 END |
 | `/* U-API END */` 块数 | **10** | 必须等于 START |
 
@@ -22,7 +22,7 @@
 # 同时排除 apps/electron/release/ 下的历史打包副本；否则会重复统计已打包源码副本
 grep -rEn --exclude-dir=node_modules --exclude-dir=release "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
   | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
-# 期望：135（基线，允许 133-137）
+# 期望：174（基线，允许 172-176）
 
 # 块标记 START/END 配对（数量必须相等）
 grep -rE --exclude-dir=node_modules --exclude-dir=release "/\* U-API START" packages apps --include="*.ts" --include="*.tsx" | wc -l
@@ -250,6 +250,18 @@ if (!apiKey && connection.baseUrl) {
 | 76 | Windows packaging 的 esbuild / Vite / electron-builder 统一使用 `bunx`，避免 npm 11 对安全 `overrides` 抛 `EOVERRIDE` | `apps/electron/scripts/build-win.ps1` | `use Bun's local package runner` | PowerShell 单行（不计主基线 grep） | C14 + 12 §2.3 |
 | 76t | #76 回归测试：三个 Windows 构建入口必须为 `bunx` 且禁止恢复 `npx` | `packages/shared/src/__tests__/m3-dsn-assertion-regression.test.ts` | `Windows packaging must stay on Bun's runner` | 单行 | C5 + C14 |
 
+**U-API 生图 P0（2026-07-20，详见 [`16-image-generation-tool-spec.md`](16-image-generation-tool-spec.md) 与 [`16b-paid-tool-lifecycle.md`](16b-paid-tool-lifecycle.md)）**：
+
+| # | 改造类别 | 文件 | 定位（用 `grep` 找）| 标记 | 关联规格 |
+|---|---|---|---|---|---|
+| 77/77t | dependency-free 生图成功/错误 envelope 与 strict parser，由 host、UI 和合同测试共同消费（**2 处 marker**） | `packages/core/src/types/uapi-image-result.ts`、`packages/core/src/types/index.ts`；合同测试在 `packages/server-core/src/services/uapi-image-result-contract.test.ts` | `parseUApiImageToolResult` / `uapi-image-result` export | 单行 | 16 §8 + §11.1 |
+| 78/78t | canonical `generate_image` schema、薄 handler、host callback context、full Claude/Pi 过滤与 schema 回归（**8 处 marker**） | `packages/session-tools-core/src/generate-image-contract.ts`、`generate-image-contract.test.ts`、`handlers/generate-image.ts`、`context.ts`、`tool-defs.ts`、`tool-defs-filtering.test.ts` 及两个 barrel | `GenerateImageToolSchema` / `GENERATE_IMAGE_TOOL_NAME` | 单行 | 16 §3 + §10.1 |
+| 79/79t | Claude/Pi owner callback、cache identity与执行二次门禁；Codex ListTools / CallTool双向拒绝；registry compare-delete回归（**12 处 marker**） | `packages/shared/src/agent/` 下 backend types、Claude/Pi adapter、session scoped tools、paid registry及测试；`packages/session-mcp-server/src/index.ts` | `paidImageTool` / `registerPaidImageToolCallback` / `getSessionToolDefinitions` | 单行 | 16 §10.2 + 16B §5/§7.5 |
+| 80/80t | host Images service、exact三marker目录解析、manifest、单claim付费生命周期、取消与落盘前redaction（**7 处 marker**） | `packages/server-core/src/services/u-api-image-generation.ts`、`services/index.ts`、`sessions/SessionManager.ts`及四个对应测试 | `UApiImageGenerationService` / `PaidImageInvocationRecord` / `redactPaidImageToolInput` | 单行 | 16 §5–§7 + 16B §1–§7 |
+| 81/81t | UI strict activity parser、主回复图片提升、全屏预览、错误/费用提示与host私有路径动作隐藏（**7 处 marker**） | `packages/ui/src/lib/tool-parsers.ts`、`lib/__tests__/uapi-image-activity.test.ts`、`components/chat/TurnCard.tsx`及三个preview组件 | `parseUApiImageActivity` / `hideFileActions` / `generatedImageActivities` | 单行/JSX | 16 §8.3 + §11.1 |
+| 82/82t | 测试 /多实例凭据隔离：`SecureStorageBackend`的`credentials.enc`必须跟随`CONFIG_DIR`，不得绕过`U_AGENTS_CONFIG_DIR`写入正式`~/.u-agents`（**2 处 marker**） | `packages/shared/src/credentials/backends/secure-storage.ts`、`credentials/__tests__/secure-storage-config-dir.test.ts` | `CREDENTIALS_DIR = CONFIG_DIR` / `packaged test profiles overwriting` | 单行 | 02 §9.2 + 16A §8.4 |
+| 83t | headless server smoke隔离：测试子进程使用独立`U_AGENTS_CONFIG_DIR`，不得与正在运行的桌面端共享凭据或`.server.lock` | `packages/server/src/__tests__/smoke.test.ts` | `headless smoke must not share credentials or the server lock` | 单行 | 09 §13.9 + 16A §8.4 |
+
 ---
 
 ## 4. Build 脚本 marker（M2 后期补充，不计入主基线）
@@ -327,6 +339,9 @@ grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_mod
 - **Token-only 自动模型发现（2026-07-10）：134 处 / START 10 / END 10**。从 123 基线新增 #69–#75t 共 11 个单行 marker，覆盖目录发现、动态推荐/模型与协议双层降级、Token-only UI、编辑安全、后台刷新、自动同步迁移与 MiniMax 回归。
 - **v0.11.1 sync（2026-07-11）：134 处 / START 10 / END 10**。上游 23 文件 / `+82 −63`，唯一 marker-bearing 交叉文件为 `packages/shared/src/config/llm-connections.ts`；接收 GPT-5.6 原生 provider 推荐顺序但不改变 U-API Token-only 动态发现与探活降级，#75 MiniMax 完整 token 匹配标记保持不变。本轮无新增改造点。
 - **v0.11.1 Windows handoff hotfix（2026-07-11）：135 处 / START 10 / END 10**。Windows 首轮实机打包发现 `build-win.ps1` 的三个 `npx` 入口会被 npm 11 的 `EOVERRIDE` 拦截；新增 #76/#76t，统一改用 `bunx` 并补静态合同测试。PowerShell 源码 marker 不计主基线，测试 marker 使主基线净增 1。
+- **U-API 生图 P0 实现（2026-07-20）：171 处 / START 10 / END 10**。从 135 基线新增 #77–#81t 共 36 个单行/JSX marker，覆盖共享结果合同、canonical工具、Claude/Pi/Codex隔离、host动态目录与付费生命周期、图片安全落盘及UI直显；START/END块数不变。生产三marker配置、真实费用对账与安装包smoke仍按16/16A发布门禁执行，不由本基线宣称完成。
+- **凭据隔离事故修复（2026-07-20）：173 处 / START 10 / END 10**。新增 #82/#82t 共2个单行marker：`SecureStorageBackend`不再把凭据目录硬编码到`~/.u-agents`，而是与配置、workspace和`clearAllConfig()`共同服从`CONFIG_DIR`；子进程回归覆盖`U_AGENTS_CONFIG_DIR`优先、`CRAFT_CONFIG_DIR`兼容回退与无override默认路径。START/END块数不变。
+- **凭据 /headless测试隔离收口（2026-07-20）：174 处 / START 10 / END 10**。新增 #83t 单行marker；headless smoke每次生成独立`U_AGENTS_CONFIG_DIR`并在停止 /启动失败后清理，不再因正式桌面端持有`.server.lock`而新增3个环境性失败。START/END块数不变。
 
 ---
 

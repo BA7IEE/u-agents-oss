@@ -12,13 +12,17 @@ import {
 } from '@u-agents/session-tools-core';
 import { FEATURE_FLAGS } from '../../../feature-flags.ts';
 
+// U-API: Pi registration is filtered by full/mini agent kind before merge registration (16 §10.2).
+
 export type SessionToolProxyDef = JsonSchemaToolDef;
 
 export { SESSION_TOOL_NAMES };
 
-export function getSessionToolProxyDefs(): SessionToolProxyDef[] {
+export function getSessionToolProxyDefs(agentKind: 'full' | 'mini' = 'full'): SessionToolProxyDef[] {
   return getToolDefsAsJsonSchema({
     prefix: 'mcp__session__',
     includeDeveloperFeedback: FEATURE_FLAGS.developerFeedback,
+    surface: 'pi',
+    agentKind,
   });
 }

@@ -167,6 +167,7 @@ export interface BackendHostRuntimeContext {
  * Provider-specific runtime details are resolved by backend drivers internally.
  */
 export interface CoreBackendConfig {
+  // U-API: opaque paid callback identity; credentials and invocation state remain in server-core (16B §5).
   /** Workspace configuration */
   workspace: Workspace;
 
@@ -284,6 +285,12 @@ export interface CoreBackendConfig {
     mcpServers: Record<string, SdkMcpServerConfig>;
     apiServers: Record<string, unknown>;
     enabledSlugs: string[];
+  };
+
+  /** U-API: private paid image tool owner; never sourced from renderer DTOs. */
+  paidImageTool?: {
+    sessionPath: string;
+    ownerToken: string;
   };
 }
 

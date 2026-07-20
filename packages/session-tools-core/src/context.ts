@@ -32,6 +32,22 @@ export interface LoadedSource {
   workspaceId: string;
 }
 
+// U-API: 生图工具只向 host 传递 canonical args；路径、Token、model 不可由模型提供（16 §3）。
+export type GenerateImageRole =
+  | 'edit_target'
+  | 'subject_reference'
+  | 'style_reference'
+  | 'composition_reference'
+  | 'insert'
+
+export interface GenerateImageToolInput {
+  prompt: string
+  aspect_ratio?: '1:1' | '3:2' | '2:3'
+  preset?: 'standard' | 'high'
+  input_images?: Array<{ ref: string; role: GenerateImageRole }>
+  _uapi_execution_nonce: string
+}
+
 // ============================================================
 // Callback Interface
 // ============================================================
@@ -198,6 +214,9 @@ export interface SessionToolContext {
    * Only available in Claude (has keychain access).
    */
   credentialManager?: CredentialManagerInterface;
+
+  /** Host-only paid image capability. Codex/mini/internal contexts leave it undefined. */
+  generateImage?: (input: GenerateImageToolInput) => Promise<ToolResult>;
 
   /**
    * Load a source config from the workspace.

@@ -13,6 +13,8 @@ import { ZoomControls } from './ZoomControls'
 import { RICH_BLOCK_DEFAULTS } from './rich-block-interaction-spec'
 import { useRichBlockInteractions } from './useRichBlockInteractions'
 
+// U-API: paid generated files may be previewed but their server paths are not user actions (16 §8.3).
+
 interface PreviewItem {
   src: string
   label?: string
@@ -27,6 +29,7 @@ export interface ImagePreviewOverlayProps {
   title?: string
   loadDataUrl: (path: string) => Promise<string>
   theme?: 'light' | 'dark'
+  hideFileActions?: boolean
 }
 
 export function ImagePreviewOverlay({
@@ -38,6 +41,7 @@ export function ImagePreviewOverlay({
   title,
   loadDataUrl,
   theme = 'light',
+  hideFileActions = false,
 }: ImagePreviewOverlayProps) {
   const { t } = useTranslation()
   const resolvedItems = useMemo<PreviewItem[]>(() => {
@@ -144,7 +148,9 @@ export function ImagePreviewOverlay({
         resetDisabled={isDefaultView}
       />
 
-      <CopyButton content={activeItem?.src || filePath} title={t('common.copyPath')} className="bg-background shadow-minimal" />
+      {!hideFileActions && (
+        <CopyButton content={activeItem?.src || filePath} title={t('common.copyPath')} className="bg-background shadow-minimal" />
+      )}
     </div>
   )
 
@@ -159,6 +165,7 @@ export function ImagePreviewOverlay({
         variant: 'purple',
       }}
       filePath={activeItem?.src || filePath}
+      hideFileActions={hideFileActions}
       title={title}
       error={error ? { label: 'Load Failed', message: error } : undefined}
       headerActions={headerActions}

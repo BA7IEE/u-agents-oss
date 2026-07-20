@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'bun:test'
 import { homedir, tmpdir } from 'os'
 import { join, sep } from 'path'
+import { mkdtemp, rm, writeFile } from 'fs/promises'
 import { validateFilePath } from '../utils'
 
 const home = homedir()
@@ -83,5 +84,16 @@ describe('validateFilePath', () => {
     // Should not throw even with undefined/empty values in the array
     const result = await validateFilePath(path, ['', undefined as unknown as string])
     expect(result).toContain('test.txt')
+  })
+
+  it.skipIf(process.platform !== 'darwin')('canonicalizes macOS /tmp roots before containment checks', async () => {
+    const root = await mkdtemp('/tmp/u-agents-validate-path-')
+    const path = join(root, 'generated.png')
+    try {
+      await writeFile(path, 'png')
+      await expect(validateFilePath(path, [root])).resolves.toBe(join('/private', path))
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
   })
 })

@@ -8,7 +8,7 @@ import { basename, dirname, join } from 'path'
 import { existsSync } from 'fs'
 import { readFile, writeFile, mkdir } from 'fs/promises'
 import { randomUUID } from 'node:crypto'
-import { type AgentEvent, setPermissionMode, hydratePreviousPermissionMode, getPermissionModeDiagnostics, type PermissionMode, unregisterSessionScopedToolCallbacks, mergeSessionScopedToolCallbacks, AbortReason, type AuthRequest, type AuthResult, type CredentialAuthRequest, type BrowserPaneFns, generateConversationSummary, resolveKeepBackgroundTasksAlive } from '@u-agents/shared/agent'
+import { type AgentEvent, setPermissionMode, hydratePreviousPermissionMode, getPermissionModeDiagnostics, type PermissionMode, unregisterSessionScopedToolCallbacks, mergeSessionScopedToolCallbacks, registerPaidImageToolCallback, unregisterPaidImageToolCallback, AbortReason, type AuthRequest, type AuthResult, type CredentialAuthRequest, type BrowserPaneFns, generateConversationSummary, resolveKeepBackgroundTasksAlive } from '@u-agents/shared/agent'
 import {
   resolveSessionConnection,
   createBackendFromConnection,
@@ -37,7 +37,7 @@ import {
   type Workspace,
   type WorkspaceInfo,
 } from '@u-agents/shared/config'
-import type { ActiveSessionInfo, SessionProcessingStatus } from '@u-agents/core/types'
+import { parseUApiImageToolResult, type ActiveSessionInfo, type SessionProcessingStatus } from '@u-agents/core/types'
 import { loadWorkspaceConfig } from '@u-agents/shared/workspaces'
 import {
   // Session persistence functions
@@ -97,10 +97,11 @@ import { ensureLabelsExist, ensureTaskItemLabel } from '@u-agents/shared/labels/
 import { loadStatusConfig } from '@u-agents/shared/statuses/storage'
 import { AutomationSystem, createPromptHistoryEntry, appendAutomationHistoryEntry, type AutomationSystemMetadataSnapshot } from '@u-agents/shared/automations'
 import { buildBackendRuntimeSignature, buildRestartRequiredSignature, filterAttachmentsForModelInput } from './runtime-config'
+import { validateGenerateImageInput, type GenerateImageToolInput, type ToolResult } from '@u-agents/session-tools-core'
 
 // Import from server-core domain utilities
 import { sanitizeForTitle, shouldActivateBrowserOverlay, normalizeBrowserToolName, rollbackFailedBranchCreation, releaseBrowserOwnershipOnForcedStop } from '@u-agents/server-core/domain'
-import { resizeImageForAPI, resizeIconBuffer } from '@u-agents/server-core/services'
+import { buildUApiImageManifest, executeUApiImageGeneration, resizeImageForAPI, resizeIconBuffer, type UApiImageManifestItem } from '@u-agents/server-core/services'
 export { sanitizeForTitle }
 
 // Module-level platform ref — set once during init via setSessionPlatform()
@@ -789,6 +790,28 @@ interface RunningBackgroundTask {
   agentsCompleted?: number
 }
 
+// U-API: host-owned paid image invocation state；不持久化、不进入renderer DTO（16B §1-§5）。
+type PaidImageInvocationOrigin = 'interactive' | 'internal'
+
+interface PaidImageInvocationContext {
+  invocationId: string
+  origin: PaidImageInvocationOrigin
+  executionNonce: string
+}
+
+type PaidImagePhase =
+  | { phase: 'open'; localFailureCount: number }
+  | { phase: 'preflight'; leaseToken: string; controller: AbortController }
+  | { phase: 'claimed'; leaseToken: string; controller: AbortController }
+  | { phase: 'terminal'; leaseToken?: string; chargeState: 'not_sent' | 'possibly_charged' }
+
+interface PaidImageInvocationRecord {
+  context: PaidImageInvocationContext
+  ownerToken: string
+  manifest: ReadonlyMap<string, UApiImageManifestItem>
+  phase: PaidImagePhase
+}
+
 interface ManagedSession {
   id: string
   workspace: Workspace
@@ -914,6 +937,7 @@ interface ManagedSession {
     options?: SendMessageOptions
     messageId?: string  // Pre-generated ID for matching with UI
     optimisticMessageId?: string  // Frontend's ID for reliable event matching
+    paidImageContext?: PaidImageInvocationContext
   }>
   // Map of shellId -> command for killing background shells
   backgroundShellCommands: Map<string, string>
@@ -938,6 +962,10 @@ interface ManagedSession {
   lastSentAttachments?: FileAttachment[]
   lastSentStoredAttachments?: StoredAttachment[]
   lastSentOptions?: SendMessageOptions
+  lastSentMessageId?: string
+  lastSentPaidImageContext?: PaidImageInvocationContext
+  paidImageOwnerToken?: string
+  paidImageInvocation?: PaidImageInvocationRecord
   // Flag to prevent infinite retry loops (reset at start of each sendMessage)
   authRetryAttempted?: boolean
   // Flag indicating auth retry is in progress (to prevent complete handler from interfering)
@@ -1004,16 +1032,19 @@ interface ManagedSession {
     deadlineMs: number
     /** True after the first matching sendMessage consumes the slot; later matches drop. */
     committed: boolean
+    paidImageContext?: PaidImageInvocationContext
   }
 }
 
 const PI_SDK_MESSAGE_ID_CACHE_LIMIT = 256
+const UAPI_IMAGE_PROCESS_NONCE = randomUUID()
 
 export interface AutoRetryPendingHost {
   autoRetryPending?: {
     content: string
     deadlineMs: number
     committed: boolean
+    paidImageContext?: PaidImageInvocationContext
   }
 }
 
@@ -1038,6 +1069,21 @@ export function claimAutoRetryPending(
   }
 
   return 'send'
+}
+
+/** Remove paid host correlation and private visual refs before formatting or persistence. */
+export function redactPaidImageToolInput(
+  toolName: string,
+  input: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (toolName !== 'generate_image' && toolName !== 'mcp__session__generate_image') return input
+  if (!input || Object.keys(input).length === 0) return input
+  const visible: Record<string, unknown> = {}
+  if (typeof input.prompt === 'string') visible.prompt = input.prompt
+  if (typeof input.aspect_ratio === 'string') visible.aspect_ratio = input.aspect_ratio
+  if (typeof input.preset === 'string') visible.preset = input.preset
+  if (Array.isArray(input.input_images)) visible.input_image_count = input.input_images.length
+  return visible
 }
 
 /**
@@ -3125,6 +3171,8 @@ export class SessionManager implements ISessionManager {
     managed.agentReadyResolve = undefined
     managed.backendRuntimeSignature = undefined
     managed.backendRestartSignature = undefined
+    this.terminatePaidImageInvocation(managed)
+    this.unregisterPaidImageRuntime(managed)
     unregisterSessionScopedToolCallbacks(sessionId)
   }
 
@@ -3517,6 +3565,9 @@ export class SessionManager implements ISessionManager {
       // Construct backend via factory
       // ============================================================
 
+      const paidImageOwnerToken = managed.systemPromptPreset === 'mini' ? undefined : randomUUID()
+      managed.paidImageOwnerToken = paidImageOwnerToken
+
       managed.agent = createBackendFromResolvedContext({
         context: backendContext,
         hostRuntime: buildBackendHostRuntimeContext(),
@@ -3537,6 +3588,7 @@ export class SessionManager implements ISessionManager {
         mcpPool: managed.mcpPool,
         poolServerUrl,
         envOverrides,
+        ...(paidImageOwnerToken ? { paidImageTool: { sessionPath, ownerToken: paidImageOwnerToken } } : {}),
         // Claude-specific
         isHeadless: !AGENT_FLAGS.defaultModesEnabled,
         skipConfigWatcher: true, // Server owns workspace-level ConfigWatcher — don't duplicate in agents
@@ -3574,6 +3626,14 @@ export class SessionManager implements ISessionManager {
         },
         },
       }) as AgentInstance
+
+      if (paidImageOwnerToken) {
+        registerPaidImageToolCallback(
+          sessionPath,
+          paidImageOwnerToken,
+          input => this.executePaidImageTool(managed, paidImageOwnerToken, input),
+        )
+      }
 
       sessionLog.info(`Created ${provider} agent for session ${managed.id} (model: ${backendContext.resolvedModel})${managed.sdkSessionId ? ' (resuming)' : ''}`)
 
@@ -5619,6 +5679,8 @@ export class SessionManager implements ISessionManager {
 
     // Clean up session-scoped tool callbacks to prevent memory accumulation
     unregisterSessionScopedToolCallbacks(sessionId)
+    this.terminatePaidImageInvocation(managed)
+    this.unregisterPaidImageRuntime(managed)
 
     // Destroy browser instances bound to this session
     const sessionBpm = this.getBrowserPaneManagerForSession(sessionId)
@@ -5667,6 +5729,227 @@ export class SessionManager implements ISessionManager {
     sessionLog.info(`Deleted session ${sessionId}`)
   }
 
+  private paidImageToolError(
+    category: 'connection_unavailable' | 'service_unconfigured' | 'quota_exceeded' | 'content_rejected' | 'input_invalid' | 'request_uncertain' | 'result_invalid' | 'not_executable',
+    chargeState: 'not_sent' | 'possibly_charged',
+  ): ToolResult {
+    return {
+      content: [{
+        type: 'text',
+        text: `[ERROR] ${JSON.stringify({ kind: 'uapi_image_error', version: 1, category, charge_state: chargeState })}`,
+      }],
+      structuredContent: {},
+      isError: true,
+    }
+  }
+
+  private unregisterPaidImageRuntime(managed: ManagedSession): void {
+    const ownerToken = managed.paidImageOwnerToken
+    if (!ownerToken) return
+    const sessionPath = getSessionStoragePath(managed.workspace.rootPath, managed.id)
+    unregisterPaidImageToolCallback(sessionPath, ownerToken)
+    managed.paidImageOwnerToken = undefined
+  }
+
+  private terminatePaidImageInvocation(managed: ManagedSession): void {
+    const record = managed.paidImageInvocation
+    if (!record || record.phase.phase === 'terminal') return
+    if (record.phase.phase === 'open') {
+      record.phase = { phase: 'terminal', chargeState: 'not_sent' }
+      return
+    }
+    const { leaseToken, controller } = record.phase
+    const chargeState = record.phase.phase === 'claimed' ? 'possibly_charged' : 'not_sent'
+    controller.abort(new Error('uapi_image_invocation_terminated'))
+    record.phase = { phase: 'terminal', leaseToken, chargeState }
+  }
+
+  private createPaidImageContext(invocationId: string, origin: PaidImageInvocationOrigin): PaidImageInvocationContext {
+    return {
+      invocationId,
+      origin,
+      executionNonce: `${UAPI_IMAGE_PROCESS_NONCE}.${randomUUID()}`,
+    }
+  }
+
+  private async preparePaidImageInvocation(
+    managed: ManagedSession,
+    userMessage: Message,
+    context: PaidImageInvocationContext | undefined,
+  ): Promise<PaidImageInvocationRecord | undefined> {
+    if (!context || context.origin !== 'interactive' || managed.systemPromptPreset === 'mini' || !managed.paidImageOwnerToken) {
+      this.terminatePaidImageInvocation(managed)
+      return undefined
+    }
+
+    const existing = managed.paidImageInvocation
+    if (existing?.context.invocationId === context.invocationId && existing.context.executionNonce === context.executionNonce) {
+      if (existing.phase.phase === 'open') existing.ownerToken = managed.paidImageOwnerToken
+      return existing
+    }
+
+    this.terminatePaidImageInvocation(managed)
+    const sessionPath = getSessionStoragePath(managed.workspace.rootPath, managed.id)
+    const candidates: Array<{ path: string; displayName: string }> = []
+
+    for (const attachment of userMessage.attachments ?? []) {
+      if (attachment.type === 'image') {
+        candidates.push({ path: attachment.storedPath, displayName: `Current attachment: ${attachment.name}` })
+      }
+    }
+
+    for (const prior of [...managed.messages].reverse()) {
+      if (prior.id === userMessage.id) continue
+      if (prior.role === 'tool' && prior.toolResult) {
+        const parsed = parseUApiImageToolResult(prior.toolResult)
+        if (parsed?.type === 'success') {
+          candidates.push({
+            path: join(sessionPath, 'downloads', parsed.value.file_name),
+            displayName: `Previously generated image: ${parsed.value.file_name}`,
+          })
+        }
+      }
+    }
+
+    for (const prior of [...managed.messages].reverse()) {
+      if (prior.id === userMessage.id || prior.role !== 'user') continue
+      for (const attachment of prior.attachments ?? []) {
+        if (attachment.type === 'image') {
+          candidates.push({ path: attachment.storedPath, displayName: `Earlier attachment: ${attachment.name}` })
+        }
+      }
+    }
+
+    const manifest = await buildUApiImageManifest(sessionPath, candidates, _platform!.imageProcessor)
+    const record: PaidImageInvocationRecord = {
+      context,
+      ownerToken: managed.paidImageOwnerToken,
+      manifest,
+      phase: { phase: 'open', localFailureCount: 0 },
+    }
+    managed.paidImageInvocation = record
+    return record
+  }
+
+  private formatPaidImageTurnContext(record: PaidImageInvocationRecord | undefined): string {
+    if (!record) return ''
+    const images = [...record.manifest.values()].map(item =>
+      `- ${item.ref}: ${item.displayName}; ${item.mimeType}; ${item.width}x${item.height}`
+    )
+    return [
+      '<system-reminder>',
+      'U Agents can create one image for this interactive user turn with generate_image.',
+      'Use it only when the user explicitly asks to generate, edit, combine, or continue an image/character.',
+      `Copy this exact runtime value into _uapi_execution_nonce: ${record.context.executionNonce}`,
+      images.length > 0
+        ? `Available image references for this turn only:\n${images.join('\n')}`
+        : 'No image references are available for this turn.',
+      'Never invent refs, paths, model IDs, credentials, or additional output count. If multiple images are ambiguous, ask one short clarification.',
+      '</system-reminder>',
+    ].join('\n')
+  }
+
+  private failPaidImageLocally(record: PaidImageInvocationRecord): ToolResult {
+    if (record.phase.phase !== 'open') return this.paidImageToolError('not_executable', 'not_sent')
+    const nextCount = record.phase.localFailureCount + 1
+    record.phase = nextCount >= 2
+      ? { phase: 'terminal', chargeState: 'not_sent' }
+      : { phase: 'open', localFailureCount: nextCount }
+    return this.paidImageToolError('input_invalid', 'not_sent')
+  }
+
+  private async executePaidImageTool(
+    managed: ManagedSession,
+    ownerToken: string,
+    rawInput: GenerateImageToolInput,
+  ): Promise<ToolResult> {
+    const record = managed.paidImageInvocation
+    const nonce = typeof rawInput?._uapi_execution_nonce === 'string' ? rawInput._uapi_execution_nonce : ''
+    const nonceLooksPersisted = /^[0-9a-f-]{36}\.[0-9a-f-]{36}$/i.test(nonce)
+    if (!record) {
+      return nonceLooksPersisted && !nonce.startsWith(`${UAPI_IMAGE_PROCESS_NONCE}.`)
+        ? this.paidImageToolError('request_uncertain', 'possibly_charged')
+        : this.paidImageToolError('not_executable', 'not_sent')
+    }
+    if (record.ownerToken !== ownerToken || managed.paidImageOwnerToken !== ownerToken || record.context.origin !== 'interactive' || managed.systemPromptPreset === 'mini' || !managed.isProcessing || managed.stopRequested) {
+      return this.paidImageToolError('not_executable', 'not_sent')
+    }
+    if (nonce !== record.context.executionNonce) {
+      return nonceLooksPersisted && !nonce.startsWith(`${UAPI_IMAGE_PROCESS_NONCE}.`)
+        ? this.paidImageToolError('request_uncertain', 'possibly_charged')
+        : this.paidImageToolError('not_executable', 'not_sent')
+    }
+    if (record.phase.phase !== 'open') {
+      return record.phase.phase === 'terminal' && record.phase.chargeState === 'possibly_charged'
+        ? this.paidImageToolError('request_uncertain', 'possibly_charged')
+        : this.paidImageToolError('not_executable', 'not_sent')
+    }
+
+    const validated = validateGenerateImageInput(rawInput)
+    if (!validated.success) return this.failPaidImageLocally(record)
+    for (const selected of validated.data.input_images ?? []) {
+      if (!record.manifest.has(selected.ref)) return this.failPaidImageLocally(record)
+    }
+
+    const localFailureCount = record.phase.localFailureCount
+    const leaseToken = randomUUID()
+    const controller = new AbortController()
+    record.phase = { phase: 'preflight', leaseToken, controller }
+
+    const workspaceDefault = loadWorkspaceConfig(managed.workspace.rootPath)?.defaults?.defaultLlmConnection
+    const connection = resolveSessionConnection(managed.llmConnection, workspaceDefault)
+    if (!connection?.baseUrl) {
+      record.phase = { phase: 'terminal', leaseToken, chargeState: 'not_sent' }
+      return this.paidImageToolError('connection_unavailable', 'not_sent')
+    }
+
+    const serviceResult = await executeUApiImageGeneration({
+      prompt: validated.data.prompt,
+      aspectRatio: validated.data.aspect_ratio,
+      preset: validated.data.preset,
+      inputImages: validated.data.input_images,
+    }, {
+      sessionPath: getSessionStoragePath(managed.workspace.rootPath, managed.id),
+      connectionSlug: connection.slug,
+      connectionBaseUrl: connection.baseUrl,
+      getToken: () => getCredentialManager().getLlmApiKey(connection.slug),
+      manifest: record.manifest,
+      imageProcessor: _platform!.imageProcessor,
+      controller,
+      claim: () => {
+        const current = managed.paidImageInvocation
+        if (current !== record || current.ownerToken !== ownerToken || current.phase.phase !== 'preflight' || current.phase.leaseToken !== leaseToken || current.phase.controller !== controller) return false
+        current.phase = { phase: 'claimed', leaseToken, controller }
+        return true
+      },
+    })
+
+    const current = managed.paidImageInvocation
+    if (current !== record) return this.paidImageToolError('not_executable', 'not_sent')
+    if (current.phase.phase === 'terminal') {
+      return current.phase.chargeState === 'possibly_charged'
+        ? this.paidImageToolError('request_uncertain', 'possibly_charged')
+        : this.paidImageToolError('not_executable', 'not_sent')
+    }
+
+    if (serviceResult.claimed || current.phase.phase === 'claimed') {
+      current.phase = { phase: 'terminal', leaseToken, chargeState: 'possibly_charged' }
+    } else {
+      const parsed = parseUApiImageToolResult(serviceResult.text)
+      if (parsed?.type === 'error' && parsed.value.category === 'input_invalid' && localFailureCount < 1) {
+        current.phase = { phase: 'open', localFailureCount: localFailureCount + 1 }
+      } else {
+        current.phase = { phase: 'terminal', leaseToken, chargeState: 'not_sent' }
+      }
+    }
+
+    return {
+      content: [{ type: 'text', text: serviceResult.text }],
+      structuredContent: {},
+      isError: serviceResult.isError,
+    }
+  }
+
   async sendMessage(
     sessionId: string,
     message: string,
@@ -5690,6 +5973,8 @@ export class SessionManager implements ISessionManager {
      * directly (tests, intra-server flows) to leave the existing pin in place.
      */
     rpcContext?: { callerClientId?: string },
+    /** Host-only continuation for queue/auth/source recovery. Never renderer-writable. */
+    _paidImageContinuation?: PaidImageInvocationContext,
   ): Promise<void> {
     const managed = this.sessions.get(sessionId)
     if (!managed) {
@@ -5702,9 +5987,14 @@ export class SessionManager implements ISessionManager {
     // duplicate that arrives from a legacy renderer still running the client-side
     // auto_retry. The first matching caller wins (server timer or legacy RPC,
     // whichever arrives first), subsequent matching calls within the deadline drop.
+    const pendingRetry = managed.autoRetryPending
     if (claimAutoRetryPending(managed, message) === 'drop') {
       sessionLog.info(`sendMessage: dropped duplicate source-activation retry for ${sessionId}`)
       return
+    }
+    if (!_paidImageContinuation && pendingRetry?.content === message && pendingRetry.paidImageContext) {
+      _paidImageContinuation = pendingRetry.paidImageContext
+      existingMessageId = pendingRetry.paidImageContext.invocationId
     }
 
     // Clear any pending plan execution state when a new user message is sent.
@@ -5727,6 +6017,20 @@ export class SessionManager implements ISessionManager {
     //   to natural completion; replay as a new turn afterwards. NO call to
     //   `agent.redirect()`, NO forceAbort, NO interruption.
     if (managed.isProcessing) {
+      // Source/auth recovery reuses the already-persisted user Message instead
+      // of manufacturing a second paid invocation while the abort drains.
+      if (_paidImageContinuation && existingMessageId === _paidImageContinuation.invocationId) {
+        managed.messageQueue.push({
+          message,
+          attachments,
+          storedAttachments,
+          options,
+          messageId: existingMessageId,
+          optimisticMessageId: options?.optimisticMessageId,
+          paidImageContext: _paidImageContinuation,
+        })
+        return
+      }
       const connection = resolveSessionConnection(managed.llmConnection, undefined)
       // Fallback to 'steer' when no connection is resolvable — preserves
       // today's exact behavior (call redirect, take whatever it returns).
@@ -5777,8 +6081,15 @@ export class SessionManager implements ISessionManager {
         // for both queue-direct (current turn still running) and
         // queue-after-abort (backend already aborted) — the replay path in
         // processNextQueuedMessage is identical.
-        managed.messageQueue.push({ message, attachments, storedAttachments, options, messageId: userMessage.id, optimisticMessageId: options?.optimisticMessageId })
+        const paidImageContext = rpcContext?.callerClientId && !options?.hidden
+          ? this.createPaidImageContext(userMessage.id, 'interactive')
+          : undefined
+        managed.messageQueue.push({ message, attachments, storedAttachments, options, messageId: userMessage.id, optimisticMessageId: options?.optimisticMessageId, paidImageContext })
         managed.wasInterrupted = true
+      } else {
+        // A steer mutates the active turn without creating a new isolated
+        // invocation. Revoke its paid capability immediately.
+        this.terminatePaidImageInvocation(managed)
       }
 
       this.persistSession(managed)
@@ -5870,6 +6181,12 @@ export class SessionManager implements ISessionManager {
       }
     }
 
+    const paidImageContext = _paidImageContinuation ?? (
+      rpcContext?.callerClientId && !options?.hidden
+        ? this.createPaidImageContext(userMessage.id, 'interactive')
+        : undefined
+    )
+
     // Evaluate auto-label rules against the user message (common path for both
     // fresh and queued messages). Scans regex patterns configured on labels,
     // then merges any new matches into the session's label array.
@@ -5918,6 +6235,8 @@ export class SessionManager implements ISessionManager {
     managed.lastSentAttachments = attachments
     managed.lastSentStoredAttachments = storedAttachments
     managed.lastSentOptions = options
+    managed.lastSentMessageId = userMessage.id
+    managed.lastSentPaidImageContext = paidImageContext
 
     // Capture the generation to detect if a new request supersedes this one.
     // This prevents the finally block from clobbering state when a follow-up message arrives.
@@ -6012,6 +6331,8 @@ export class SessionManager implements ISessionManager {
     const agent = await this.getOrCreateAgent(managed)
     sendSpan.mark('agent.ready')
 
+    const paidImageRecord = await this.preparePaidImageInvocation(managed, userMessage, paidImageContext)
+
     // Always set all sources for context (even if none are enabled), including built-ins
     const allSources = loadAllSources(workspaceRootPath)
     agent.setAllSources(allSources)
@@ -6070,6 +6391,8 @@ export class SessionManager implements ISessionManager {
         effectiveMessage = `${message}\n\n<system-reminder>The previous assistant response was interrupted by the user and may be incomplete. Do not repeat or continue the interrupted response unless asked. Focus on the new message above.</system-reminder>`
         managed.wasInterrupted = false
       }
+      const paidImageTurnContext = this.formatPaidImageTurnContext(paidImageRecord)
+      if (paidImageTurnContext) effectiveMessage = `${effectiveMessage}\n\n${paidImageTurnContext}`
 
       const messageBackendContext = resolveBackendContext({
         sessionConnectionSlug: managed.llmConnection,
@@ -6288,6 +6611,7 @@ export class SessionManager implements ISessionManager {
     }
 
     sessionLog.info('Cancelling processing for session:', sessionId, silent ? '(silent)' : '')
+    this.terminatePaidImageInvocation(managed)
 
     // Collect queued message text for input restoration before clearing
     const queuedTexts = managed.messageQueue.map(q => q.message)
@@ -6371,6 +6695,10 @@ export class SessionManager implements ISessionManager {
     failureErrorCode?: string,
   ): boolean {
     if (managed.authRetryAttempted || !managed.lastSentMessage) return false
+    if (managed.paidImageInvocation && managed.paidImageInvocation.phase.phase !== 'open') {
+      this.terminatePaidImageInvocation(managed)
+      return false
+    }
 
     sessionLog.info(`Auth error detected, attempting token refresh and retry for session ${sessionId}`)
     managed.authRetryAttempted = true
@@ -6399,17 +6727,12 @@ export class SessionManager implements ISessionManager {
         const retryAttachments = managed.lastSentAttachments
         const retryStoredAttachments = managed.lastSentStoredAttachments
         const retryOptions = managed.lastSentOptions
+        const retryMessageId = managed.lastSentMessageId
+        const retryPaidImageContext = managed.lastSentPaidImageContext
 
         if (retryMessage) {
           sessionLog.info(`[auth-retry] Retrying message for session ${sessionId}`)
           this.setProcessing(managed, false)
-
-          // Remove the user message that was added for this failed attempt
-          // so we don't get duplicate messages when retrying
-          const lastUserMsgIndex = managed.messages.findLastIndex(m => m.role === 'user')
-          if (lastUserMsgIndex !== -1) {
-            managed.messages.splice(lastUserMsgIndex, 1)
-          }
 
           managed.authRetryInProgress = false
 
@@ -6419,8 +6742,11 @@ export class SessionManager implements ISessionManager {
             retryAttachments,
             retryStoredAttachments,
             retryOptions,
-            undefined,  // existingMessageId
-            true        // _isAuthRetry - prevents infinite retry loop
+            retryMessageId,
+            true,       // _isAuthRetry - prevents infinite retry loop
+            undefined,
+            undefined,
+            retryPaidImageContext,
           )
           sessionLog.info(`[auth-retry] Retry completed for session ${sessionId}`)
         } else {
@@ -6498,6 +6824,15 @@ export class SessionManager implements ISessionManager {
     // 1. Cleanup state
     this.setProcessing(managed, false)
     managed.stopRequested = false  // Reset for next turn
+    const currentPaidContext = managed.paidImageInvocation?.context
+    const paidContinuationQueued = !!currentPaidContext && managed.messageQueue.some(
+      item => item.paidImageContext?.invocationId === currentPaidContext.invocationId
+        && item.paidImageContext.executionNonce === currentPaidContext.executionNonce
+    )
+    const paidContinuationPending = !!currentPaidContext
+      && managed.autoRetryPending?.paidImageContext?.invocationId === currentPaidContext.invocationId
+      && managed.autoRetryPending.paidImageContext.executionNonce === currentPaidContext.executionNonce
+    if (!paidContinuationQueued && !paidContinuationPending) this.terminatePaidImageInvocation(managed)
 
     // 1b. Orphan backstop: with the default per-turn subprocess model, any
     // background sub-agent still marked `running` dies when this turn's
@@ -6657,7 +6992,11 @@ export class SessionManager implements ISessionManager {
         next.attachments,
         next.storedAttachments,
         next.options,
-        next.messageId
+        next.messageId,
+        undefined,
+        undefined,
+        undefined,
+        next.paidImageContext,
       ).catch(err => {
         sessionLog.error('replay failed', {
           sessionId,
@@ -7582,7 +7921,7 @@ export class SessionManager implements ISessionManager {
 
       case 'tool_start': {
         // Format tool input paths to relative for better readability
-        const formattedToolInput = formatToolInputPaths(event.input)
+        const formattedToolInput = formatToolInputPaths(redactPaidImageToolInput(event.toolName, event.input))
 
         // Resolve call_llm model for TurnCard badge display.
         // Resolve call_llm model short names to full IDs for display.
@@ -8193,6 +8532,9 @@ export class SessionManager implements ISessionManager {
           content: messageWithSuffix,
           deadlineMs: Date.now() + 2000,
           committed: false,
+          ...(managed.paidImageInvocation?.phase.phase === 'open'
+            ? { paidImageContext: managed.paidImageInvocation.context }
+            : {}),
         }
 
         if (managed.autoRetryTimer) clearTimeout(managed.autoRetryTimer)
@@ -8212,7 +8554,19 @@ export class SessionManager implements ISessionManager {
           // so a legacy renderer's duplicate RPC arriving ~50ms later gets dropped.
           // The pending slot is cleared by the deadline check in sendMessage, by the
           // next matching sendMessage that drops as a duplicate, or by session deletion.
-          this.sendMessage(sessionId, messageWithSuffix).catch(err => {
+          const continuation = current.autoRetryPending?.paidImageContext
+          this.sendMessage(
+            sessionId,
+            messageWithSuffix,
+            undefined,
+            undefined,
+            undefined,
+            continuation?.invocationId,
+            undefined,
+            undefined,
+            undefined,
+            continuation,
+          ).catch(err => {
             sessionLog.error(`Auto-retry sendMessage failed for ${sessionId}:`, err)
           })
         }, 100)
@@ -8910,6 +9264,11 @@ export class SessionManager implements ISessionManager {
     // Clean up session-scoped tool callbacks for all sessions
     for (const sessionId of this.sessions.keys()) {
       unregisterSessionScopedToolCallbacks(sessionId)
+      const managed = this.sessions.get(sessionId)
+      if (managed) {
+        this.terminatePaidImageInvocation(managed)
+        this.unregisterPaidImageRuntime(managed)
+      }
     }
 
     sessionLog.info('Cleanup complete')

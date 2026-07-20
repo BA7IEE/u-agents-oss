@@ -259,6 +259,9 @@ function createCodexContext(config: SessionConfig): SessionToolContext {
 function createSessionTools(includeDeveloperFeedback: boolean): Tool[] {
   return getToolDefsAsJsonSchema({
     includeDeveloperFeedback,
+    // U-API: Codex must not list paid image generation (16 §0).
+    surface: 'codex',
+    agentKind: 'full',
   }).map(def => ({
     name: def.name,
     description: def.description,
@@ -436,7 +439,12 @@ async function main() {
   const ctx = createCodexContext(config);
 
   const includeDeveloperFeedback = isDeveloperFeedbackEnabled();
-  const sessionToolRegistry = getSessionToolRegistry({ includeDeveloperFeedback });
+  // U-API: the CallTool registry is filtered independently from ListTools to reject stale direct calls (16 §10.2).
+  const sessionToolRegistry = getSessionToolRegistry({
+    includeDeveloperFeedback,
+    surface: 'codex',
+    agentKind: 'full',
+  });
 
   // Create MCP server
   const server = new Server(

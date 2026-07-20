@@ -30,6 +30,7 @@ import {
   // Types
   type ToolResult,
   type AuthRequest,
+  errorResponse,
 } from '@u-agents/session-tools-core';
 import { createLLMTool, type LLMQueryRequest, type LLMQueryResult } from './llm-tool.ts';
 import { createSpawnSessionTool, type SpawnSessionFn } from './spawn-session-tool.ts';
@@ -72,6 +73,7 @@ export {
 // Local imports for use within this file's factory function
 import { getSessionScopedToolCallbacks } from './session-scoped-tool-callback-registry.ts';
 import { attachSessionSelfManagementBindings } from './session-self-management-bindings.ts';
+import { executePaidImageToolCallback } from './paid-image-tool-registry.ts';
 
 /** Backend-executed session tools currently supported by the Claude adapter layer. */
 export const CLAUDE_BACKEND_SESSION_TOOL_NAMES = new Set<string>([
@@ -217,9 +219,16 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
 export function getSessionScopedTools(
   sessionId: string,
   workspaceRootPath: string,
-  workspaceId?: string
+  workspaceId?: string,
+  options?: {
+    agentKind?: 'full' | 'mini';
+    paidImageTool?: { sessionPath: string; ownerToken: string };
+  },
 ): ReturnType<typeof createSdkMcpServer> {
-  const cacheKey = `${sessionId}::${workspaceRootPath}`;
+  const agentKind = options?.agentKind ?? 'full';
+  const ownerCacheKey = options?.paidImageTool?.ownerToken ?? 'no-paid-owner';
+  // U-API: cache identity includes agent kind + owner so full/mini and replacement agents cannot share wrappers (16B §5).
+  const cacheKey = `${sessionId}::${workspaceRootPath}::${agentKind}::${ownerCacheKey}`;
 
   // Return cached tools if available, but always create a fresh MCP server wrapper
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -239,6 +248,18 @@ export function getSessionScopedTools(
         const callbacks = getSessionScopedToolCallbacks(sessionId);
         callbacks?.onAuthRequest?.(request as AuthRequest);
       },
+      generateImage: options?.paidImageTool
+        ? async (input) => {
+            const result = await executePaidImageToolCallback(
+              options.paidImageTool!.sessionPath,
+              options.paidImageTool!.ownerToken,
+              input,
+            );
+            return result ?? errorResponse(JSON.stringify({
+              kind: 'uapi_image_error', version: 1, category: 'not_executable', charge_state: 'not_sent',
+            }));
+          }
+        : undefined,
     });
 
     // Attach session self-management bindings (lazy getters from callback registry)
@@ -261,7 +282,11 @@ export function getSessionScopedTools(
 
     // Create tools from the canonical registry — all tools with handlers.
     // Tool visibility is centrally filtered in session-tools-core to avoid backend drift.
-    tools = getSessionToolDefs({ includeDeveloperFeedback: FEATURE_FLAGS.developerFeedback })
+    tools = getSessionToolDefs({
+      includeDeveloperFeedback: FEATURE_FLAGS.developerFeedback,
+      surface: 'claude',
+      agentKind,
+    })
       .filter(def => def.handler !== null) // Skip backend-specific tools (call_llm)
       .map(def => registryTool(def.name, def.inputSchema.shape));
 

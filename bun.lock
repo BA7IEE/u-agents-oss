@@ -302,6 +302,7 @@
       "dependencies": {
         "@earendil-works/pi-ai": "0.80.6",
         "@u-agents/core": "workspace:*",
+        "@u-agents/session-tools-core": "workspace:*",
         "@u-agents/shared": "workspace:*",
         "jose": "^6.0.0",
         "sharp": "0.34.5",

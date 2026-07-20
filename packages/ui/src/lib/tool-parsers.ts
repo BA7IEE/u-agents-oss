@@ -7,6 +7,61 @@
 
 import type { ActivityItem } from '../components/chat/TurnCard'
 import type { ToolType } from '../components/terminal/TerminalOutput'
+import { parseUApiImageToolResult, type UApiGeneratedImageResultV1, type UApiImageErrorV1 } from '@u-agents/core'
+
+// U-API: UI复用core strict parser，绝不信任ToolResult内的任意路径（16 §8.3）。
+export type UApiImageActivityResult =
+  | { type: 'success'; value: UApiGeneratedImageResultV1; filePath: string }
+  | { type: 'error'; value: UApiImageErrorV1 }
+
+export function parseUApiImageActivity(
+  activity: Pick<ActivityItem, 'toolName' | 'content'>,
+  sessionFolderPath?: string,
+): UApiImageActivityResult | null {
+  if (activity.toolName !== 'generate_image' && activity.toolName !== 'mcp__session__generate_image') return null
+  if (!activity.content) return null
+  const parsed = parseUApiImageToolResult(activity.content)
+  if (!parsed) return null
+  if (parsed.type === 'error') return parsed
+  if (!sessionFolderPath) return null
+  const separator = sessionFolderPath.includes('\\') ? '\\' : '/'
+  const root = sessionFolderPath.replace(/[\\/]+$/, '')
+  return {
+    type: 'success',
+    value: parsed.value,
+    filePath: `${root}${separator}downloads${separator}${parsed.value.file_name}`,
+  }
+}
+
+/**
+ * The generated-image tool card is the canonical renderer for paid results.
+ * Remove only duplicate assistant Markdown images that point at strict result
+ * basenames; unrelated attachments and surrounding response text stay intact.
+ */
+export function stripRenderedUApiImageAttachments(
+  text: string,
+  results: readonly UApiImageActivityResult[],
+): string {
+  const renderedFiles = new Set(
+    results
+      .filter((result): result is Extract<UApiImageActivityResult, { type: 'success' }> => result.type === 'success')
+      .map(result => result.value.file_name),
+  )
+  if (renderedFiles.size === 0 || !text.includes('attachment://')) return text
+
+  return text
+    .replace(/!\[[^\]]*\]\(attachment:\/\/([^\s)]+)(?:\s+["'][^"']*["'])?\)/g, (match, encodedName: string) => {
+      let fileName = encodedName
+      try {
+        fileName = decodeURIComponent(encodedName)
+      } catch {
+        // Keep the raw value; malformed encoding cannot match a strict result.
+      }
+      return renderedFiles.has(fileName) ? '' : match
+    })
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
 
 // ============================================================================
 // Individual Tool Parsers

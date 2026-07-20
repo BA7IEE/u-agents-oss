@@ -71,7 +71,8 @@ import { getSessionToolProxyDefs, SESSION_TOOL_NAMES } from './backend/pi/sessio
 // Session tool registry (for executing proxy tool calls)
 import {
   SESSION_BACKEND_TOOL_NAMES,
-  SESSION_TOOL_REGISTRY,
+  getSessionToolRegistry,
+  errorResponse,
   type ToolResult as SessionToolResult,
 } from '@u-agents/session-tools-core';
 import { createClaudeContext, type SessionToolContext } from './claude-context.ts';
@@ -105,6 +106,8 @@ import { extractWorkspaceSlug } from '../utils/workspace.ts';
 import { LLM_QUERY_TIMEOUT_MS, type LLMQueryRequest, type LLMQueryResult } from './llm-tool.ts';
 import { executeBrowserToolCommand } from './browser-tool-runtime.ts';
 import { saveBinaryResponse } from '../utils/binary-detection.ts';
+import { executePaidImageToolCallback } from './paid-image-tool-registry.ts';
+import { FEATURE_FLAGS } from '../feature-flags.ts';
 
 // ============================================================
 // PiAgent Implementation
@@ -584,7 +587,8 @@ export class PiAgent extends BaseAgent {
     // These tools (SubmitPlan, config_validate, source auth, call_llm, etc.)
     // are executed in the main process when the LLM calls them.
     this.assertBackendSessionToolParity();
-    let sessionToolDefs = getSessionToolProxyDefs();
+    // U-API: mini agents never receive the paid image tool definition (16 §0).
+    let sessionToolDefs = getSessionToolProxyDefs(this.isMiniAgent() ? 'mini' : 'full');
 
     // Mirror Claude's gate: hide `browser_tool` when the user has disabled
     // the built-in browser tool. Without this filter, Pi would still advertise
@@ -1495,6 +1499,18 @@ export class PiAgent extends BaseAgent {
       onAuthRequest: (request: unknown) => {
         this.onAuthRequest?.(request as any);
       },
+      generateImage: this.config.paidImageTool
+        ? async (input) => {
+            const result = await executePaidImageToolCallback(
+              this.config.paidImageTool!.sessionPath,
+              this.config.paidImageTool!.ownerToken,
+              input,
+            );
+            return result ?? errorResponse(JSON.stringify({
+              kind: 'uapi_image_error', version: 1, category: 'not_executable', charge_state: 'not_sent',
+            }));
+          }
+        : undefined,
     });
 
     // Attach session self-management bindings (lazy getters from callback registry)
@@ -1586,7 +1602,13 @@ export class PiAgent extends BaseAgent {
         }
       }
 
-      const def = SESSION_TOOL_REGISTRY.get(toolName);
+      // U-API: execution gate is authoritative even if the Pi subprocess retained a stale merge registration (16 §10.2).
+      const visibleRegistry = getSessionToolRegistry({
+        includeDeveloperFeedback: FEATURE_FLAGS.developerFeedback,
+        surface: 'pi',
+        agentKind: this.isMiniAgent() ? 'mini' : 'full',
+      });
+      const def = visibleRegistry.get(toolName);
       if (!def) {
         return { content: `Unknown session tool: ${toolName}`, isError: true };
       }

@@ -36,6 +36,14 @@ export {
   type CredentialInputMode,
 } from './session-scoped-tools.ts';
 
+// U-API: host-owned paid image callback lifecycle (16B §5).
+export {
+  registerPaidImageToolCallback,
+  unregisterPaidImageToolCallback,
+  executePaidImageToolCallback,
+  type PaidImageToolCallback,
+} from './paid-image-tool-registry.ts';
+
 // Export mode-manager - Centralized mode management
 export {
   // Permission Mode API (primary)

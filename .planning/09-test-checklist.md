@@ -507,7 +507,7 @@ CONFIG="$HOME/.u-agents/config.json"  # M1 改造完成后的位置（详见 01-
 
 **§3.7 marker 基线 grep 必跑**（每次 sync 后 + 每次 follow-up commit 后）：
 - [ ] 主基线 = **§14 §0 当前基线 ± 2**（唯一权威；写作时 82，2026-05 v0.9.6 后已升到 98；详见 [`14-uapi-marker-registry.md`](14-uapi-marker-registry.md) §0）
-- [ ] `/* U-API START */` = **9** 且与 `/* U-API END */` 配对
+- [ ] `/* U-API START */` = **10** 且与 `/* U-API END */` 配对
 - [ ] Build 脚本子表 ≥ **13**（floor；2026-05-29 v0.9.6 后实测 21）
 - [ ] 超出 ±2 必须停下逐项核对——多半是 git 自动合并吞掉了改造，或引入未文档化的新改造（应补进 §3.7 表）
 
@@ -520,7 +520,7 @@ CONFIG="$HOME/.u-agents/config.json"  # M1 改造完成后的位置（详见 01-
 ```bash
 ## §5 验证结果（v24 后强制贴片）
 
-### §5.1 主基线 grep（期望 = §14 §0 当前基线/9/9 — 写作时 82，现 98；详见 14-uapi-marker-registry.md §0 + §5 历次演进）
+### §5.1 主基线 grep（期望 = §14 §0 当前基线/10/10；详见 14-uapi-marker-registry.md §0 + §5 历次演进）
 $ grep -rEn --exclude-dir=node_modules "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
     | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
 [实际数字]
@@ -556,6 +556,27 @@ $ bun test packages/shared 2>&1 | tail -5  # 记 pass/fail/skip 数字 vs 上次
 ```
 
 **任何 sync 报告缺 §5.1-§5.7 任一贴片 = review 评级降一级**。这是把 SOP 工程化为"必跑且必贴"的硬约束。
+
+### 13.9 U-API 生图 P0（16 / 16A / 16B）
+
+> 自动化测试证明代码合同；下面涉及真实中转站、费用、安装包与用户体验的项目必须在受控发布窗口人工验收，未勾选不得表述为生产可用。
+
+- [x] 目录：当前 Token 的 `GET /v1/models` 中，只有一个 exact model 同时含 `image-generation`、`uapi-image-edit-v1`、`uapi-image-default-v1`；0个、2个、marker分裂或重复ID均零POST。当前只证明本次读取，跨实例一致性仍属发布项。
+- [x] 动态模型：请求使用目录当次返回的 exact `data[].id`，客户端不按 `gpt-image-2`名称猜测；11个真实case均在operation前重新解析。
+- [x] 纯文standard：`1:1 / 3:2 / 2:3`各一次，均`ok`；每个invocation固定`n=1`且只有一个operation POST。
+- [ ] 纯文high：已返回有效图片，但当前为`degraded + quality_downgraded`，尚未达到严格发布门禁。
+- [x] 编辑格式：分别用真实PNG、JPEG、WebP完成单图standard编辑；multipart字段为`image[]`、MIME与magic一致、上传名中无原文件名或本地路径。
+- [x] 参考与合成：主体/角色延续、style reference、两图合成、三图合成各一次；顺序和role与用户表述一致，均为单POST。角色延续和style reference的图片可用但quality降级，这两项与纯文high分别阻塞严格发布门禁。
+- [x] Electron安装包成功路径：从最终macOS DMG真实启动，打包后的Pi subprocess调用canonical tool；首次隔离smoke由exact `gpt-image-2`单POST返回`ok` PNG，持久化重载、全屏、100% /125%缩放和隐藏服务端路径通过。凭据隔离修复后，用户安装同一最终哈希包并用一句自然语言成功生成`1536x1024`图片；当前回复只有一个工具卡与已保存文件链接，没有重复附件或空回复卡。
+- [ ] Electron安装包异常态：degraded有警告；error-only可读；`possibly_charged`明确要求先查用量；生成图无Copy Path / Open / Reveal动作。
+- [ ] WebUI live UI：当前回复直显、预览、警告和路径隐藏通过；目前只有production build证据。
+- [ ] 失败语义端侧验收：连接、额度、policy、timeout、损坏响应和落盘失败分别核对`category + charge_state`；claimed后不得自动重试、换模型或换协议。自动化合同已通过，真实安装包异常态仍未触发。
+- [x] 生命周期自动化：preflight前Stop为零POST；claimed后Stop为possibly charged；auth/source recovery保留原Message identity；旧turn、旧process、steer与第二次调用均零新增POST。
+- [x] 隔离自动化：full Claude/Pi可见并可执行；mini、Codex（ListTools与陈旧CallTool）、Messaging、Automation和internal direct call均不可执行。
+- [x] 配置 /凭据隔离：`U_AGENTS_CONFIG_DIR`同时覆盖config、workspace、server lock和`credentials.enc`；`CRAFT_CONFIG_DIR`兼容回退，无override仍使用`~/.u-agents`。子进程测试不得改写正式凭据。
+- [x] Headless smoke隔离：4/4通过；每次子进程使用独立`U_AGENTS_CONFIG_DIR`，正式目录存在活跃或残留`.server.lock`也不影响测试。
+- [ ] macOS公开发布：正式Developer ID签名与notarization通过；当前最终DMG只有adhoc签名，只能用于开发验收。
+- [ ] 发布：45次客户端观测到的POST、NewAPI Debug/route、上游用量与U-API用量逐笔对账；临时Token轮换；受控两次smoke通过后才开放普通流量。
 
 ---
 

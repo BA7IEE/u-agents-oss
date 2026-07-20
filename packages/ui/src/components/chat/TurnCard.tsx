@@ -26,6 +26,7 @@ import {
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { Markdown } from '../markdown'
+import { MarkdownImageBlock } from '../markdown/MarkdownImageBlock'
 import { Spinner } from '../ui/LoadingIndicator'
 import { type IslandTransitionConfig } from '../ui'
 import { AnnotationIslandMenu } from '../annotations/AnnotationIslandMenu'
@@ -83,6 +84,9 @@ import { useAnnotationCancelRestore } from '../annotations/use-annotation-cancel
 import { DocumentFormattedMarkdownOverlay } from '../overlay'
 import { AcceptPlanDropdown } from './AcceptPlanDropdown'
 import { CompactAcceptPlanDrawer } from './CompactAcceptPlanDrawer'
+import { parseUApiImageActivity, stripRenderedUApiImageAttachments, type UApiImageActivityResult } from '../../lib/tool-parsers'
+
+// U-API: generated image ToolResults render as first-class turn output via the shared strict parser (16 §8.3).
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -533,9 +537,59 @@ function getToolDisplayName(name: string): string {
     'set_session_status': 'Set Session Status',
     'get_session_info': 'Get Session Info',
     'list_sessions': 'List Sessions',
+    'generate_image': i18n.t('turnCard.imageGeneration.activity', { defaultValue: 'Generate Image' }),
   }
 
   return displayNames[stripped] || stripped
+}
+
+function UApiImageResultCard({ result }: { result: UApiImageActivityResult }) {
+  const { t } = useTranslation()
+
+  if (result.type === 'error') {
+    const possiblyCharged = result.value.charge_state === 'possibly_charged'
+    const categoryMessages: Record<string, string> = {
+      connection_unavailable: t('turnCard.imageGeneration.error.connectionUnavailable'),
+      service_unconfigured: t('turnCard.imageGeneration.error.serviceUnconfigured'),
+      quota_exceeded: t('turnCard.imageGeneration.error.quotaExceeded'),
+      content_rejected: t('turnCard.imageGeneration.error.contentRejected'),
+      input_invalid: t('turnCard.imageGeneration.error.inputInvalid'),
+      request_uncertain: t('turnCard.imageGeneration.error.requestUncertain'),
+      result_invalid: t('turnCard.imageGeneration.error.resultInvalid'),
+      not_executable: t('turnCard.imageGeneration.error.notExecutable'),
+    }
+    const chargeNotice = possiblyCharged
+      ? t('turnCard.imageGeneration.chargePossibly')
+      : ''
+    return (
+      <div className="mx-2 rounded-[8px] bg-[color-mix(in_oklab,var(--destructive)_4%,var(--background))] px-3 py-2 text-[13px] text-destructive shadow-tinted" style={{ '--shadow-color': 'var(--destructive-rgb)' } as React.CSSProperties}>
+        <div className="font-medium">{t('turnCard.imageGeneration.failed')}</div>
+        <div className="mt-0.5 text-foreground/70">{categoryMessages[result.value.category]} {chargeNotice}</div>
+      </div>
+    )
+  }
+
+  const warning = result.value.warning
+    ? ({
+        quality_unverified: t('turnCard.imageGeneration.warning.qualityUnverified'),
+        quality_downgraded: t('turnCard.imageGeneration.warning.qualityDowngraded'),
+        aspect_ratio_changed: t('turnCard.imageGeneration.warning.aspectRatioChanged'),
+      } as const)[result.value.warning]
+    : null
+  return (
+    <div className="mx-2 overflow-hidden rounded-[10px] bg-background shadow-minimal">
+      <div className="px-3 pt-2 text-[13px] font-medium text-foreground/80">
+        {t('turnCard.imageGeneration.complete')}
+        <span className="ml-2 font-normal text-muted-foreground">{result.value.width}×{result.value.height}</span>
+      </div>
+      {warning && <div className="px-3 pt-1 text-[12px] text-amber-600 dark:text-amber-400">{warning}</div>}
+      <MarkdownImageBlock
+        code={JSON.stringify({ src: result.filePath, title: t('turnCard.imageGeneration.title') })}
+        className="mt-1"
+        hideFileActions
+      />
+    </div>
+  )
 }
 
 /**
@@ -2895,6 +2949,17 @@ export const TurnCard = React.memo(function TurnCard({
     () => allSortedActivities.filter(a => a.type !== 'plan'),
     [allSortedActivities]
   )
+  const uapiImageResults = useMemo(
+    () => sortedActivities
+      .map(activity => parseUApiImageActivity(activity, sessionFolderPath))
+      .filter((result): result is UApiImageActivityResult => result !== null),
+    [sortedActivities, sessionFolderPath]
+  )
+  const renderedResponseText = useMemo(
+    () => response ? stripRenderedUApiImageAttachments(response.text, uapiImageResults) : '',
+    [response, uapiImageResults],
+  )
+  const hasRenderedResponse = renderedResponseText.trim().length > 0
 
   // Check if we have any Task subagents - if so, use grouped view
   const hasTaskSubagents = useMemo(
@@ -2931,7 +2996,10 @@ export const TurnCard = React.memo(function TurnCard({
   const hasNoMeaningfulWork = activities.length > 0
     && activities.every(a => {
       // Tool activities must be errors (interrupted/failed)
-      if (a.type === 'tool') return a.status === 'error'
+      if (a.type === 'tool') {
+        if (parseUApiImageActivity(a, sessionFolderPath)) return false
+        return a.status === 'error'
+      }
       // Intermediate activities must have no meaningful content
       if (a.type === 'intermediate') return !a.content?.trim()
       // Plan activities are meaningful work
@@ -3132,6 +3200,11 @@ export const TurnCard = React.memo(function TurnCard({
         </div>
       )}
 
+      {/* U-API: completed generated images are first-class turn output, not hidden in tool details. */}
+      {uapiImageResults.map((result, index) => (
+        <UApiImageResultCard key={`${result.type}-${index}-${result.type === 'success' ? result.value.file_name : result.value.category}`} result={result} />
+      ))}
+
       {/* Plan Activities - rendered as full ResponseCards, time-sorted with other activities */}
       {planActivities.map((planActivity, index) => (
         <div key={planActivity.id} className={cn("select-text", (hasActivities || index > 0) && "mt-2")}>
@@ -3166,7 +3239,7 @@ export const TurnCard = React.memo(function TurnCard({
       {/* Animated version for playground demos */}
       {animateResponse && (
         <AnimatePresence>
-          {response && !isBuffering && (
+          {response && !isBuffering && hasRenderedResponse && (
             <motion.div
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
@@ -3174,13 +3247,13 @@ export const TurnCard = React.memo(function TurnCard({
               className={cn("select-text", hasActivities && "mt-2")}
             >
               <ResponseCard
-                text={response.text}
+                text={renderedResponseText}
                 isStreaming={response.isStreaming}
                 streamStartTime={response.streamStartTime}
                 sessionId={sessionId}
                 onOpenFile={onOpenFile}
                 onOpenUrl={onOpenUrl}
-                onPopOut={onPopOut ? () => onPopOut(response.text) : undefined}
+                onPopOut={onPopOut ? () => onPopOut(renderedResponseText) : undefined}
                 variant={response.isPlan ? 'plan' : 'response'}
                 messageId={response.messageId}
                 annotations={response.annotations}
@@ -3203,16 +3276,16 @@ export const TurnCard = React.memo(function TurnCard({
         </AnimatePresence>
       )}
       {/* Non-animated version for regular app use */}
-      {!animateResponse && response && !isBuffering && (
+      {!animateResponse && response && !isBuffering && hasRenderedResponse && (
         <div className={cn("select-text", hasActivities && "mt-2")}>
           <ResponseCard
-            text={response.text}
+            text={renderedResponseText}
             isStreaming={response.isStreaming}
             streamStartTime={response.streamStartTime}
             sessionId={sessionId}
             onOpenFile={onOpenFile}
             onOpenUrl={onOpenUrl}
-            onPopOut={onPopOut ? () => onPopOut(response.text) : undefined}
+            onPopOut={onPopOut ? () => onPopOut(renderedResponseText) : undefined}
             variant={response.isPlan ? 'plan' : 'response'}
             messageId={response.messageId}
             annotations={response.annotations}
