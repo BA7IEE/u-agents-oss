@@ -13,6 +13,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import type { UpdateInfo } from '../../shared/types'
+import { openManualUpdatePage } from '../lib/manual-update'
 
 interface UseUpdateCheckerResult {
   /** Current update info */
@@ -27,6 +28,8 @@ interface UseUpdateCheckerResult {
   downloadProgress: number
   /** Check for updates manually */
   checkForUpdates: () => Promise<void>
+  /** Open the manual download page when automatic updating is unavailable */
+  openManualUpdate: () => void
   /** Install the downloaded update and restart */
   installUpdate: () => Promise<void>
 }
@@ -39,6 +42,14 @@ export function useUpdateChecker(): UseUpdateCheckerResult {
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
   // Track if we've shown the toast for this version to avoid duplicates
   const shownToastVersionRef = useRef<string | null>(null)
+
+  // U-API: automatic update failures always retain an HTTPS manual-download escape hatch.
+  const openManualUpdate = useCallback(() => {
+    void openManualUpdatePage((url) => window.electronAPI.openUrl(url)).catch((error) => {
+      console.error('[useUpdateChecker] Failed to open manual update page:', error)
+      toast.error(t('toast.failedToOpenLink'))
+    })
+  }, [t])
 
   // Show toast notification when update is ready
   const showUpdateToast = useCallback((version: string, onInstall: () => void) => {
@@ -77,9 +88,13 @@ export function useUpdateChecker(): UseUpdateCheckerResult {
       console.error('[useUpdateChecker] Install failed:', error)
       toast.error(t('toast.failedToInstallUpdate'), {
         description: error instanceof Error ? error.message : 'Unknown error',
+        action: {
+          label: t('settings.about.manualDownload'),
+          onClick: openManualUpdate,
+        },
       })
     }
-  }, [])
+  }, [openManualUpdate, t])
 
   // Load initial state and check if update ready
   useEffect(() => {
@@ -140,9 +155,13 @@ export function useUpdateChecker(): UseUpdateCheckerResult {
       console.error('[useUpdateChecker] Check failed:', error)
       toast.error(t('toast.failedToCheckUpdates'), {
         description: error instanceof Error ? error.message : 'Unknown error',
+        action: {
+          label: t('settings.about.manualDownload'),
+          onClick: openManualUpdate,
+        },
       })
     }
-  }, [showUpdateToast, installUpdate])
+  }, [showUpdateToast, installUpdate, openManualUpdate, t])
 
   return {
     updateInfo,
@@ -151,6 +170,7 @@ export function useUpdateChecker(): UseUpdateCheckerResult {
     isReadyToInstall: updateInfo?.downloadState === 'ready',
     downloadProgress: updateInfo?.downloadProgress ?? 0,
     checkForUpdates,
+    openManualUpdate,
     installUpdate,
   }
 }

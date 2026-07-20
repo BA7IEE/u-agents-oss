@@ -596,6 +596,8 @@ $ bun test packages/shared 2>&1 | tail -5  # 记 pass/fail/skip 数字 vs 上次
 
 - [ ] 临时把网络掐了，启动应用 → 不会因为更新检查失败而崩溃
 - [ ] 让用户拒绝某个版本（"稍后提醒")，下次启动是否再次提示
+- [ ] 设置 → 关于始终显示“手动下载”；点击只通过 `openUrl` 打开 exact `https://agents.u-studio.cn`，不得使用明文 HTTP、远端返回 URL 或本地文件协议
+- [ ] 自动检查或安装失败的 toast 显示“手动下载”动作；点击后可打开同一 HTTPS 页面，跳转失败时给出可读错误且不产生未处理 Promise
 
 ### 14.3 Log 检查
 

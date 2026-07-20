@@ -8,9 +8,9 @@
 
 ## 0. 当前基线（速查）
 
-| 指标 | 基线（2026-07-20 凭据隔离修复复核）| 下次同步允许浮动 |
+| 指标 | 基线（2026-07-20 手动更新兜底复核）| 下次同步允许浮动 |
 |---|---|---|
-| U-API 标记总数（含全部注释格式）| **174** | ±2 |
+| U-API 标记总数（含全部注释格式）| **178** | ±2 |
 | `/* U-API START */` 块数 | **10** | 必须等于 END |
 | `/* U-API END */` 块数 | **10** | 必须等于 START |
 
@@ -22,7 +22,7 @@
 # 同时排除 apps/electron/release/ 下的历史打包副本；否则会重复统计已打包源码副本
 grep -rEn --exclude-dir=node_modules --exclude-dir=release "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
   | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
-# 期望：174（基线，允许 172-176）
+# 期望：178（基线，允许 176-180）
 
 # 块标记 START/END 配对（数量必须相等）
 grep -rE --exclude-dir=node_modules --exclude-dir=release "/\* U-API START" packages apps --include="*.ts" --include="*.tsx" | wc -l
@@ -261,6 +261,7 @@ if (!apiKey && connection.baseUrl) {
 | 81/81t | UI strict activity parser、主回复图片提升、全屏预览、错误/费用提示与host私有路径动作隐藏（**7 处 marker**） | `packages/ui/src/lib/tool-parsers.ts`、`lib/__tests__/uapi-image-activity.test.ts`、`components/chat/TurnCard.tsx`及三个preview组件 | `parseUApiImageActivity` / `hideFileActions` / `generatedImageActivities` | 单行/JSX | 16 §8.3 + §11.1 |
 | 82/82t | 测试 /多实例凭据隔离：`SecureStorageBackend`的`credentials.enc`必须跟随`CONFIG_DIR`，不得绕过`U_AGENTS_CONFIG_DIR`写入正式`~/.u-agents`（**2 处 marker**） | `packages/shared/src/credentials/backends/secure-storage.ts`、`credentials/__tests__/secure-storage-config-dir.test.ts` | `CREDENTIALS_DIR = CONFIG_DIR` / `packaged test profiles overwriting` | 单行 | 02 §9.2 + 16A §8.4 |
 | 83t | headless server smoke隔离：测试子进程使用独立`U_AGENTS_CONFIG_DIR`，不得与正在运行的桌面端共享凭据或`.server.lock` | `packages/server/src/__tests__/smoke.test.ts` | `headless smoke must not share credentials or the server lock` | 单行 | 09 §13.9 + 16A §8.4 |
+| 84/84t | 自动更新失败 /同版本内部构建的手动下载兜底：设置页常驻入口、失败toast动作和exact HTTPS URL合同（**4 处 marker**） | `apps/electron/src/renderer/lib/manual-update.ts`、`manual-update.test.ts`、`hooks/useUpdateChecker.ts`、`pages/settings/AppSettingsPage.tsx` | `MANUAL_UPDATE_URL` / `openManualUpdate` / `manual download visible` | 单行/JSX | 05 §8 + 09 §14.2 |
 
 ---
 
@@ -342,6 +343,7 @@ grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_mod
 - **U-API 生图 P0 实现（2026-07-20）：171 处 / START 10 / END 10**。从 135 基线新增 #77–#81t 共 36 个单行/JSX marker，覆盖共享结果合同、canonical工具、Claude/Pi/Codex隔离、host动态目录与付费生命周期、图片安全落盘及UI直显；START/END块数不变。生产三marker配置、真实费用对账与安装包smoke仍按16/16A发布门禁执行，不由本基线宣称完成。
 - **凭据隔离事故修复（2026-07-20）：173 处 / START 10 / END 10**。新增 #82/#82t 共2个单行marker：`SecureStorageBackend`不再把凭据目录硬编码到`~/.u-agents`，而是与配置、workspace和`clearAllConfig()`共同服从`CONFIG_DIR`；子进程回归覆盖`U_AGENTS_CONFIG_DIR`优先、`CRAFT_CONFIG_DIR`兼容回退与无override默认路径。START/END块数不变。
 - **凭据 /headless测试隔离收口（2026-07-20）：174 处 / START 10 / END 10**。新增 #83t 单行marker；headless smoke每次生成独立`U_AGENTS_CONFIG_DIR`并在停止 /启动失败后清理，不再因正式桌面端持有`.server.lock`而新增3个环境性失败。START/END块数不变。
+- **手动更新兜底（2026-07-20）：178 处 / START 10 / END 10**。新增 #84/#84t 共4个单行/JSX marker；设置 → 关于常驻手动下载入口，自动检查 /安装失败toast提供同一动作，exact URL固定为`https://agents.u-studio.cn`并由轻量回归锁定。START/END块数不变。
 
 ---
 

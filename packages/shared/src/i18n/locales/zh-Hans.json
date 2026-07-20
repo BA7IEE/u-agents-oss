@@ -833,6 +833,7 @@
   "settings.about.checkForUpdates": "检查更新",
   "settings.about.checkNow": "立即检查",
   "settings.about.downloading": "正在下载 v{{version}} ({{percent}}%)",
+  "settings.about.manualDownload": "手动下载",
   "settings.about.restartToUpdate": "重启以更新到 v{{version}}",
   "settings.about.title": "关于",
   "settings.about.updateReady": "更新就绪",

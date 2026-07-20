@@ -833,6 +833,7 @@
   "settings.about.checkForUpdates": "Buscar actualizaciones",
   "settings.about.checkNow": "Buscar ahora",
   "settings.about.downloading": "Descargando v{{version}} ({{percent}}%)",
+  "settings.about.manualDownload": "Descargar manualmente",
   "settings.about.restartToUpdate": "Reiniciar para actualizar a v{{version}}",
   "settings.about.title": "Acerca de",
   "settings.about.updateReady": "Actualización lista",

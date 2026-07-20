@@ -833,6 +833,7 @@
   "settings.about.checkForUpdates": "Check for updates",
   "settings.about.checkNow": "Check Now",
   "settings.about.downloading": "Downloading v{{version}} ({{percent}}%)",
+  "settings.about.manualDownload": "Manual Download",
   "settings.about.restartToUpdate": "Restart to Update to v{{version}}",
   "settings.about.title": "About",
   "settings.about.updateReady": "Update ready",

@@ -523,6 +523,8 @@ curl https://update.u-agents.u-studio.cn/v1.x.y/manifest.json
 - 看是否能 fetch 到 `update.u-agents.u-studio.cn/latest/latest-mac.yml`
 - 看 latest-mac.yml 中 sha512 / 文件大小是否与上传的 zip 匹配
 
+自动更新只是便利路径，不是唯一恢复入口。Electron 设置 → 关于必须常驻“手动下载”按钮；检查或安装失败的提示也必须提供同一动作，统一通过现有安全 `openUrl` 通道打开 `https://agents.u-studio.cn`。客户端不得使用明文 `http://`，也不得根据更新服务器响应拼接任意下载页 URL。该入口同时覆盖内部同版本构建无法触发 semver 自动更新的场景。
+
 ---
 
 ## 9. 版本回滚

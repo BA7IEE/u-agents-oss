@@ -833,6 +833,7 @@
   "settings.about.checkForUpdates": "Frissítések keresése",
   "settings.about.checkNow": "Ellenőrzés most",
   "settings.about.downloading": "v{{version}} letöltése ({{percent}}%)",
+  "settings.about.manualDownload": "Kézi letöltés",
   "settings.about.restartToUpdate": "Újraindítás a v{{version}} verzióra való frissítéshez",
   "settings.about.title": "Névjegy",
   "settings.about.updateReady": "A frissítés készen áll",

@@ -833,6 +833,7 @@
   "settings.about.checkForUpdates": "Sprawdź aktualizacje",
   "settings.about.checkNow": "Sprawdź teraz",
   "settings.about.downloading": "Pobieranie v{{version}} ({{percent}}%)",
+  "settings.about.manualDownload": "Pobierz ręcznie",
   "settings.about.restartToUpdate": "Uruchom ponownie, aby zaktualizować do v{{version}}",
   "settings.about.title": "O aplikacji",
   "settings.about.updateReady": "Aktualizacja gotowa",
