@@ -1,0 +1,66 @@
+name: Windows Candidate
+
+on:
+  push:
+    branches: [codex/upstream-v0.14.0]
+    paths:
+      - '.github/workflows/windows-candidate.yml'
+      - 'apps/**'
+      - 'packages/**'
+      - 'scripts/**'
+      - 'package.json'
+      - 'bun.lock'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      U_AGENTS_ALLOW_CODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.12'
+      - name: Build Windows x64 installer
+        run: ./apps/electron/scripts/build-win.ps1
+      - name: Install and verify packaged runtimes
+        run: |
+          $installer = Resolve-Path 'apps/electron/release/U-Agents-x64.exe'
+          $destination = Join-Path $env:RUNNER_TEMP 'u-agents-installed'
+          $process = Start-Process $installer -ArgumentList '/S', "/D=$destination" -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "Installer failed: $($process.ExitCode)" }
+          $resources = Join-Path $destination 'resources'
+          $app = Join-Path $resources 'app'
+          foreach ($relative in @('dist/main.cjs', 'dist/preload.cjs', 'dist/interceptor.cjs', 'resources/pi-agent-server/index.js', 'node_modules/@anthropic-ai/claude-agent-sdk/sdk.mjs', 'node_modules/@anthropic-ai/claude-agent-sdk-binary/claude.exe', 'node_modules/@vscode/ripgrep/bin/rg.exe', 'packages/shared/src/config/u-agents-feature-policy.ts')) {
+            if (-not (Test-Path (Join-Path $app $relative))) { throw "Missing installed resource: $relative" }
+          }
+          if (-not (Test-Path "$resources/messaging-whatsapp-worker/worker.cjs")) { throw 'Missing WhatsApp worker' }
+          $env:U_AGENTS_CONFIG_DIR = Join-Path $env:RUNNER_TEMP 'u-agents-smoke-config'
+          $env:CRAFT_CONFIG_DIR = $env:U_AGENTS_CONFIG_DIR
+          New-Item -ItemType Directory -Force $env:U_AGENTS_CONFIG_DIR | Out-Null
+          Set-Location $env:RUNNER_TEMP
+          & "$resources/vendor/bun/bun.exe" --preload "$app/packages/shared/src/unified-network-interceptor.ts" -e 'console.log("INSTALLED_PRELOAD_OK", Bun.version)'
+          if ($LASTEXITCODE -ne 0) { throw 'Installed preload failed' }
+          & "$app/resources/bin/win32-x64/uv.exe" --version
+          if ($LASTEXITCODE -ne 0) { throw 'Installed uv failed' }
+          Set-Location $env:GITHUB_WORKSPACE
+          $hash = (Get-FileHash $installer -Algorithm SHA256).Hash.ToLower()
+          "$hash  U-Agents-x64.exe" | Set-Content apps/electron/release/SHA256SUMS.txt
+          "Commit: $env:GITHUB_SHA" | Set-Content apps/electron/release/BUILD.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: U-Agents-0.14.0-windows-x64
+          path: |
+            apps/electron/release/U-Agents-x64.exe
+            apps/electron/release/SHA256SUMS.txt
+            apps/electron/release/BUILD.txt
+          if-no-files-found: error
+          retention-days: 14

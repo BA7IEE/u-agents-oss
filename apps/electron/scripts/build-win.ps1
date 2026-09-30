@@ -107,7 +107,8 @@ foreach ($folder in $foldersToClean) {
 Write-Host "Installing dependencies..."
 Push-Location $RootDir
 try {
-    bun install
+    bun install --frozen-lockfile
+    if ($LASTEXITCODE -ne 0) { throw "Dependency installation failed" }
 } finally {
     Pop-Location
 }
@@ -253,146 +254,18 @@ foreach ($dep in @("interceptor-common.ts", "feature-flags.ts", "interceptor-req
     }
 }
 
-# 6. Build Electron app
-Write-Host "Building Electron app..."
+# Include the standalone preload's transitive policy dependency.
+New-Item -ItemType Directory -Force -Path "$ElectronDir\packages\shared\src\config" | Out-Null
+Copy-Item "$RootDir\packages\shared\src\config\u-agents-feature-policy.ts" "$ElectronDir\packages\shared\src\config\"
 
-# Build main process with OAuth credentials
-Write-Host "  Building main process..."
-$MainArgs = @(
-    "apps/electron/src/main/index.ts",
-    "--bundle",
-    "--platform=node",
-    "--format=cjs",
-    "--outfile=apps/electron/dist/main.cjs",
-    "--external:electron",
-    # SDK 0.3.x is pure ESM and calls createRequire(import.meta.url) at module init.
-    # esbuild's CJS bundling leaves import.meta.url undefined for inlined ESM, crashing
-    # the app on load (ERR_INVALID_ARG_VALUE). Externalize it so Node loads it natively
-    # as ESM — the SDK core is staged into the app's node_modules above (step 4).
-    # Must stay in sync with package.json build:main and scripts/electron-dev.ts.
-    "--external:@anthropic-ai/claude-agent-sdk"
-)
-# Add OAuth defines if env vars are set
-if ($env:GOOGLE_OAUTH_CLIENT_ID) {
-    $MainArgs += "--define:process.env.GOOGLE_OAUTH_CLIENT_ID=`"'$env:GOOGLE_OAUTH_CLIENT_ID'`""
-}
-if ($env:GOOGLE_OAUTH_CLIENT_SECRET) {
-    $MainArgs += "--define:process.env.GOOGLE_OAUTH_CLIENT_SECRET=`"'$env:GOOGLE_OAUTH_CLIENT_SECRET'`""
-}
-if ($env:SLACK_OAUTH_CLIENT_ID) {
-    $MainArgs += "--define:process.env.SLACK_OAUTH_CLIENT_ID=`"'$env:SLACK_OAUTH_CLIENT_ID'`""
-}
-if ($env:SLACK_OAUTH_CLIENT_SECRET) {
-    $MainArgs += "--define:process.env.SLACK_OAUTH_CLIENT_SECRET=`"'$env:SLACK_OAUTH_CLIENT_SECRET'`""
-}
-if ($env:MICROSOFT_OAUTH_CLIENT_ID) {
-    $MainArgs += "--define:process.env.MICROSOFT_OAUTH_CLIENT_ID=`"'$env:MICROSOFT_OAUTH_CLIENT_ID'`""
-}
+# Use the shared build chain so Windows includes the same defines, shims,
+# interceptor and subprocess builds as macOS.
 Push-Location $RootDir
 try {
-    # U-API: use Bun's local package runner; npm 11 rejects our direct-dependency security overrides with EOVERRIDE.
-    & bunx esbuild @MainArgs
-    if ($LASTEXITCODE -ne 0) { throw "Main process build failed" }
-} finally {
-    Pop-Location
-}
-
-# U-API: build-win.ps1 missed subprocess server build that build-dmg.sh L208 triggers
-# via `bun run electron:build`. Without this step apps/electron/resources/pi-agent-server/
-# stays empty, the packaged EXE ships no pi-agent-server bundle, and the first LLM
-# message throws "piServerPath not configured" at runtime.
-# See .planning/12-subprocess-build-pipeline.md §0.3 + §2.3 + scripts/copy-subprocess-servers.ts.
-#
-# REVIEW-7 修订（v0.9.5 sync, 2026-05-22）：原命令 `bun run electron:build:subprocess` 是
-# 笔误—root package.json 没有该 script。正确链：
-#   (a) `bun run server:build:subprocess`  → build pi-agent-server
-#   (b) `bun run scripts/copy-subprocess-servers.ts` → copy 产物到 apps/electron/resources/
-#       + re-sync dist/resources（让 electron-builder packaging 引用一致）
-Write-Host "  Building subprocess servers (pi-agent-server)..."
-Push-Location $RootDir
-try {
-    bun run server:build:subprocess
-    if ($LASTEXITCODE -ne 0) { throw "Subprocess server build (compile) failed" }
+    bun run electron:build
+    if ($LASTEXITCODE -ne 0) { throw "Electron build failed" }
     bun run scripts/copy-subprocess-servers.ts
-    if ($LASTEXITCODE -ne 0) { throw "Subprocess server copy failed" }
-} finally {
-    Pop-Location
-}
-
-# U-API: build-win.ps1 misses electron-build-main.ts:335 buildWhatsAppWorker() step.
-# Windows path uses inline `bunx esbuild` for main bundle (instead of `bun run
-# electron:build:main`), so the helper that bundles Baileys + WhatsApp worker
-# never runs. electron-builder.yml extraResources expects worker.cjs at
-# packages/messaging-whatsapp-worker/dist/worker.cjs — without this step the
-# packaged EXE ships no WhatsApp worker bundle (event #4, fix delta from #3).
-# See .planning/12-subprocess-build-pipeline.md §0.4 + scripts/build-wa-worker.ts.
-Write-Host "  Building WhatsApp worker (Baileys subprocess)..."
-Push-Location $RootDir
-try {
-    bun run build:wa-worker
-    if ($LASTEXITCODE -ne 0) { throw "WhatsApp worker build failed" }
-} finally {
-    Pop-Location
-}
-
-# U-API: build-win.ps1 misses electron-build-main.ts:332 buildInterceptor() step.
-# §6 above only copies the .ts source for dev-mode --preload; packaged builds
-# need apps/electron/dist/interceptor.cjs. runtime-resolver.ts:168 expects this
-# bundle at packaged runtime — without it the Pi subprocess silently falls back
-# to no interceptor (loses traffic monitor / MCP schema injection / tool intent
-# capture). LLM messages still work but multi-MCP scenarios break.
-# Same root cause as incidents #3/#4: build-win.ps1 bypasses electron:build:main
-# chain, so each helper in the 5-step main bundle pipeline must be补 separately.
-# See .planning/12-subprocess-build-pipeline.md §0.5 (incident #5).
-Write-Host "  Building network interceptor bundle..."
-Push-Location $ElectronDir
-try {
-    bun run build:interceptor
-    if ($LASTEXITCODE -ne 0) { throw "Interceptor bundle build failed" }
-} finally {
-    Pop-Location
-}
-
-# Build preload
-Write-Host "  Building preload..."
-Push-Location $RootDir
-try {
-    bun run electron:build:preload
-    if ($LASTEXITCODE -ne 0) { throw "Preload build failed" }
-} finally {
-    Pop-Location
-}
-
-# Build renderer (frontend)
-Write-Host "  Building renderer (frontend)..."
-Push-Location $RootDir
-try {
-    # Clean previous renderer build
-    $RendererDir = "$ElectronDir\dist\renderer"
-    if (Test-Path $RendererDir) { Remove-Item -Recurse -Force $RendererDir }
-
-    # Run vite build
-    bunx vite build --config apps/electron/vite.config.ts
-    if ($LASTEXITCODE -ne 0) { throw "Renderer build failed" }
-
-    # Verify renderer was built
-    if (-not (Test-Path "$RendererDir\index.html")) {
-        throw "Renderer build verification failed: index.html not found"
-    }
-    Write-Host "  Renderer build verified: $RendererDir" -ForegroundColor Green
-} finally {
-    Pop-Location
-}
-
-# Copy all resources and bundled assets using the shared script.
-# Single source of truth — matches Mac/Linux build (bun run build:copy).
-# Copies: resources (icons, DMG bg), docs, tool-icons, themes, permissions, config-defaults.
-Write-Host "  Copying resources and bundled assets..."
-Push-Location $ElectronDir
-try {
-    bun scripts/copy-assets.ts
-    if ($LASTEXITCODE -ne 0) { throw "Asset copy failed" }
-    Write-Host "  Assets copied" -ForegroundColor Green
+    if ($LASTEXITCODE -ne 0) { throw "Subprocess resource staging failed" }
 } finally {
     Pop-Location
 }
@@ -497,7 +370,7 @@ while (-not $builderSuccess -and $builderRetry -lt $maxBuilderRetries) {
         Start-Sleep -Seconds 1
     }
 
-    bunx electron-builder --win --x64 2>&1 | Tee-Object -Variable builderOutput
+    bun x --no-install electron-builder --win --x64 --publish never 2>&1 | Tee-Object -Variable builderOutput
 
     if ($LASTEXITCODE -eq 0) {
         $builderSuccess = $true
