@@ -39,7 +39,7 @@ jobs:
           if ($process.ExitCode -ne 0) { throw "Installer failed: $($process.ExitCode)" }
           $resources = Join-Path $destination 'resources'
           $app = Join-Path $resources 'app'
-          foreach ($relative in @('dist/main.cjs', 'dist/preload.cjs', 'dist/interceptor.cjs', 'resources/pi-agent-server/index.js', 'node_modules/@anthropic-ai/claude-agent-sdk/sdk.mjs', 'node_modules/@anthropic-ai/claude-agent-sdk-binary/claude.exe', 'node_modules/@vscode/ripgrep/bin/rg.exe', 'packages/shared/src/config/u-agents-feature-policy.ts')) {
+          foreach ($relative in @('dist/main.cjs', 'dist/bootstrap-preload.cjs', 'dist/browser-toolbar-preload.cjs', 'dist/interceptor.cjs', 'resources/pi-agent-server/index.js', 'node_modules/@anthropic-ai/claude-agent-sdk/sdk.mjs', 'node_modules/@anthropic-ai/claude-agent-sdk-binary/claude.exe', 'node_modules/@vscode/ripgrep/bin/rg.exe', 'packages/shared/src/config/u-agents-feature-policy.ts')) {
             if (-not (Test-Path (Join-Path $app $relative))) { throw "Missing installed resource: $relative" }
           }
           if (-not (Test-Path "$resources/messaging-whatsapp-worker/worker.cjs")) { throw 'Missing WhatsApp worker' }
