@@ -508,6 +508,7 @@ export const RichTextInput = React.forwardRef<RichTextInputHandle, RichTextInput
       workspaceId,
       disabled = false,
       className,
+      style,
       onFocus,
       onBlur,
       onKeyDown,
@@ -779,6 +780,9 @@ export const RichTextInput = React.forwardRef<RichTextInputHandle, RichTextInput
           contentEditable={!disabled}
           suppressContentEditableWarning
           tabIndex={disabled ? -1 : 0}
+          // Disable auto-capitalization/correction that breaks IME (e.g. CJK pinyin) input (#837/#878)
+          autoCapitalize="none"
+          autoCorrect="off"
           className={cn(
             'outline-none text-sm whitespace-pre-wrap break-words',
             'min-h-[1.5em]',
@@ -788,7 +792,7 @@ export const RichTextInput = React.forwardRef<RichTextInputHandle, RichTextInput
             className
           )}
           // Use inline style for line-height to override text-sm's built-in line-height
-          style={{ lineHeight: 1.25 }}
+          style={{ lineHeight: 1.25, ...style }}
           onInput={handleInput}
           onKeyDown={handleKeyDownInternal}
           onFocus={handleFocus}

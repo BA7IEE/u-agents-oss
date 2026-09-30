@@ -617,3 +617,10 @@ rclone copy r2:u-agents-update/v1.x.y-1/latest-mac.yml r2:u-agents-update/latest
 ### 11.6 macOS Apple Silicon 用户装了 x64 版
 
 → 用户从下载页选错了。在网站上做 UA 检测自动推荐对应版本。
+
+
+## 2026-10-01 · v0.14.0 升级候选实施补充
+
+构建目标为锁定 v0.14.0 的独立升级分支。干净 Electron 编译与 frozen lock 验证是代码门禁；本轮没有签名、公证、生成正式安装包、发布更新或修改 main。正式数据停机备份、回滚、Windows/macOS 安装验收及付费生图对账仍是发布前置项。
+
+执行证据与剩余门禁见 [UPGRADE-EXECUTION-v0.14.0.md](UPGRADE-EXECUTION-v0.14.0.md)。本节记录候选分支，不代表 main 或已发布版本。

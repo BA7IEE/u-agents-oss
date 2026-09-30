@@ -55,6 +55,8 @@ export interface SessionScopedToolCallbacks {
   setSessionLabelsFn?: (sessionId: string | undefined, labels: string[]) => void | Promise<void>;
   /** Set status on a session (defaults to current). */
   setSessionStatusFn?: (sessionId: string | undefined, status: string) => void | Promise<void>;
+  /** Archive (archived=true) or unarchive (archived=false) a session by ID. */
+  archiveSessionFn?: (sessionId: string, archived: boolean) => void | Promise<void>;
   /** Get detailed info about a session (defaults to current). */
   getSessionInfoFn?: (sessionId?: string) => import('@u-agents/session-tools-core').SessionInfo | null;
   /** List sessions in the workspace with pagination. */
@@ -81,6 +83,22 @@ export interface SessionScopedToolCallbacks {
   getMessagingBindingsFn?: (sessionId: string) => Array<{ platform: string; channelId: string; threadId?: number; channelName?: string; enabled: boolean }>;
   /** Unbind messaging channels from a session. Returns count of removed bindings. */
   unbindMessagingChannelFn?: (sessionId: string, platform?: string) => number;
+  /** Create a Craft Agents Task (board card + task.yaml + orchestrator session) without running it. */
+  createTaskFn?: (
+    input: import('@u-agents/session-tools-core').CreateTaskInput
+  ) => Promise<import('@u-agents/session-tools-core').CreateTaskResult>;
+  /**
+   * Pages tools (list/get/create/update/write data/delete) — grouped in one
+   * object because the six operations always ship together. Wired by
+   * SessionManager to the invoking session's workspace.
+   */
+  pages?: import('@u-agents/session-tools-core').PagesToolCallbacks;
+  /**
+   * Decision-layer callback for the `decide` tool (Jev / System One). Wired by
+   * SessionManager from `@u-agents/shared/decisions`; gating (Settings switch,
+   * feature toggle, key) happens inside the callback at call time.
+   */
+  decide?: import('@u-agents/session-tools-core').DecisionToolCallbacks;
 }
 
 // Registry of callbacks keyed by sessionId

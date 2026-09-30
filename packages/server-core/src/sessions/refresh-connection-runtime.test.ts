@@ -203,28 +203,20 @@ describe('refreshConnectionRuntime', () => {
     // helper must forward that field on `customModels` so the Pi subprocess
     // can re-register the model with `input: ['text', 'image']`.
     const agent = createAgentStub()
-    injectSession(sm, 'shape-check', tmpRoot, 'slug-A', agent)
-
-    await sm.refreshConnectionRuntime('slug-A')
-
+    const managed = injectSession(sm, 'shape-check', tmpRoot, 'slug-A', agent)
+    // U-API: give the real refresh routine an actual connection; an absent slug cannot test capabilities.
+    await (sm as any).runAgentRuntimeRefresh(managed, {
+      resolvedModel: 'vision', authType: 'api_key_with_endpoint', connection: {
+        slug: 'slug-A', providerType: 'pi_compat', baseUrl: 'https://token.u-studio.cn/v1',
+        customEndpoint: { api: 'openai-completions', supportsImages: true },
+        models: [{ id: 'vision', supportsImages: false, contextWindow: 1000 }],
+      },
+    }, 'runtime', 'restart', false, 'capability regression')
     expect(agent.updateRuntimeConfig).toHaveBeenCalledTimes(1)
-    const payload = agent.updateRuntimeConfig.mock.calls[0]?.[0]
-    expect(payload).toBeDefined()
-    expect(payload).toMatchObject({
-      model: expect.any(String),
-      runtime: expect.any(Object),
+    expect(agent.updateRuntimeConfig.mock.calls[0]?.[0]).toMatchObject({
+      model: 'vision', providerType: 'pi_compat', runtime: {
+        customModels: [{ id: 'vision', supportsImages: false, contextWindow: 1000 }],
+      },
     })
-    // The runtime envelope mirrors what `pi-agent.ts:requestRuntimeConfigUpdate`
-    // unpacks — `customModels` shape preserves `supportsImages` when set.
-    if (payload.runtime?.customModels) {
-      for (const m of payload.runtime.customModels) {
-        if (typeof m === 'object') {
-          expect(typeof m.id).toBe('string')
-          if ('supportsImages' in m) {
-            expect(typeof m.supportsImages).toBe('boolean')
-          }
-        }
-      }
-    }
   })
 })

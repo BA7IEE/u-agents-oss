@@ -33,6 +33,7 @@ import {
   Info,
   MailOpen,
   FolderKanban,
+  PanelsTopLeft,
 } from "lucide-react"
 // SessionStatusIcons no longer used - icons come from dynamic sessionStatuses
 import { SourceAvatar } from "@/components/ui/source-avatar"
@@ -43,6 +44,7 @@ import { cn } from "@/lib/utils"
 import { isMac } from "@/lib/platform"
 import { Button } from "@/components/ui/button"
 import { HeaderIconButton } from "@/components/ui/HeaderIconButton"
+import { resolveInheritedFilterParams, type FilterMode } from "./inherited-filter-params"
 import { Separator } from "@/components/ui/separator"
 import { Tooltip, TooltipTrigger, TooltipContent, DocumentFormattedMarkdownOverlay } from "@u-agents/ui"
 import {
@@ -91,6 +93,9 @@ import { useSetAtom } from "jotai"
 import type { Session, Workspace, FileAttachment, PermissionRequest, LoadedSource, LoadedSkill, PermissionMode, SourceFilter, AutomationFilter } from "../../../shared/types"
 import { sessionMetaMapAtom, sendToWorkspaceAtom, type SessionMeta } from "@/atoms/sessions"
 import { sourcesAtom } from "@/atoms/sources"
+import { DECISION_SETTINGS_CHANGED_EVENT, guardedModeAvailableAtom } from "@/atoms/permission-modes"
+import { DEFAULT_PERMISSION_MODES } from "@u-agents/shared/agent/modes"
+import { RtkUpdatePrompt } from "@/components/RtkUpdateDialog"
 import { skillsAtom } from "@/atoms/skills"
 import { panelStackAtom, panelCountAtom, focusedPanelIdAtom, focusedSessionIdAtom, focusNextPanelAtom, focusPrevPanelAtom, parseSessionIdFromRoute } from "@/atoms/panel-stack"
 import { type SessionStatusId, type SessionStatus, statusConfigsToSessionStatuses } from "@/config/session-status-config"
@@ -116,6 +121,7 @@ import {
   isSkillsNavigation,
   isAutomationsNavigation,
   isProjectsNavigation,
+  isPagesNavigation,
   type NavigationState,
 } from "@/contexts/NavigationContext"
 import type { SettingsSubpage } from "../../../shared/types"
@@ -126,6 +132,7 @@ import { ProjectsListPanel } from "./ProjectsListPanel"
 import { APP_EVENTS, AGENT_EVENTS, type AutomationFilterKind, AUTOMATION_TYPE_TO_FILTER_KIND } from "../automations/types"
 import { useAutomations } from "@/hooks/useAutomations"
 import { useProjects } from "@/hooks/useProjects"
+import { usePages } from "@/hooks/usePages"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { PanelHeader } from "./PanelHeader"
 import { FabNewChat } from "./FabNewChat"
@@ -169,9 +176,6 @@ interface AppShellProps {
   /** Focused mode - hides sidebars, shows only the chat content */
   isFocusedMode?: boolean
 }
-
-/** Filter mode for tri-state filtering: include shows only matching, exclude hides matching */
-type FilterMode = 'include' | 'exclude'
 
 const altClickTooltipLabel = isMac ? '⌥ click to exclude' : 'Alt click to exclude'
 
@@ -633,6 +637,10 @@ function AppShellContent({
   // so the navigator (and its resize handle) collapse to zero width while it's active.
   const isBoardView = isSessionsNavigation(navState) && navState.viewMode === 'board'
 
+  // Pages behaves the same way: both the library grid and an open page render
+  // full-width in the content area — there is no pages navigator list.
+  const isPagesView = isPagesNavigation(navState)
+
   // Derive source filter from navigation state (only when in sources navigator)
   const sourceFilter: SourceFilter | null = isSourcesNavigation(navState) ? navState.filter ?? null : null
 
@@ -934,6 +942,7 @@ function AppShellContent({
   } = useAutomations(activeWorkspaceId)
 
   const { projects } = useProjects(activeWorkspaceId)
+  const { pages } = usePages(activeWorkspaceId)
   const projectMenuOptions = useMemo(
     () => projects.map(p => ({ id: p.config.id, slug: p.config.slug, name: p.config.name, color: p.config.color })),
     [projects],
@@ -968,6 +977,34 @@ function AppShellContent({
       console.error('[Chat] Failed to load workspace settings:', err)
     })
   }, [activeWorkspaceId])
+
+  // Guarded permission mode is offered while the decision layer and its `guardedMode` feature
+  // are on, on the server this workspace talks to. Refreshed on workspace switch and when the AI
+  // settings page saves decision model settings.
+  const guardedModeAvailable = useAtomValue(guardedModeAvailableAtom)
+  const setGuardedModeAvailable = useSetAtom(guardedModeAvailableAtom)
+  React.useEffect(() => {
+    if (!activeWorkspaceId || typeof window.electronAPI?.getDecisionLayerStatus !== 'function') return
+    let cancelled = false
+    const refresh = () => {
+      window.electronAPI.getDecisionLayerStatus().then((status) => {
+        // Offered only when the check can actually run: switched on and a key (or keyless provider) to call it with.
+        const { settings } = status
+        const preset = status.presets.find(p => p.id === settings.provider)
+        const hasKey = !!settings.connectionSlug || status.providersWithKey.includes(settings.provider) || preset?.requiresKey === false
+        if (!cancelled) setGuardedModeAvailable(settings.enabled && settings.features.guardedMode === true && hasKey)
+      }).catch((err) => {
+        console.error('[AppShell] Failed to load decision model status:', err)
+        if (!cancelled) setGuardedModeAvailable(false)
+      })
+    }
+    refresh()
+    window.addEventListener(DECISION_SETTINGS_CHANGED_EVENT, refresh)
+    return () => {
+      cancelled = true
+      window.removeEventListener(DECISION_SETTINGS_CHANGED_EVENT, refresh)
+    }
+  }, [activeWorkspaceId, setGuardedModeAvailable])
 
   // Reset UI state when workspace changes
   // This prevents stale search queries, focused items, and filter state from persisting
@@ -1198,8 +1235,13 @@ function AppShellContent({
     if (effectiveSessionId) {
       const currentOptions = contextValue.sessionOptions.get(effectiveSessionId)
       const currentMode = currentOptions?.permissionMode ?? 'ask'
-      // Cycle through enabled permission modes
-      const modes = enabledModes.length >= 2 ? enabledModes : ['safe', 'ask', 'allow-all'] as PermissionMode[]
+      // Cycle through enabled permission modes. An unavailable Guarded behaves as Ask, so it
+      // stands in as Ask (never re-adding Execute the user left out of the cycle).
+      const base = enabledModes.length >= 2 ? enabledModes : DEFAULT_PERMISSION_MODES
+      const listed = base
+        .map(mode => (mode === 'guarded' && !guardedModeAvailable ? 'ask' : mode))
+        .filter((mode, index, all) => all.indexOf(mode) === index)
+      const modes = listed.length >= 2 ? listed : (['safe', 'ask'] as PermissionMode[])
       const currentIndex = modes.indexOf(currentMode)
       // If current mode not in enabled list, jump to first enabled mode
       const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % modes.length
@@ -1830,6 +1872,11 @@ function AppShellContent({
     navigate(routes.view.projects())
   }, [])
 
+  // Handler for pages view
+  const handlePagesClick = useCallback(() => {
+    navigate(routes.view.pages())
+  }, [])
+
   const handleAutomationsScheduledClick = useCallback(() => {
     navigate(routes.view.automationsScheduled())
   }, [])
@@ -2009,30 +2056,14 @@ function AppShellContent({
   }, [activeWorkspace?.id, navigate, t])
 
   /**
-   * Resolve the "inherit sole active filter" rule: if exactly one filter value
-   * is selected across statuses + labels + projects, return it as new-session
-   * params. Otherwise return null (fall back to workspace defaults).
+   * Resolve the "inherit sole active filter" rule for new sessions. Only
+   * include-mode filters are candidates — an excluded status/label/project must
+   * never be inherited (#970). See resolveInheritedFilterParams.
    */
-  const resolveInheritedNewSessionParams = useCallback((): { status?: string; label?: string; project?: string } | null => {
-    const statusCount = listFilter.size
-    const labelCount = labelFilter.size
-    const projectCount = projectFilter.size
-    const total = statusCount + labelCount + projectCount
-    if (total !== 1) return null
-    if (statusCount === 1) {
-      const [stateId] = [...listFilter.keys()]
-      return { status: stateId }
-    }
-    if (labelCount === 1) {
-      const [labelId] = [...labelFilter.keys()]
-      return { label: labelId }
-    }
-    if (projectCount === 1) {
-      const [projectId] = [...projectFilter.keys()]
-      return { project: projectId }
-    }
-    return null
-  }, [listFilter, labelFilter, projectFilter])
+  const resolveInheritedNewSessionParams = useCallback(
+    () => resolveInheritedFilterParams(listFilter, labelFilter, projectFilter),
+    [listFilter, labelFilter, projectFilter]
+  )
 
   // Create a new chat and select it
   const handleNewChat = useCallback((newPanel: boolean = false) => {
@@ -2133,15 +2164,17 @@ function AppShellContent({
     }
     flattenTree(labelTree)
 
-    // 3. Sources, Skills, Settings
+    // 3. Sources, Skills, Projects, Pages, Automations, Settings (visual order)
     result.push({ id: 'nav:sources', type: 'nav', action: handleSourcesClick })
     result.push({ id: 'nav:skills', type: 'nav', action: handleSkillsClick })
+    result.push({ id: 'nav:projects', type: 'nav', action: handleProjectsClick })
+    result.push({ id: 'nav:pages', type: 'nav', action: handlePagesClick })
     result.push({ id: 'nav:automations', type: 'nav', action: handleAutomationsClick })
     result.push({ id: 'nav:settings', type: 'nav', action: () => handleSettingsClick() })
     result.push({ id: 'nav:whats-new', type: 'nav', action: handleWhatsNewClick })
 
     return result
-  }, [handleAllSessionsClick, handleFlaggedClick, handleArchivedClick, handleSessionStatusClick, effectiveSessionStatuses, handleLabelClick, labelConfigs, labelTree, viewConfigs, handleViewClick, handleSourcesClick, handleSkillsClick, handleAutomationsClick, handleSettingsClick, handleWhatsNewClick])
+  }, [handleAllSessionsClick, handleFlaggedClick, handleArchivedClick, handleSessionStatusClick, effectiveSessionStatuses, handleLabelClick, labelConfigs, labelTree, viewConfigs, handleViewClick, handleSourcesClick, handleSkillsClick, handleProjectsClick, handlePagesClick, handleAutomationsClick, handleSettingsClick, handleWhatsNewClick])
 
   // Toggle folder expanded state
   const handleToggleFolder = React.useCallback((path: string) => {
@@ -2263,6 +2296,11 @@ function AppShellContent({
     // Projects navigator
     if (isProjectsNavigation(navState)) {
       return t("sidebar.allProjects")
+    }
+
+    // Pages navigator
+    if (isPagesNavigation(navState)) {
+      return t("sidebar.allPages")
     }
 
     // Automations navigator
@@ -2627,6 +2665,25 @@ function AppShellContent({
                         // Highlight when on allSessions view AND filter includes this project (the jump-to state)
                         variant: (sessionFilter?.kind === 'allSessions' && projectFilter.get(p.config.id) === 'include') ? "default" as const : "ghost" as const,
                         onClick: () => handleJumpToProjectSessions(p.config.id),
+                      })),
+                    },
+                    {
+                      id: "nav:pages",
+                      title: t("sidebar.pages"),
+                      label: String(pages.length),
+                      icon: PanelsTopLeft,
+                      // Highlight on the library grid only, not when a page is open (mirrors Projects)
+                      variant: (isPagesNavigation(navState) && !navState.details) ? "default" : "ghost",
+                      onClick: handlePagesClick,
+                      expandable: pages.length > 0,
+                      expanded: isExpanded('nav:pages'),
+                      onToggle: () => toggleExpanded('nav:pages'),
+                      items: pages.map(p => ({
+                        id: `nav:pages:${p.config.id}`,
+                        title: p.config.name,
+                        icon: PanelsTopLeft,
+                        variant: (isPagesNavigation(navState) && navState.details?.pageSlug === p.config.slug) ? "default" as const : "ghost" as const,
+                        onClick: () => navigate(routes.view.pages(p.config.slug)),
                       })),
                     },
                     {
@@ -3601,7 +3658,7 @@ function AppShellContent({
             )}
             </div>
           }
-          navigatorWidth={isAutoCompact ? sessionListWidth : (effectiveSidebarAndNavigatorHidden || isBoardView ? 0 : sessionListWidth)}
+          navigatorWidth={isAutoCompact ? sessionListWidth : (effectiveSidebarAndNavigatorHidden || isBoardView || isPagesView ? 0 : sessionListWidth)}
           isSidebarAndNavigatorHidden={effectiveSidebarAndNavigatorHidden}
           isRightSidebarVisible={false}
           isCompact={isAutoCompact}
@@ -3641,8 +3698,8 @@ function AppShellContent({
         </div>
         )}
 
-        {/* Session List Resize Handle (absolute, hidden in focused mode and board view) */}
-        {!effectiveSidebarAndNavigatorHidden && !isBoardView && (
+        {/* Session List Resize Handle (absolute, hidden in focused mode, board view, and pages) */}
+        {!effectiveSidebarAndNavigatorHidden && !isBoardView && !isPagesView && (
         <div
           ref={sessionListHandleRef}
           onMouseDown={(e) => { e.preventDefault(); setIsResizing('session-list') }}
@@ -3906,6 +3963,8 @@ function AppShellContent({
           Mounted here so they survive context-menu / dropdown close. */}
       <MessagingDialogHost />
 
+      {/* Asks to update rtk when Token Optimization is on but the installed rtk corrupts output */}
+      <RtkUpdatePrompt workspaceId={activeWorkspaceId} />
     </AppShellProvider>
   )
 }

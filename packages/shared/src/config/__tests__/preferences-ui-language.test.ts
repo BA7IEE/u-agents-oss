@@ -22,7 +22,7 @@ interface RunResult {
 
 function runScript(configDir: string, script: string): RunResult {
   const result = Bun.spawnSync([process.execPath, '--eval', script], {
-    env: { ...process.env, CRAFT_CONFIG_DIR: configDir },
+    env: { ...process.env, U_AGENTS_CONFIG_DIR: configDir, CRAFT_CONFIG_DIR: configDir },
     stdout: 'pipe',
     stderr: 'pipe',
   });

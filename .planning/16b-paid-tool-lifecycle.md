@@ -353,3 +353,10 @@ interface PaidToolErrorV1 {
 - [x] 实现未扩张为通用付费平台或durable ledger。
 
 该合同只提供进程内at-most-one accepted POST，不宣称网关内部不会重试；网关放大请求仍由 [`16a-image-api-evidence.md`](16a-image-api-evidence.md) 的运维门禁负责。
+
+
+## 2026-10-01 · v0.14.0 升级候选实施补充
+
+付费调用上下文适配上游 ChatOptions.turnContext；plain/source activation retry 复用原 invocationId/nonce；新排队消息创建新上下文，steer 撤销当前授权，结束时保留可信待续接。callback 校验 workspace + session + owner。仍需正式安装包上的计费对账与人工验收，本轮仅 mock/合成测试，未发起收费请求。
+
+执行证据与剩余门禁见 [UPGRADE-EXECUTION-v0.14.0.md](UPGRADE-EXECUTION-v0.14.0.md)。本节记录候选分支，不代表 main 或已发布版本。

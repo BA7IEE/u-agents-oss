@@ -22,3 +22,20 @@ describe('paid image tool registry', () => {
     expect(unregisterPaidImageToolCallback('/tmp/workspace/session-a', 'new-owner')).toBe(true)
   })
 })
+
+// U-API: identical session ids and owner tokens do not authorize a different workspace.
+it('isolates paid callbacks by canonical workspace/session path', async () => {
+  clearPaidImageToolRegistryForTests()
+  let posts = 0
+  registerPaidImageToolCallback('/tmp/paid-workspace-a/sessions/same', 'owner', async () => {
+    posts++
+    return result('authorized')
+  })
+  expect(await executePaidImageToolCallback('/tmp/paid-workspace-b/sessions/same', 'owner', input)).toBeNull()
+  expect(posts).toBe(0)
+  expect(await executePaidImageToolCallback('/tmp/paid-workspace-a/sessions/other', 'owner', input)).toBeNull()
+  expect(posts).toBe(0)
+  await executePaidImageToolCallback('/tmp/paid-workspace-a/sessions/same', 'owner', input)
+  expect(posts).toBe(1)
+  clearPaidImageToolRegistryForTests()
+})

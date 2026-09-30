@@ -51,7 +51,7 @@ describe('web-fetch SSRF guard — redirect bypass 防护（v27 真修）', () =
   it('passes redirect:"manual" to fetch options', async () => {
     globalThis.fetch = mockFetchOk();
     const tool = createWebFetchTool(() => null);
-    await tool.execute('test-1', { url: 'https://example.com' });
+    await tool.execute('test-1', { url: 'https://93.184.216.34' });
     expect(fetchCalls).toHaveLength(1);
     expect(fetchCalls[0]?.init.redirect).toBe('manual');
   });
@@ -59,7 +59,7 @@ describe('web-fetch SSRF guard — redirect bypass 防护（v27 真修）', () =
   it('rejects 302 redirect to cloud metadata (would otherwise leak IAM credentials)', async () => {
     globalThis.fetch = mockFetchRedirect('http://169.254.169.254/latest/meta-data/iam/security-credentials/', 302);
     const tool = createWebFetchTool(() => null);
-    const result = await tool.execute('test-2', { url: 'https://example.com' });
+    const result = await tool.execute('test-2', { url: 'https://93.184.216.34' });
     // fetch was called once (to example.com legitimately), but redirect was NOT followed
     expect(fetchCalls).toHaveLength(1);
     const errResult = result as { content: Array<{ text: string }>; details?: { isError?: boolean } };
@@ -71,7 +71,7 @@ describe('web-fetch SSRF guard — redirect bypass 防护（v27 真修）', () =
   it('rejects 301 permanent redirect to private IP', async () => {
     globalThis.fetch = mockFetchRedirect('http://192.168.1.1/admin', 301);
     const tool = createWebFetchTool(() => null);
-    const result = await tool.execute('test-3', { url: 'https://example.com' });
+    const result = await tool.execute('test-3', { url: 'https://93.184.216.34' });
     const errResult = result as { content: Array<{ text: string }>; details?: { isError?: boolean } };
     expect(errResult.details?.isError).toBe(true);
     expect(errResult.content[0]?.text).toContain('301');
@@ -80,7 +80,7 @@ describe('web-fetch SSRF guard — redirect bypass 防护（v27 真修）', () =
   it('rejects 307 temporary redirect (preserves method)', async () => {
     globalThis.fetch = mockFetchRedirect('https://attacker.com/', 307);
     const tool = createWebFetchTool(() => null);
-    const result = await tool.execute('test-4', { url: 'https://example.com' });
+    const result = await tool.execute('test-4', { url: 'https://93.184.216.34' });
     const errResult = result as { content: Array<{ text: string }>; details?: { isError?: boolean } };
     expect(errResult.details?.isError).toBe(true);
     expect(errResult.content[0]?.text).toContain('307');
@@ -89,7 +89,7 @@ describe('web-fetch SSRF guard — redirect bypass 防护（v27 真修）', () =
   it('rejects 308 permanent redirect (preserves method)', async () => {
     globalThis.fetch = mockFetchRedirect('https://elsewhere.com/', 308);
     const tool = createWebFetchTool(() => null);
-    const result = await tool.execute('test-5', { url: 'https://example.com' });
+    const result = await tool.execute('test-5', { url: 'https://93.184.216.34' });
     const errResult = result as { content: Array<{ text: string }>; details?: { isError?: boolean } };
     expect(errResult.details?.isError).toBe(true);
     expect(errResult.content[0]?.text).toContain('308');
@@ -98,7 +98,7 @@ describe('web-fetch SSRF guard — redirect bypass 防护（v27 真修）', () =
   it('accepts legitimate non-redirect 200 response (passes through)', async () => {
     globalThis.fetch = mockFetchOk();
     const tool = createWebFetchTool(() => null);
-    const result = await tool.execute('test-6', { url: 'https://example.com' });
+    const result = await tool.execute('test-6', { url: 'https://93.184.216.34' });
     expect(fetchCalls).toHaveLength(1);
     const okResult = result as { content: Array<{ text: string }>; details?: { isError?: boolean } };
     expect(okResult.details?.isError).toBeUndefined();

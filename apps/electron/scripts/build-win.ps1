@@ -305,10 +305,10 @@ try {
 #
 # REVIEW-7 修订（v0.9.5 sync, 2026-05-22）：原命令 `bun run electron:build:subprocess` 是
 # 笔误—root package.json 没有该 script。正确链：
-#   (a) `bun run server:build:subprocess`  → build session-mcp-server + pi-agent-server
+#   (a) `bun run server:build:subprocess`  → build pi-agent-server
 #   (b) `bun run scripts/copy-subprocess-servers.ts` → copy 产物到 apps/electron/resources/
 #       + re-sync dist/resources（让 electron-builder packaging 引用一致）
-Write-Host "  Building subprocess servers (pi-agent-server + session-mcp-server)..."
+Write-Host "  Building subprocess servers (pi-agent-server)..."
 Push-Location $RootDir
 try {
     bun run server:build:subprocess

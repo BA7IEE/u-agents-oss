@@ -282,8 +282,8 @@ export class SecureStorageBackend implements CredentialBackend {
 
   private saveStoreSync(store: CredentialStore): void {
     // Ensure directory exists
-    if (!existsSync(CREDENTIALS_DIR)) {
-      mkdirSync(CREDENTIALS_DIR, { recursive: true, mode: 0o700 });
+    if (!existsSync(CONFIG_DIR)) {
+      mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 });
     }
 
     // Use existing salt or generate new one

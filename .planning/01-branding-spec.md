@@ -1800,3 +1800,10 @@ grep -rE 'com\.lukilabs' . | grep -v node_modules
 4. 跑 typecheck 确认无破坏
 5. 跑 `.planning/09-test-checklist.md`
 6. 通过后合并到主分支
+
+
+## 2026-10-01 · v0.14.0 升级候选实施补充
+
+新增 Pages、Decision 残留文案与 13 份升级说明已按 U Agents 范围适配。保留 Apache 来源声明及已注册 OAuth 回调；上游域名迁移不覆盖 U Agents 下载/更新入口。
+
+执行证据与剩余门禁见 [UPGRADE-EXECUTION-v0.14.0.md](UPGRADE-EXECUTION-v0.14.0.md)。本节记录候选分支，不代表 main 或已发布版本。

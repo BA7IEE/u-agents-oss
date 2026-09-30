@@ -1,5 +1,5 @@
 # Modified by U Studio for U Agents (优智体) — derivative work
-# based on Craft Agents (Apache 2.0).
+# based on U Agents (Apache 2.0).
 #
 # Original: https://github.com/lukilabs/craft-agents-oss
 # Modifications: see .planning/01-branding-spec.md and .planning/05-build-release.md
@@ -22,9 +22,6 @@ files:
   - "!dist/renderer/src/**"
   - "!**/*.map"
   - package.json
-  # Include bundled MCP servers (bridge + session) for Codex sessions
-  - resources/bridge-mcp-server/**/*
-  - resources/session-mcp-server/**/*
   # Include Pi agent server subprocess for Pi SDK sessions
   - resources/pi-agent-server/**/*
   # Note: Bundled assets (docs, themes, permissions, tool-icons) are in resources/

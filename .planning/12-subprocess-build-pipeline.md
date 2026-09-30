@@ -381,3 +381,10 @@ throw new Error(
 - [`02-llm-gateway-spec.md`](02-llm-gateway-spec.md) §3 LLM 主链路 = pi 子进程的依据
 - `M1-READINESS.md` §阻塞项（已加 #B1）
 - `CLAUDE.md` §3.7 U-API 改造点标记规范
+
+
+## 2026-10-01 · v0.14.0 升级候选实施补充
+
+接收上游移除旧 session MCP 运行时打包依赖的调整，保留 Pi subprocess 与本地付费工具注册/owner 隔离。干净构建不复用旧 dist。Electron 编译通过不等于 Windows 原生依赖、安装包签名或运行验收通过。
+
+执行证据与剩余门禁见 [UPGRADE-EXECUTION-v0.14.0.md](UPGRADE-EXECUTION-v0.14.0.md)。本节记录候选分支，不代表 main 或已发布版本。

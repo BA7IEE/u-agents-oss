@@ -8,9 +8,9 @@
 
 ## 0. 当前基线（速查）
 
-| 指标 | 基线（2026-07-20 手动更新兜底复核）| 下次同步允许浮动 |
+| 指标 | 基线（2026-10-01 v0.14.0 候选复核）| 下次同步允许浮动 |
 |---|---|---|
-| U-API 标记总数（含全部注释格式）| **178** | ±2 |
+| U-API 标记总数（含全部注释格式）| **216** | ±2 |
 | `/* U-API START */` 块数 | **10** | 必须等于 END |
 | `/* U-API END */` 块数 | **10** | 必须等于 START |
 
@@ -22,7 +22,7 @@
 # 同时排除 apps/electron/release/ 下的历史打包副本；否则会重复统计已打包源码副本
 grep -rEn --exclude-dir=node_modules --exclude-dir=release "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
   | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
-# 期望：178（基线，允许 176-180）
+# 期望：216（候选基线，允许 214-218）
 
 # 块标记 START/END 配对（数量必须相等）
 grep -rE --exclude-dir=node_modules --exclude-dir=release "/\* U-API START" packages apps --include="*.ts" --include="*.tsx" | wc -l
@@ -367,3 +367,10 @@ grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_mod
 | C12 | 上游 release 自身 lint 违规 | sync 后跑 lint 套件，errors case-by-case 处理：语义等价改源码 / `// eslint-disable-next-line` + `// U-API:` 注释加进 §3 |
 | C13 | 上游 release 自身 test fail | 区分 (a) 我们 patch 真能修（如 routing.ts 漏分类）→ commit fix；(b) 上游 bug 我们继承 → 记 sync 报告 follow-up，不阻塞 merge |
 | C14 | build 脚本与 root chain 结构性差距（**双向**）| sync 后核 dist 产物缺什么 + **三平台 build 脚本是否都显式调 `copy-subprocess-servers`**。原向：build-win.ps1 落后 root chain（事故 #3/#4/#5）。**v0.10.0 事故 #6 揭示反向**：root chain 自身会被 sync 破坏（`electron:build:subprocess` 被删 → 依赖它的 build-dmg.sh/build-linux.sh 静默失效，macOS/Linux piServerPath，B8/B9 修）。铁律：**打包后必须真测一条 Pi 对话**（事故 #1/#6 只有真发消息才暴露，见 09 §5）|
+
+
+## v0.14.0 候选登记（2026-10-01）
+
+当前候选 **216 处 / START 10 / END 10**。逐文件增减及原标记迁移处置见 [改造点变化核对](UPGRADE-MARKER-AUDIT-v0.14.0.md)，新增 #85–#92 在该表登记。`retry-scheduler.ts` 新增持久队列政策校验标记 1 处；预检脚本位于 scripts，不计 apps/packages 主基线。
+
+原 O tracked 源码重算为 177，旧文档为 178；保留此历史差异证据。候选相对源码净增 39。登记仅针对升级分支，不表示已经合入 main 或发布。

@@ -1,7 +1,8 @@
 import log from 'electron-log/main'
 import { appendFileSync, existsSync, mkdirSync, renameSync, rmSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { homedir } from 'node:os'
+// Leaf import: the logger initializes before the rest of shared config is loaded.
+import { CONFIG_DIR } from '@u-agents/shared/config/paths'
 import type {
   MessagingLogContext,
   MessagingLogMeta,
@@ -81,8 +82,8 @@ export const searchLog = log.scope('search')
  * Kept outside the Electron-managed logs folder so messaging issues can be
  * inspected independently at a stable path across debug and production builds.
  */
-// U-API: 数据目录品牌统一为 ~/.u-agents/（不在 Electron logs 目录内，故单独写死）
-export const messagingGatewayLogPath = join(homedir(), '.u-agents', 'logs', 'messaging-gateway.log')
+// U-API: logs follow the same isolated config root as credentials and workspaces.
+export const messagingGatewayLogPath = join(CONFIG_DIR, 'logs', 'messaging-gateway.log')
 const messagingGatewayBackupPath = `${messagingGatewayLogPath}.1`
 const MESSAGING_LOG_MAX_BYTES = 5 * 1024 * 1024 // 5MB
 
@@ -211,8 +212,8 @@ export const messagingGatewayLog: MessagingLogger = new StructuredMessagingGatew
  * dedicated, always-on rotating log records the update lifecycle at a stable
  * path regardless of debug mode, mirroring the messaging-gateway log above.
  */
-// U-API: 数据目录品牌统一为 ~/.u-agents/（与 messagingGatewayLogPath 一致，避免双目录）
-export const autoUpdateLogPath = join(homedir(), '.u-agents', 'logs', 'auto-update.log')
+// U-API: logs follow the same isolated config root as credentials and workspaces.
+export const autoUpdateLogPath = join(CONFIG_DIR, 'logs', 'auto-update.log')
 const autoUpdateBackupPath = `${autoUpdateLogPath}.1`
 const AUTO_UPDATE_LOG_MAX_BYTES = 2 * 1024 * 1024 // 2MB
 

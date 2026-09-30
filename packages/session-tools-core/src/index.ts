@@ -84,6 +84,28 @@ export {
   getEffectiveHeaderNames,
 } from './source-helpers.ts';
 
+// API credential parsing and request-auth assembly (shared with @u-agents/shared)
+export {
+  isBasicAuthCredential,
+  isMultiHeaderCredential,
+  parseJsonHeaderMap,
+  apiAuthSpecFromConfig,
+  parseStoredApiCredential,
+  serializeHeaderCredential,
+  buildAuthorizationHeader,
+  buildApiAuthHeaders,
+  appendQueryAuth,
+  describeApiAuth,
+} from './api-auth.ts';
+export type {
+  ApiCredential,
+  BasicAuthCredential,
+  MultiHeaderCredential,
+  ApiAuthKind,
+  ApiAuthSpec,
+  StoredCredentialShape,
+} from './api-auth.ts';
+
 // Validation
 export {
   // Result helpers
@@ -138,6 +160,31 @@ export type {
   SendAgentMessageResult,
   ResolvedLabelsResult,
   ResolvedStatusResult,
+  CreateTaskInput,
+  CreateTaskResult,
+  // Pages types
+  PagesToolCallbacks,
+  PageToolRefreshSpec,
+  PageToolSummary,
+  PageToolDataSummary,
+  PageToolDetails,
+  CreatePageToolInput,
+  UpdatePageToolPatch,
+  PageDataToolPatch,
+  PageDataWriteSummary,
+  DeletePageToolResult,
+  // Decision tool types
+  DecisionToolCallbacks,
+  DecisionToolQuestionType,
+  DecisionToolInstructions,
+  DecisionToolCriteria,
+  DecisionToolQuestion,
+  DecisionToolState,
+  DecisionToolRequest,
+  DecisionToolAnswer,
+  DecisionToolUsage,
+  DecisionToolError,
+  DecisionToolResult,
 } from './context.ts';
 
 export { createNodeFileSystem } from './context.ts';
@@ -171,6 +218,15 @@ export {
   handleRenderTemplate,
   // Send Developer Feedback
   handleSendDeveloperFeedback,
+  // Pages
+  handleListPages,
+  handleGetPage,
+  handleCreatePage,
+  handleUpdatePage,
+  handleWritePageData,
+  handleDeletePage,
+  // Decision model
+  handleDecide,
 } from './handlers/index.ts';
 
 export type {
@@ -189,6 +245,13 @@ export type {
   ScriptSandboxArgs,
   RenderTemplateArgs,
   SendDeveloperFeedbackArgs,
+  ListPagesArgs,
+  GetPageArgs,
+  CreatePageArgs,
+  UpdatePageArgs,
+  WritePageDataArgs,
+  DeletePageArgs,
+  DecideArgs,
 } from './handlers/index.ts';
 
 // Tool definitions — single source of truth
@@ -202,6 +265,7 @@ export {
   SourceOAuthTriggerSchema,
   CredentialPromptSchema,
   CallLlmSchema,
+  DecideSchema,
   UpdatePreferencesSchema,
   TransformDataSchema,
   ScriptSandboxSchema,
@@ -212,6 +276,13 @@ export {
   BrowserToolSchema,
   // Developer feedback schema
   SendDeveloperFeedbackSchema,
+  // Pages schemas
+  ListPagesSchema,
+  GetPageSchema,
+  CreatePageSchema,
+  UpdatePageSchema,
+  WritePageDataSchema,
+  DeletePageSchema,
   // Descriptions
   TOOL_DESCRIPTIONS,
   // Registry
@@ -245,3 +316,18 @@ export type {
   SessionToolFilterOptions,
   SessionToolNameOptions,
 } from './tool-defs.ts';
+
+// Script runtime resolution + path containment (also used by the shared
+// automations script action — keep these exports runtime-only, no zod)
+export {
+  resolveScriptRuntime,
+} from './runtime/resolve-script-runtime.ts';
+export type {
+  ScriptRuntimeLanguage,
+  ResolvedScriptRuntime,
+  ResolveScriptRuntimeContext,
+} from './runtime/resolve-script-runtime.ts';
+export {
+  isPathWithinDirectory,
+  isPathWithinDirectoryForCreation,
+} from './runtime/path-security.ts';

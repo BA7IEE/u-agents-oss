@@ -1,6 +1,7 @@
 import {
   U_API_BASE_URL,
   type CustomEndpointApi,
+  type LlmConnection,
 } from '@u-agents/shared/config'
 
 const DEFAULT_DISCOVERY_TIMEOUT_MS = 10_000
@@ -333,4 +334,27 @@ export async function discoverUApiModels(
   } finally {
     clearTimeout(timeout)
   }
+}
+
+// U-API: refresh only catalog membership/routing; preserve explicit image capability choices.
+export function preserveUApiImageCapabilities(
+  connection: LlmConnection,
+  selection: UApiResolvedModelSelection,
+): Pick<LlmConnection, 'models' | 'customEndpoint'> {
+  const previous = new Map((connection.models ?? []).map(model =>
+    [typeof model === 'string' ? model : model.id, model] as const));
+  return {
+    models: selection.models.map(id => {
+      const old = previous.get(id);
+      return old && typeof old !== 'string' && typeof old.supportsImages === 'boolean'
+        ? { ...old, id, supportsImages: old.supportsImages }
+        : id;
+    }),
+    customEndpoint: {
+      ...selection.customEndpoint,
+      ...(typeof connection.customEndpoint?.supportsImages === 'boolean'
+        ? { supportsImages: connection.customEndpoint.supportsImages }
+        : {}),
+    },
+  };
 }

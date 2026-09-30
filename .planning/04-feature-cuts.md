@@ -396,3 +396,10 @@ M1 阶段不做这套基础设施，因此**必须把 UI 入口隐藏**——否
 - [ ] Help 菜单中所有链接打开后不出现 craft.do 域名（M1 允许返回 404，但 URL 必须是 u-studio.cn）
 - [ ] **最终发布产物**（DMG / EXE / AppImage）、官网下载页、README、更新服务器索引中**不包含、不引用** `install-app.sh` / `install-app.ps1` / `install-server.sh` / `Dockerfile.server`；**源码仓库中保留这些文件可接受**（详见 `04-feature-cuts.md` §2.1-§2.2）
 - [ ] git commit 模板中 Co-Authored-By 不含 craft.do
+
+
+## 2026-10-01 · v0.14.0 升级候选实施补充
+
+本轮采用 Pages F1 与 F2 API/MCP。Pages script/F3 refresh/公开发布、独立 Decision、Guarded 与 semanticCondition 不开放。旧配置不删除；Guarded 运行时统一 Ask。语义自动化在编辑校验、事件匹配、宿主执行和持久 Webhook 重试处拦截；旧 Pages 日程与 script grant 不执行。
+
+执行证据与剩余门禁见 [UPGRADE-EXECUTION-v0.14.0.md](UPGRADE-EXECUTION-v0.14.0.md)。本节记录候选分支，不代表 main 或已发布版本。

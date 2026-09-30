@@ -688,3 +688,10 @@ $ bun test packages/shared 2>&1 | tail -5  # 记 pass/fail/skip 数字 vs 上次
 ## 决策
 [ ] 发布 / [ ] 暂缓
 ```
+
+
+## 2026-10-01 · v0.14.0 升级候选实施补充
+
+新增重点覆盖：R1 密钥路由零外发；R2 配置优先级与合成副本越界预检；R3 刷新写入重载；Pages/Decision 零执行政策；语义自动化与持久重试；付费 callback 跨工作区拒绝。详细命令、通过数量、跳过项及未验收边界见实施记录。不得把合成 fixture 验证记为正式数据迁移演练。
+
+执行证据与剩余门禁见 [UPGRADE-EXECUTION-v0.14.0.md](UPGRADE-EXECUTION-v0.14.0.md)。本节记录候选分支，不代表 main 或已发布版本。

@@ -864,3 +864,10 @@ curl 调试输出 / debug log / 错误堆栈中含上述 header 时会自动替�
 - [ ] 协议自动解析：OpenAI-capable 推荐模型保存为 `openai-completions`；仅 Anthropic-capable 候选保存为 `anthropic-messages`
 - [ ] Token 错误时 UI 提示中文 + 含跳转 `https://token.u-studio.cn/keys` 的按钮
 - [ ] `provider-metadata.ts` 中的 `u-api` entry 在错误流程中被正确取到（不会显示 "Anthropic" / "OpenAI" 等上游品牌名）
+
+
+## 2026-10-01 · v0.14.0 升级候选实施补充
+
+连接测试在读取已保存密钥前验证 provider、合法且已存在的 U-API slug 与固定网关。模型刷新保留存续模型的 supportsImages（含 false）及连接级覆盖值；真实刷新写入/重载有回归。独立 Decision 的 resolve/skipGates/test/probe/密钥写入被产品策略阻断。
+
+执行证据与剩余门禁见 [UPGRADE-EXECUTION-v0.14.0.md](UPGRADE-EXECUTION-v0.14.0.md)。本节记录候选分支，不代表 main 或已发布版本。

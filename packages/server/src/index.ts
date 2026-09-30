@@ -26,7 +26,6 @@
  */
 
 import { join } from 'node:path'
-import { homedir } from 'node:os'
 import { readFileSync, existsSync } from 'node:fs'
 import { version as packageVersion } from '../package.json'
 import { enableDebug } from '@u-agents/shared/utils/debug'
@@ -35,6 +34,7 @@ import { validateSession, createWebuiHandler, nodeHttpAdapter } from '@u-agents/
 import type { WebuiHandler } from '@u-agents/server-core/webui'
 import { getCredentialManager } from '@u-agents/shared/credentials'
 import { getWorkspaces } from '@u-agents/shared/config'
+import { CONFIG_DIR } from '@u-agents/shared/config/paths'
 import { createMessagingBootstrap, type MessagingBootstrapHandle } from '@u-agents/messaging-gateway'
 
 // --generate-token: print a crypto-random token and exit
@@ -211,7 +211,7 @@ const instance = await (async () => {
           sessionManager,
           credentialManager: getCredentialManager(),
           getMessagingDir: (wsId: string) =>
-            join(homedir(), '.u-agents', 'workspaces', wsId, 'messaging'),
+            join(CONFIG_DIR, 'workspaces', wsId, 'messaging'),
           // Headless has no legacy messaging dir — workspaces start clean.
           whatsapp: {
             workerEntry: waWorkerEntry,

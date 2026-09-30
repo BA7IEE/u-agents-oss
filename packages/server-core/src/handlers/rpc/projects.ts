@@ -89,9 +89,11 @@ export function registerProjectsHandlers(server: RpcServer, deps: HandlerDeps): 
 
     const { unbindProjectFromSessions } = await import('@u-agents/shared/sessions')
     const touched = await unbindProjectFromSessions(workspace.rootPath, project.config.id)
+    const { unbindProjectFromPages } = await import('@u-agents/shared/pages')
+    const touchedPages = unbindProjectFromPages(workspace.rootPath, project.config.id)
     deleteProject(workspace.rootPath, projectSlug)
     await broadcastChanged(workspaceId, workspace.rootPath)
-    log.info(`Deleted project ${projectSlug} (unbound ${touched} sessions)`)
+    log.info(`Deleted project ${projectSlug} (unbound ${touched} sessions, ${touchedPages} pages)`)
   })
 
   // List assets in a project

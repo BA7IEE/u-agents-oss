@@ -12,6 +12,8 @@ const storedById = new Map<string, any>()
 const deletedIds: string[] = []
 let mockedProvider: 'anthropic' | 'pi' = 'anthropic'
 
+const actualConfig = { ...await import('../../../../../packages/shared/src/config/index.ts') }
+
 // Partial-mock baseline: import real modules via file paths (avoids recursive mock imports)
 const actualSharedAgentModule = await import('../../../../../packages/shared/src/agent/index.ts')
 const actualSharedAgentBackendModule = await import('../../../../../packages/shared/src/agent/backend/index.ts')
@@ -57,6 +59,7 @@ mock.module('../logger', () => {
 })
 
 mock.module('@u-agents/shared/config', () => ({
+  ...actualConfig,
   getWorkspaceByNameOrId: (id: string) => (id === workspace.id ? workspace : null),
   getWorkspaces: () => [workspace],
   loadConfigDefaults: () => ({

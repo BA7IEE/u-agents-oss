@@ -1,7 +1,7 @@
 import { unlink } from 'fs/promises'
 import { join } from 'path'
+import { CONFIG_DIR } from '@u-agents/shared/config/paths'
 import { RPC_CHANNELS } from '@u-agents/shared/protocol'
-import { CONFIG_DIR } from '@u-agents/shared/config'
 import { getCredentialManager } from '@u-agents/shared/credentials'
 import type { RpcServer } from '@u-agents/server-core/transport'
 import type { HandlerDeps } from '../handler-deps'
