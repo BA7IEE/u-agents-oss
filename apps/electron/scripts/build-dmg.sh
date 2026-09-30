@@ -92,7 +92,7 @@ rm -rf "$ELECTRON_DIR/release"
 # 2. Install dependencies
 echo "Installing dependencies..."
 cd "$ROOT_DIR"
-bun install
+bun install --frozen-lockfile
 
 # 3. Download Bun binary with checksum verification
 echo "Downloading Bun ${BUN_VERSION} for darwin-${ARCH}..."
@@ -202,6 +202,10 @@ for dep in interceptor-common.ts feature-flags.ts interceptor-request-utils.ts; 
   fi
 done
 
+# The preload runs outside the workspace, so include its policy dependency.
+mkdir -p "$ELECTRON_DIR/packages/shared/src/config"
+cp "$ROOT_DIR/packages/shared/src/config/u-agents-feature-policy.ts" "$ELECTRON_DIR/packages/shared/src/config/"
+
 # 6. Build Electron app
 echo "Building Electron app..."
 cd "$ROOT_DIR"
@@ -253,7 +257,7 @@ if [ -n "$APPLE_ID" ] && [ -n "$APPLE_TEAM_ID" ] && [ -n "$APPLE_APP_SPECIFIC_PA
 fi
 
 # Run electron-builder
-npx electron-builder $BUILDER_ARGS
+bun x --no-install electron-builder $BUILDER_ARGS --publish never
 
 # 8. Verify the DMG was built
 # electron-builder.yml uses artifactName to output: U-Agents-${arch}.dmg

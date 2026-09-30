@@ -1,5 +1,5 @@
 # Modified by U Studio for U Agents (优智体) — derivative work
-# based on U Agents (Apache 2.0).
+# based on Craft Agents (Apache 2.0).
 #
 # Original: https://github.com/lukilabs/craft-agents-oss
 # Modifications: see .planning/01-branding-spec.md and .planning/05-build-release.md
@@ -30,6 +30,7 @@ files:
   - packages/shared/src/unified-network-interceptor.ts
   - packages/shared/src/interceptor-common.ts
   - packages/shared/src/feature-flags.ts
+  - packages/shared/src/config/u-agents-feature-policy.ts
   - packages/shared/src/interceptor-request-utils.ts
   # Include CLI tool Python scripts (platform-independent)
   - resources/scripts/**/*

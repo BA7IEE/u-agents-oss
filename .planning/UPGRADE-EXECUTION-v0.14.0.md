@@ -101,3 +101,22 @@
 - `frozen-install.log` SHA-256：`13fd8b4e03759361db94a19fbeeb798647e5889e6bafae2a64d05ede844ed209`
 
 最终提交审查另外清理上游新增文件中的 3 处多余末尾空行；仅格式调整，不改变上述测试结果对应的行为。合并提交保留 O 与固定 T 两个父提交。
+
+## macOS 本地测试包（2026-10-01）
+
+用户要求先打 macOS 包测试，本节补充前述代码候选之后的安装包证据，未发布更新、未替换已安装应用。
+
+- 基础候选：`da579abcc16e62566ee2389487d689b60d9496fd`；本次附加修复见同一分支的后续打包提交。
+- 修复 `feature-flags.ts` 的工作区别名依赖：改为相对导入，并在 `build-dmg.sh` 与 `electron-builder.yml` 中纳入 `config/u-agents-feature-policy.ts`。否则安装版 Pi 的 preload 无法解析此新增依赖。
+- macOS 流水线使用 `bun install --frozen-lockfile` 与 `bun x --no-install electron-builder --publish never`；修正 builder 文件头的上游署名。
+- 完整 `build-dmg.sh arm64` 成功；本地 ad hoc 签名，无 Apple 公证。
+- 定向 `feature-flags.test.ts`：11 pass / 0 fail；脚本语法与 `git diff --check` 通过。
+- `hdiutil verify` 通过；只读挂载后的 `.app` 通过 `codesign --verify --deep --strict`。
+- 在仓库外 `/tmp`，以隔离配置、禁止外网和真实配置访问的沙箱运行 **DMG 内** Bun + preload，输出 `DMG_PRELOAD_OK 1.3.9`；包内 `uv --version` 为 `0.10.6`。
+- 已核对 arm64 主程序、版本 `0.14.0`、SDK core/native alias、Pi server 和 WhatsApp worker。
+- 产物：`apps/electron/release/U-Agents-arm64.dmg`，300182950 bytes（约 286 MiB）。
+- DMG SHA-256：`cddbe13d54094e5e0e9cc29feeeb8093ea7e775015e4158b60f37b8aacd3af67`。
+- 构建日志：`/tmp/uagents-v014-execution/logs/mac-package.log`。
+- 同目录提供 `启动隔离测试.command`，直接运行 `mac-arm64/U Agents.app`，将配置与 Electron 用户数据置于 `~/Library/Application Support/U Agents Test 0.14.0/`，使用独立应用名和 URL scheme。启动器通过 shell 语法检查；尚未代用户进行 GUI 首启。
+
+用户测试时建议先通过隔离启动器进入空配置测试版；不要把直接双击普通安装版当作隔离测试。真实数据迁移、回滚、网关调用与收费生图仍待另行验收。本次未启动 GUI、未导入旧数据、未作付费请求，也未自动安装。

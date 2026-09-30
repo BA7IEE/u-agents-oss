@@ -1,4 +1,4 @@
-import { U_AGENTS_FEATURE_POLICY } from '@u-agents/shared/config/u-agents-feature-policy';
+import { U_AGENTS_FEATURE_POLICY } from './config/u-agents-feature-policy';
 /**
  * Feature flags for controlling experimental or in-development features.
  */
