@@ -129,3 +129,13 @@
 - 构建提交：`4ad5d0b39aaf85f4fd9c2f2e16b2321cdb81248f`。
 - [Actions 36758138519](https://github.com/BA7IEE/u-agents-oss/actions/runs/36758138519) 在 runner 启动前失败，job steps 为空。GitHub annotation 明确提示账户最近付款失败或消费上限不足。
 - 本次没有 Windows 产物，Windows 脚本及安装检查尚未经 runner 执行，不能宣称通过。需账户所有者处理 Billing & plans 后，重跑该 Actions；无需重复推送代码，也不要通过公开仓库规避计费限制。
+
+### 用户明确要求公开仓库后
+
+- 用户于同次会话明确要求将仓库设为公开；已执行，并通过 GitHub API 确认 `visibility=PUBLIC`。此操作覆盖先前私有仓库的交付假设。
+- 公开前快速检查未发现被追踪的私钥/真实 `.env` 文件或常见令牌格式；此项不等同完整历史秘密审计。
+- 旧任务重跑仍受计费拦截；重新 `workflow_dispatch` 的 [36758479955](https://github.com/BA7IEE/u-agents-oss/actions/runs/36758479955) 已成功启动 Windows runner，构建提交为 `f6d8c18c203760042fab57f515906b4d282884d4`。
+- 新任务最终 `success`：Windows x64 安装包构建、临时目录静默安装、包内依赖检查和产物上传全部通过。实际输出 `INSTALLED_PRELOAD_OK 1.3.9`、`uv 0.10.6`。
+- [Windows 测试包 artifact 11117773907](https://github.com/BA7IEE/u-agents-oss/actions/runs/36758479955/artifacts/11117773907)，名称 `U-Agents-0.14.0-windows-x64`，压缩包 286794607 bytes；内含 `U-Agents-x64.exe`（约 273.57 MiB）、`SHA256SUMS.txt`、`BUILD.txt`，保留 14 天。
+- 本机下载速度约 70 KB/s，已停止不完整的本地回传，交付 GitHub artifact 链接；没有声称本地 EXE 校验通过。
+- 完整构建日志已保存 `/tmp/uagents-v014-execution/logs/windows-public-build.log`。尚未 Windows GUI/真实网关/付费生图验收，未创建 Release、未推送正式更新。
