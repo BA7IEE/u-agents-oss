@@ -120,3 +120,12 @@
 - 同目录提供 `启动隔离测试.command`，直接运行 `mac-arm64/U Agents.app`，将配置与 Electron 用户数据置于 `~/Library/Application Support/U Agents Test 0.14.0/`，使用独立应用名和 URL scheme。启动器通过 shell 语法检查；尚未代用户进行 GUI 首启。
 
 用户测试时建议先通过隔离启动器进入空配置测试版；不要把直接双击普通安装版当作隔离测试。真实数据迁移、回滚、网关调用与收费生图仍待另行验收。本次未启动 GUI、未导入旧数据、未作付费请求，也未自动安装。
+
+## Windows GitHub 构建尝试（2026-10-01）
+
+- 用户要求通过 GitHub 打包 Windows；升级分支已推送至私有仓库 `BA7IEE/u-agents-oss`，main 未改变。
+- 新增 `.github/workflows/windows-candidate.yml`，Windows x64 NSIS 构建后静默安装到 runner 临时目录，核查资源及 preload/uv，再上传安装包、SHA-256 和构建提交记录；禁止自动发布。
+- `build-win.ps1` 改用共享 `electron:build`，包含当前 build defines、网络兼容 shims、Pi/interceptor/WhatsApp 子进程；补齐策略文件，冻结依赖安装并检查退出码。
+- 构建提交：`4ad5d0b39aaf85f4fd9c2f2e16b2321cdb81248f`。
+- [Actions 36758138519](https://github.com/BA7IEE/u-agents-oss/actions/runs/36758138519) 在 runner 启动前失败，job steps 为空。GitHub annotation 明确提示账户最近付款失败或消费上限不足。
+- 本次没有 Windows 产物，Windows 脚本及安装检查尚未经 runner 执行，不能宣称通过。需账户所有者处理 Billing & plans 后，重跑该 Actions；无需重复推送代码，也不要通过公开仓库规避计费限制。
