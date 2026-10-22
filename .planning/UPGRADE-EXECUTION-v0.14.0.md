@@ -146,3 +146,5 @@
 - [PR #1](https://github.com/BA7IEE/u-agents-oss/pull/1) 对应原候选 `875d161c9c342b38fb0699a9ab55eccaf3484931`，合并目标 main。
 - 首轮 [Validate 39747095869](https://github.com/BA7IEE/u-agents-oss/actions/runs/39747095869) 在冻结依赖安装阶段失败：流程使用 Bun 1.3.10，既有本地及 Windows 成功环境为 1.3.12。
 - 将 `validate.yml` 与手动集成流程 `validate-server.yml` 的 Bun 固定到 1.3.12，与已验证环境一致；保留 `--frozen-lockfile`，不改依赖版本或锁文件。修复后须重新通过 PR Validate 才能合并。
+- 统一 Bun 后 [39747375743](https://github.com/BA7IEE/u-agents-oss/actions/runs/39747375743) 仍在同一处失败。冷环境 `bun install --lockfile-only --ignore-scripts` 的差异只有 CLI 的 `@types/bun` / `bun-types` 从既有 1.4.2 漂移到 1.4.3，定位到 `latest` 声明会重新解析。
+- 根 `package.json` 的 `@types/bun` 固定为锁内既有 1.3.6，`apps/cli/package.json` 固定为锁内既有 1.4.2；`bun.lock` 仅同步两处 workspace 声明，已解析的依赖版本和完整性值均未改变。本地冷目录 `bun install --lockfile-only --frozen-lockfile --ignore-scripts` 通过；完整安装和校验仍以新一轮 GitHub CI 为准。
