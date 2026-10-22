@@ -12,6 +12,7 @@ import type {
   ContentBadge,
   ToolDisplayMeta,
   AnnotationV1,
+  ContextUsageSnapshot,
   PermissionRequest as BasePermissionRequest,
 } from '@u-agents/core/types'
 import type { PermissionMode } from '../agent/mode-types'
@@ -54,7 +55,7 @@ export interface Session {
   messages: Message[]
   isProcessing: boolean
   isFlagged?: boolean
-  /** Permission mode for this session ('safe', 'ask', 'allow-all') */
+  /** Permission mode for this session ('safe', 'ask', 'guarded', 'allow-all') */
   permissionMode?: PermissionMode
   sessionStatus?: SessionStatus
   /** Labels (additive tags, many-per-session — bare IDs or "id::value" entries) */
@@ -95,6 +96,7 @@ export interface Session {
     cacheCreationTokens?: number
     /** Model's context window size in tokens (from SDK modelUsage) */
     contextWindow?: number
+    contextUsage?: ContextUsageSnapshot
   }
   /** When true, session is hidden from session list (e.g., mini edit sessions) */
   hidden?: boolean
@@ -140,6 +142,8 @@ export interface CreateSessionOptions {
   llmConnection?: string
   systemPromptPreset?: 'default' | 'mini' | string
   hidden?: boolean
+  /** Nobody answers prompts in this session (CLI runs): features that would add a prompt skip it. */
+  unattended?: boolean
   sessionStatus?: SessionStatus
   labels?: string[]
   isFlagged?: boolean
@@ -333,6 +337,20 @@ export interface TaskResultNodeDto {
   output?: string
 }
 
+/** One verifier verdict as shown in the Results view. */
+export interface TaskVerdictDto {
+  result: 'pass' | 'fail' | 'unparsed'
+  reason?: string
+  nodes?: string[]
+  /**
+   * `decision` when the verdict was read out of a reply without a VERDICT line by the decision
+   * model (opt-in layer); absent for a parsed VERDICT line. The UI marks inferred verdicts.
+   */
+  via?: 'parsed' | 'decision'
+  /** Decision-model verdicts only: confidence of the winning option (0..1). */
+  confidence?: number
+}
+
 /**
  * Storage-backed read of a task run's outcome — verdict + per-node final output, recovered from
  * the persisted run artifacts (run-log.jsonl, nodes/<id>.json, per-run spec.json snapshot). Unlike
@@ -345,9 +363,9 @@ export interface TaskResultsDto {
   /** All run ids for this task (newest last), for a run picker. */
   runIds: string[]
   /** The most recent verdict (kept for back-compat with single-verdict consumers). */
-  verdict?: { result: 'pass' | 'fail' | 'unparsed'; reason?: string; nodes?: string[] }
+  verdict?: TaskVerdictDto
   /** Every verdict in order (a FAIL→repair loop produces several), for the Results history view. */
-  verdicts?: { result: 'pass' | 'fail' | 'unparsed'; reason?: string; nodes?: string[] }[]
+  verdicts?: TaskVerdictDto[]
   /** Repair-loop accounting: attempts consumed (= count of FAIL verdicts) and the resolved cap. */
   repair?: { used: number; max: number }
   /** Terminal run status recovered from the run-log (completed | failed | stopped | …). */
@@ -372,6 +390,9 @@ export interface PermissionModeState {
 
 // turnId: Correlation ID from the API's message.id, groups all events in an assistant turn
 export type SessionEvent =
+  | { type: 'text_discard'; sessionId: string; turnId: string }
+  | { type: 'retry'; sessionId: string; phase: 'backoff'; message: string }
+  | { type: 'retry'; sessionId: string; phase: 'active' | 'end' }
   | { type: 'text_delta'; sessionId: string; delta: string; turnId?: string }
   | { type: 'text_complete'; sessionId: string; text: string; isIntermediate?: boolean; turnId?: string; parentToolUseId?: string; timestamp?: number; messageId?: string }
   | { type: 'tool_start'; sessionId: string; toolName: string; toolUseId: string; toolInput: Record<string, unknown>; toolIntent?: string; toolDisplayName?: string; toolDisplayMeta?: ToolDisplayMeta; turnId?: string; parentToolUseId?: string; timestamp?: number }
@@ -394,10 +415,10 @@ export type SessionEvent =
   | { type: 'labels_changed'; sessionId: string; labels: string[] }
   | { type: 'project_id_changed'; sessionId: string; projectId: string | null }
   | { type: 'connection_changed'; sessionId: string; connectionSlug: string; supportsBranching?: boolean }
-  | { type: 'task_backgrounded'; sessionId: string; toolUseId: string; taskId: string; intent?: string; turnId?: string; kind?: 'workflow'; workflowId?: string }
+  | { type: 'task_backgrounded'; sessionId: string; toolUseId: string; taskId: string; intent?: string; turnId?: string; kind?: 'workflow' | 'task'; workflowId?: string }
   | { type: 'shell_backgrounded'; sessionId: string; toolUseId: string; shellId: string; intent?: string; command?: string; turnId?: string }
   | { type: 'task_progress'; sessionId: string; toolUseId: string; elapsedSeconds: number; turnId?: string }
-  | { type: 'task_completed'; sessionId: string; taskId: string; status: 'completed' | 'failed' | 'stopped'; outputFile?: string; summary?: string; turnId?: string }
+  | { type: 'task_completed'; sessionId: string; taskId: string; status: 'completed' | 'failed' | 'stopped'; outputFile?: string; summary?: string; turnId?: string; toolUseId?: string; launchedHere?: boolean }
   | { type: 'workflow_agent_completed'; sessionId: string; workflowId: string; agentId: string; turnId?: string }
   | { type: 'shell_killed'; sessionId: string; shellId: string }
   | { type: 'user_message'; sessionId: string; message: Message; status: 'accepted' | 'queued' | 'processing'; optimisticMessageId?: string }
@@ -416,7 +437,7 @@ export type SessionEvent =
   | { type: 'auth_request'; sessionId: string; message: Message; request: SharedAuthRequest }
   | { type: 'auth_completed'; sessionId: string; requestId: string; success: boolean; cancelled?: boolean; error?: string }
   | { type: 'source_activated'; sessionId: string; sourceSlug: string; originalMessage: string }
-  | { type: 'usage_update'; sessionId: string; tokenUsage: { inputTokens: number; contextWindow?: number } }
+  | { type: 'usage_update'; sessionId: string; tokenUsage: Pick<NonNullable<Session['tokenUsage']>, 'inputTokens' | 'contextWindow' | 'contextUsage'> }
   | { type: 'message_annotations_updated'; sessionId: string; messageId: string; annotations: AnnotationV1[] }
   | { type: 'working_directory_error'; sessionId: string; error: string }
 
@@ -604,6 +625,11 @@ export interface LlmConnectionSetup {
 export interface TestLlmConnectionParams {
   provider: 'anthropic' | 'pi'
   apiKey: string
+  /**
+   * Slug of the connection being edited. Lets the server resolve the masked
+   * GET_API_KEY placeholder back to the stored credential for the test.
+   */
+  connectionSlug?: string
   baseUrl?: string
   model?: string
   piAuthProvider?: string
@@ -776,6 +802,7 @@ export interface ClaudeOAuthResult {
 export type TestAutomationAction =
   | { type: 'prompt'; prompt: string; llmConnection?: string; model?: string; thinkingLevel?: ThinkingLevel }
   | { type: 'webhook'; url: string; method?: string; headers?: Record<string, string>; bodyFormat?: 'json' | 'form' | 'raw'; body?: unknown; captureResponse?: boolean; auth?: { type: 'basic'; username: string; password: string } | { type: 'bearer'; token: string } }
+  | { type: 'script'; script: string; args?: string[]; runtime?: 'bun' | 'node' | 'python3'; timeoutMs?: number; page?: string }
 
 export interface TestAutomationPayload {
   workspaceId: string
@@ -791,6 +818,7 @@ export interface TestAutomationPayload {
 export type TestAutomationActionResult =
   | { type: 'prompt'; success: boolean; stderr?: string; sessionId?: string; duration: number }
   | { type: 'webhook'; success: boolean; url: string; statusCode: number; error?: string; duration: number }
+  | { type: 'script'; success: boolean; script: string; exitCode: number | null; stdout?: string; error?: string; duration: number }
 
 export interface TestAutomationResult {
   actions: TestAutomationActionResult[]

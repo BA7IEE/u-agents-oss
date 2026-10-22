@@ -1,9 +1,9 @@
 import { existsSync, mkdirSync } from 'fs'
 // U-API: atomic writes for user-data persistence (REVIEW-5 P1, 2026-05-05) — 防断电/crash partial write
 import { readJsonFileSync, atomicWriteFileSync } from '@u-agents/shared/utils/files'
-import { CONFIG_DIR } from '@u-agents/shared/config'
 import { mainLog } from './logger'
 import { join } from 'path'
+import { CONFIG_DIR } from '@u-agents/shared/config/paths'
 
 export interface WindowBounds {
   x: number

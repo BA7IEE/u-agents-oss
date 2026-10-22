@@ -1,4 +1,4 @@
-/* U-API START: 12 §2.1 — copy pi-agent-server + session-mcp-server into electron resources
+/* U-API START: 12 §2.1 — copy pi-agent-server into electron resources
    AND download the bundled bun runtime before packaging.
 
    Why (pi-agent-server): upstream's `electron:build` chain never invokes copyPiAgentServer /
@@ -18,7 +18,7 @@
    (e.g. U-Agents-x64.dmg from an arm64 build host) ships an incompatible bun binary and
    will exhibit the same Dock-flash bug. M2 must split the build into per-arch passes that
    download the right bun before each electron-builder invocation. */
-import { existsSync, cpSync, mkdirSync } from 'fs';
+import { existsSync, cpSync } from 'fs';
 import { join } from 'path';
 import type { Platform, Arch, BuildConfig } from './build/common';
 import { copyPiAgentServer, downloadBun, downloadUv } from './build/common';
@@ -59,19 +59,7 @@ async function main(): Promise<void> {
     );
   }
 
-  // 2. Session MCP server (single-file bundle)
-  const sessionSrc = join(ROOT_DIR, 'packages/session-mcp-server/dist/index.js');
-  const sessionDestDir = join(ELECTRON_DIR, 'resources/session-mcp-server');
-  const sessionDest = join(sessionDestDir, 'index.js');
-  if (!existsSync(sessionSrc)) {
-    throw new Error(
-      `session-mcp-server build output missing at ${sessionSrc}. ` +
-      `Did \`server:build:subprocess\` run before this step?`,
-    );
-  }
-  mkdirSync(sessionDestDir, { recursive: true });
-  cpSync(sessionSrc, sessionDest);
-  console.log('✓ Copied session-mcp-server → apps/electron/resources/');
+  // U-API: session tools run in the host; v0.14 no longer builds the legacy MCP bundle.
 
   // 3. Bundled bun runtime — required by pi-agent.ts spawn (host arch only; see header).
   const bunBinary = platform === 'win32' ? 'bun.exe' : 'bun';

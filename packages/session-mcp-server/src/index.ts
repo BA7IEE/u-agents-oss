@@ -459,12 +459,12 @@ async function main() {
     }
   );
 
-  // Handle tool listing.
+  // Handle tool listing — session tools
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: createSessionTools(includeDeveloperFeedback),
   }));
 
-  // Handle tool calls via canonical registry plus backend-specific tools.
+  // Handle tool calls — route via canonical registry or call_llm
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: toolArgs } = request.params;
 

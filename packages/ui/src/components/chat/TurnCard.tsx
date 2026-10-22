@@ -538,6 +538,11 @@ function getToolDisplayName(name: string): string {
     'get_session_info': 'Get Session Info',
     'list_sessions': 'List Sessions',
     'generate_image': i18n.t('turnCard.imageGeneration.activity', { defaultValue: 'Generate Image' }),
+    'archive_session': 'Archive Session',
+    'create_task': 'Create Task',
+    'list_background_tasks': 'List Background Tasks',
+    'send_agent_message': 'Send Agent Message',
+    'spawn_session': 'Spawn Session',
   }
 
   return displayNames[stripped] || stripped
@@ -627,6 +632,9 @@ function formatToolInput(
 
   // For call_llm: model shown as badge, prompt duplicates intent
   if (toolName === 'mcp__session__call_llm') return ''
+  // For decide: state/questions JSON is noise in a one-line summary; the intent
+  // (and the overlay) carry the meaning
+  if (toolName === 'mcp__session__decide') return ''
 
   const parts: string[] = []
 

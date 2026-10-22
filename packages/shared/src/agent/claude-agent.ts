@@ -21,6 +21,7 @@ import {
   resolveAuthEnvVars,
 } from '../config/llm-connections.ts';
 import type { McpClientPool } from '../mcp/mcp-pool.ts';
+import { proxyToolName } from '../mcp/proxy-tool-name.ts';
 import { loadPlanFromPath, type SessionConfig as Session } from '../sessions/storage.ts';
 import { loadProjectById, getProjectAssetsPath, listProjectAssets, getProjectMemoryPath, loadProjectMemory } from '../projects/storage.ts';
 import { DEFAULT_MODEL, isClaudeModel, isAdaptiveThinkingAlwaysOnModel, getDefaultSummarizationModel, getModelContextWindow } from '../config/models.ts';
@@ -30,9 +31,12 @@ import type { FileAttachment } from '../utils/files.ts';
 import type { LLMQueryRequest, LLMQueryResult } from './llm-tool.ts';
 import { consumeLlmQueryMessages } from './claude-llm-query.ts';
 import { debug } from '../utils/debug.ts';
-import { guardLargeResult } from '../utils/large-response.ts';
+import { estimateTokensDensityAware, guardLargeResult, tokenLimitFor } from '../utils/large-response.ts';
+import { PendingSteers } from './backend/claude/pending-steers.ts';
+import type { RedirectMetadata, PendingSteer } from './backend/types.ts';
 import { SourceActivationDrainController } from './source-activation-drain.ts';
 import { resolveKeepBackgroundTasksAlive, createPushableInputStream, type PushableInputStream } from './backend/claude/persistent-input.ts';
+import { classifyClaudeTaskNotification } from './backend/claude/task-notification.ts';
 import {
   getSessionPlansDir,
   getLastPlanFilePath,
@@ -43,7 +47,7 @@ import {
   cleanupSessionScopedTools,
   type AuthRequest,
 } from './session-scoped-tools.ts';
-import { type AutomationSystem, type SdkAutomationCallbackMatcher } from '../automations/index.ts';
+import { type AutomationSystem, type SdkAutomationCallbackMatcher, type SdkAutomationInput } from '../automations/index.ts';
 import {
   getPermissionMode,
   getPermissionModeDiagnostics,
@@ -68,10 +72,12 @@ import {
 import {
   runPreToolUseChecks,
   type PreToolUseCheckResult,
+  type PreToolUseInput,
   BUILT_IN_TOOLS,
 } from './core/pre-tool-use.ts';
+import { applyGuardedModeCheck, needsGuardedModeCheck } from './core/guarded-mode.ts';
 import { getRtkPath } from './core/rtk-detector.ts';
-import { getRtkEnabled } from '../config/storage.ts';
+import { getRtkEnabled, getRtkExcludeCommands } from '../config/storage.ts';
 import type { RtkContext } from './core/rtk-rewrite.ts';
 import { type ThinkingLevel, THINKING_TO_EFFORT, getThinkingTokens, DEFAULT_THINKING_LEVEL } from './thinking-levels.ts';
 import { generateConversationSummary } from './conversation-summary.ts';
@@ -97,6 +103,18 @@ import { IMAGE_LIMITS } from '../utils/files.ts';
 
 /** Image extensions that may need size-guard in PreToolUse (matches Read tool's image detection) */
 const IMAGE_READ_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'tiff']);
+
+/** Session tools that hand the turn to the UI from inside their handler (plan card, auth prompt). */
+const HANDOFF_TOOL_NAMES = new Set([
+  'mcp__session__SubmitPlan',
+  'mcp__session__source_oauth_trigger',
+  'mcp__session__source_google_oauth_trigger',
+  'mcp__session__source_microsoft_oauth_trigger',
+  'mcp__session__source_slack_oauth_trigger',
+  'mcp__session__source_credential_prompt',
+]);
+/** How long a handoff interrupt waits for the handing-off tool's result before interrupting anyway. */
+const HANDOFF_RESULT_WAIT_MS = 3_000;
 
 // Re-export permission mode functions for application usage
 export {
@@ -127,6 +145,7 @@ export type { LoadedSource } from '../sources/types.ts';
 // Import and re-export AbortReason and RecoveryMessage from core module (single source of truth)
 // Re-exported for backwards compatibility with existing imports from claude-agent.ts
 import { AbortReason, type RecoveryMessage } from './core/index.ts';
+import type { PermissionRemember } from './core/permission-remember.ts';
 export { AbortReason, type RecoveryMessage };
 
 /** File extensions that can be converted to readable text by CLI tools. */
@@ -149,8 +168,8 @@ export function resolveClaudeThinkingOptions(args: {
   const effort = THINKING_TO_EFFORT[thinkingLevel];
   const isHaiku = model.toLowerCase().includes('haiku');
   const supportsAdaptiveThinking = isClaude && !isHaiku;
-  // Mythos-class models (Fable 5 / Mythos 5) have adaptive thinking ALWAYS ON and
-  // reject `thinking: { type: 'disabled' }`. There's no way to turn thinking off;
+  // Always-on adaptive thinking models (Fable/Mythos, Opus 5.5) reject
+  // `thinking: { type: 'disabled' }`. There's no way to turn thinking off;
   // the lowest we can go is adaptive + 'low' effort.
   const adaptiveAlwaysOn = isAdaptiveThinkingAlwaysOnModel(model);
 
@@ -174,6 +193,18 @@ export function resolveClaudeThinkingOptions(args: {
     maxThinkingTokens: getThinkingTokens(thinkingLevel, model),
   };
 }
+
+/** Identity of a thinking configuration, to tell whether a live query needs updating. */
+export function claudeThinkingKey(thinking: Partial<Options>): string {
+  return JSON.stringify({
+    effort: thinking.effort ?? null,
+    tokens: thinking.maxThinkingTokens ?? null,
+    disabled: thinking.thinking?.type === 'disabled',
+  });
+}
+
+/** Bound for applying thinking to a live query before a turn: the turn never waits longer. */
+const LIVE_THINKING_UPDATE_TIMEOUT_MS = 2_000;
 
 export interface ClaudeAgentConfig {
   workspace: Workspace;
@@ -237,19 +268,9 @@ interface PendingPermission {
   resolve: (allowed: boolean, alwaysAllow?: boolean) => void;
   toolName: string;
   command: string;
-  baseCommand: string;
-  type?: 'bash' | 'safe_mode';  // Type of permission request
+  /** What "Always Allow" stores, as computed by the permission check. */
+  remember?: PermissionRemember;
 }
-
-// Dangerous commands that should always require permission (never auto-allow)
-const DANGEROUS_COMMANDS = new Set([
-  'rm', 'rmdir', 'sudo', 'su', 'chmod', 'chown', 'chgrp',
-  'mv', 'cp', 'dd', 'mkfs', 'fdisk', 'parted',
-  'kill', 'killall', 'pkill',
-  'reboot', 'shutdown', 'halt', 'poweroff',
-  'curl', 'wget', 'ssh', 'scp', 'rsync',
-  'git push', 'git reset', 'git rebase', 'git checkout',
-]);
 
 // ============================================================
 // Global Tool Permission System
@@ -439,7 +460,9 @@ function createSourceProxyServers(pool: McpClientPool): Record<string, ReturnTyp
     if (mcpTools.length === 0) continue;
 
     const proxyTools = mcpTools.map(mcpTool => {
-      const proxyName = `mcp__${slug}__${mcpTool.name}`;
+      // Must match the pool's dispatch-map key (mcp-pool.ts sanitizes dotted
+      // names), or pool.callTool(proxyName) would miss for dotted tools (#864).
+      const proxyName = proxyToolName(slug, mcpTool.name);
       return tool(
         mcpTool.name,
         mcpTool.description || `Tool from ${slug}`,
@@ -503,8 +526,8 @@ export class ClaudeAgent extends BaseAgent {
   private preferencesDriftNotified: boolean = false;
   // Captured stderr from SDK subprocess (for error diagnostics when process exits with code 1)
   private lastStderrOutput: string[] = [];
-  /** Pending steer message — injected via additionalContext on next PreToolUse */
-  private pendingSteerMessage: string | null = null;
+  /** Accepted text steers, owned by the foreground turn. */
+  private pendingSteers = new PendingSteers();
 
   /**
    * WS2 keep-alive: when true, use one long-lived streaming-input `query()` per
@@ -522,10 +545,21 @@ export class ClaudeAgent extends BaseAgent {
   private persistentIterator: AsyncIterator<SDKMessage> | null = null;
   /** AbortController bound to the persistent query for its whole life (hard-kill backstop). */
   private persistentAbortController: AbortController | null = null;
+  /**
+   * Thinking the live persistent query runs with (claudeThinkingKey); null when there is no query
+   * or it is unknown (an update failed or timed out and may still land), so the next turn applies.
+   */
+  private persistentThinkingKey: string | null = null;
   /** True while the single always-on consumer loop is running. */
-  private persistentConsumerActive = false;
+  /** The iterator the running consumer drains; a consumer only ever serves its own query. */
+  private persistentConsumerIterator: AsyncIterator<SDKMessage> | null = null;
   /** The current turn's SDK-message channel; the consumer routes into it, chatImpl drains it. */
   private activeTurnChannel: PushableInputStream<SDKMessage> | null = null;
+  /**
+   * The keep-alive turn in flight. forceAbort marks it aborted: a Stop tears the persistent query
+   * down and merely ends the turn's channel, so the turn must learn it was aborted from here.
+   */
+  private activeTurnState: { aborted: boolean } | null = null;
   /** Sink for background task events that arrive between turns (wired by the session layer). */
   private onBackgroundEvent: ((event: AgentEvent) => void) | null = null;
 
@@ -548,8 +582,9 @@ export class ClaudeAgent extends BaseAgent {
     this.persistentInput = null;
     this.persistentIterator = null;
     this.persistentAbortController = null;
+    this.persistentThinkingKey = null;
     this.activeTurnChannel = null;
-    this.persistentConsumerActive = false;
+    this.activeTurnState = null;
   }
 
   /**
@@ -559,13 +594,18 @@ export class ClaudeAgent extends BaseAgent {
    * pushes the user message. Returns the channel stream for chatImpl to drain —
    * ending that channel at `result` completes the turn WITHOUT closing the real
    * query (the subprocess, and its background sub-agents, stay alive).
+   *
+   * The query reads its options only when it is created, so a later turn's
+   * thinking (the session level, or a per-turn override) is applied to the live
+   * query before its message is pushed.
    */
-  private beginPersistentTurn(prompt: SDKUserMessage, options: Options): AsyncIterable<SDKMessage> {
+  private async beginPersistentTurn(prompt: SDKUserMessage, options: Options, thinking: Partial<Options>): Promise<AsyncIterable<SDKMessage>> {
     if (!this.persistentInput || !this.currentQuery) {
       // First turn: create the persistent query + consumer.
       this.persistentInput = createPushableInputStream<SDKUserMessage>();
       this.persistentAbortController = this.currentQueryAbortController;
       this.currentQuery = query({ prompt: this.persistentInput.stream, options });
+      this.persistentThinkingKey = claudeThinkingKey(thinking);
       this.persistentIterator = this.currentQuery[Symbol.asyncIterator]();
       this.startPersistentConsumer();
     } else {
@@ -574,11 +614,53 @@ export class ClaudeAgent extends BaseAgent {
       if (this.persistentAbortController) {
         this.currentQueryAbortController = this.persistentAbortController;
       }
+      await this.syncPersistentThinking(thinking);
+      // Stopped meanwhile (forceAbort drops currentQuery at once; the SDK rejects the pending
+      // settings call before the query itself finishes): do not start the turn on a dying query.
+      if (!this.persistentInput || !this.currentQuery) throw new AbortError('Persistent query closed while preparing the turn');
     }
     const channel = createPushableInputStream<SDKMessage>();
     this.activeTurnChannel = channel;
+    this.activeTurnState = { aborted: false };
     this.persistentInput.push(prompt);
     return channel.stream;
+  }
+
+  /**
+   * Apply this turn's thinking to the live persistent query. Best effort and bounded: when it fails
+   * or times out the turn runs with the query's current thinking and the next turn tries again.
+   */
+  private async syncPersistentThinking(thinking: Partial<Options>): Promise<void> {
+    const live = this.currentQuery;
+    const key = claudeThinkingKey(thinking);
+    if (!live || key === this.persistentThinkingKey) return;
+    // Unknown state: re-enable before setting an effort, in case thinking was left disabled.
+    const wasDisabled = this.persistentThinkingKey === null || (JSON.parse(this.persistentThinkingKey) as { disabled: boolean }).disabled;
+    const apply = async () => {
+      if (thinking.thinking?.type === 'disabled') {
+        await live.setMaxThinkingTokens(0);
+      } else if (thinking.effort) {
+        if (wasDisabled) await live.setMaxThinkingTokens(null);
+        await live.applyFlagSettings({ effortLevel: thinking.effort });
+      } else if (typeof thinking.maxThinkingTokens === 'number') {
+        await live.setMaxThinkingTokens(thinking.maxThinkingTokens);
+      }
+    };
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const applied = await Promise.race([
+        apply().then(() => true),
+        new Promise<false>((resolve) => { timer = setTimeout(() => resolve(false), LIVE_THINKING_UPDATE_TIMEOUT_MS); }),
+      ]);
+      // A timed-out update may still land: the state is unknown until the next turn applies again.
+      this.persistentThinkingKey = applied ? key : null;
+      if (!applied) debug('[chat] Applying thinking to the live query timed out; retrying next turn');
+    } catch (error) {
+      this.persistentThinkingKey = null;
+      debug(`[chat] Could not apply thinking to the live query: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   /**
@@ -590,18 +672,18 @@ export class ClaudeAgent extends BaseAgent {
    * draining so the subprocess never stalls on pipe backpressure.
    */
   private startPersistentConsumer(): void {
-    if (this.persistentConsumerActive) return;
-    this.persistentConsumerActive = true;
     const iterator = this.persistentIterator;
-    if (!iterator) {
-      this.persistentConsumerActive = false;
-      return;
-    }
+    if (!iterator || this.persistentConsumerIterator === iterator) return;
+    // A consumer is bound to its own query: an aborted query's consumer may still be draining
+    // (the SDK waits for the killed CLI to exit) when the next turn starts a new one.
+    this.persistentConsumerIterator = iterator;
     void (async () => {
       try {
         while (true) {
           const { done, value } = await iterator.next();
           if (done) break;
+          // A newer query took over: this one's leftover messages belong to no turn.
+          if (this.persistentIterator !== iterator) continue;
           const channel = this.activeTurnChannel;
           if (channel) {
             channel.push(value);
@@ -610,6 +692,7 @@ export class ClaudeAgent extends BaseAgent {
               // Turn boundary: detach + end the channel so chatImpl's for-await
               // completes. Do NOT touch the real iterator — the query lives on.
               this.activeTurnChannel = null;
+              this.activeTurnState = null;
               channel.end();
             }
           } else {
@@ -619,7 +702,9 @@ export class ClaudeAgent extends BaseAgent {
       } catch (err) {
         this.debug(`[bg-lifecycle] persistent consumer error: ${err instanceof Error ? err.message : String(err)}`);
       } finally {
-        this.teardownPersistentQuery('consumer-exit');
+        // Tear down only the query this consumer served, never a newer one.
+        if (this.persistentIterator === iterator) this.teardownPersistentQuery('consumer-exit');
+        if (this.persistentConsumerIterator === iterator) this.persistentConsumerIterator = null;
       }
     })();
   }
@@ -628,31 +713,46 @@ export class ClaudeAgent extends BaseAgent {
    * Convert a between-turns background SDK message to an AgentEvent and emit it
    * via `onBackgroundEvent`. Only terminal task notifications are forwarded (the
    * important signal — completion/failure); progress ticks between turns are
-   * cosmetic (the UI derives elapsed from startTime). Standalone mapper so it
-   * doesn't disturb the turn-scoped event adapter. Mirrors event-adapter.ts:544.
+   * cosmetic (the UI derives elapsed from startTime). Uses the same notification
+   * classifier as the turn-scoped event adapter so validation cannot drift.
    */
   private routeBackgroundMessage(message: SDKMessage): void {
+    const classification = classifyClaudeTaskNotification(message);
+    if (classification.kind === 'valid') {
+      const { taskId, toolUseId } = classification.notification;
+      this.onBackgroundEvent?.({
+        type: 'task_completed',
+        taskId,
+        ...(toolUseId ? { toolUseId } : {}),
+        // Optional chaining: partially constructed agents (teardown, test fixtures) have no adapter.
+        launchedHere: this.eventAdapter?.wasLaunchedByMainAgent(taskId, toolUseId) ?? false,
+        status: classification.notification.status,
+        ...(classification.notification.outputFile ? { outputFile: classification.notification.outputFile } : {}),
+        ...(classification.notification.summary ? { summary: classification.notification.summary } : {}),
+      });
+      return;
+    }
+
     const msg = message as unknown as {
       type?: string;
       subtype?: string;
-      task_id?: string;
       status?: string;
-      output_file?: string;
-      summary?: string;
     };
-    if (msg?.type === 'system' && msg.subtype === 'task_notification' && msg.task_id) {
-      const status: 'completed' | 'failed' | 'stopped' =
-        msg.status === 'failed' || msg.status === 'stopped' ? msg.status : 'completed';
-      this.onBackgroundEvent?.({
-        type: 'task_completed',
-        taskId: msg.task_id,
-        status,
-        ...(msg.output_file ? { outputFile: msg.output_file } : {}),
-        ...(msg.summary ? { summary: msg.summary } : {}),
+    if (classification.kind === 'missing-task-id') {
+      // This malformed terminal notification is the one dropped-message shape
+      // that can strand a task chip. Keep the warning metadata-only.
+      console.warn('[bg-lifecycle] task_notification missing task_id', {
+        type: msg?.type,
+        subtype: msg?.subtype,
+        status: msg?.status,
       });
-    } else {
-      this.debug(`[bg-lifecycle] dropping unexpected between-turns message: ${msg?.type}/${msg?.subtype ?? ''}`);
+      return;
     }
+
+    // Progress and other between-turn SDK traffic is expected and intentionally
+    // ignored; keep it at debug level so normal background work does not flood
+    // warning logs and hide the malformed notification above.
+    this.debug(`[bg-lifecycle] dropping expected between-turns message: ${msg?.type}/${msg?.subtype ?? ''}`);
   }
 
   /** Wire the between-turns background-event sink (SessionManager forwards to registry/renderer). */
@@ -708,20 +808,7 @@ export class ClaudeAgent extends BaseAgent {
   }
 
   // Callback for permission requests - set by application to receive permission prompts
-  public onPermissionRequest: ((request: {
-    requestId: string;
-    toolName: string;
-    command?: string;
-    description: string;
-    type?: PermissionRequestType;
-    appName?: string;
-    reason?: string;
-    impact?: string;
-    requiresSystemPrompt?: boolean;
-    rememberForMinutes?: number;
-    commandHash?: string;
-    approvalTtlSeconds?: number;
-  }) => void) | null = null;
+  public onPermissionRequest: PermissionCallback | null = null;
 
   // Debug callback for status messages
   public onDebug: ((message: string) => void) | null = null;
@@ -732,10 +819,19 @@ export class ClaudeAgent extends BaseAgent {
   // Callback when a plan is submitted - set by application to display plan message
   public onPlanSubmitted: ((planPath: string) => void) | null = null;
 
+  /**
+   * Set while a session tool that hands the turn to the UI (SubmitPlan, an auth tool) is still
+   * running: `interruptForHandoff` then only marks the interrupt, and the tool's result releases it.
+   */
+  private toolHandoff: { interrupt: boolean; timer: ReturnType<typeof setTimeout> | null } | null = null;
+  /** Test seam for `HANDOFF_RESULT_WAIT_MS`. */
+  private handoffResultWaitMs?: number;
+
   // Callback when authentication is requested (unified auth flow)
   // This follows the SubmitPlan pattern:
   // 1. Tool calls onAuthRequest
-  // 2. Session manager creates auth-request message and calls forceAbort
+  // 2. Session manager creates auth-request message and calls interruptForHandoff (which waits
+  //    for the tool's result, see `toolHandoff`)
   // 3. User completes auth in UI
   // 4. Auth result is sent as a "faked user message"
   // 5. Agent resumes and processes the result
@@ -830,10 +926,12 @@ export class ClaudeAgent extends BaseAgent {
     registerSessionScopedToolCallbacks(sessionId, {
       onPlanSubmitted: (planPath) => {
         this.onDebug?.(`[ClaudeAgent] onPlanSubmitted received: ${planPath}`);
+        this.beginToolHandoff();
         this.onPlanSubmitted?.(planPath);
       },
       onAuthRequest: (request) => {
         this.onDebug?.(`[ClaudeAgent] onAuthRequest received: ${request.sourceSlug} (type: ${request.type})`);
+        this.beginToolHandoff();
         this.onAuthRequest?.(request);
       },
       queryFn: (request) => this.queryLlm(request),
@@ -898,8 +996,8 @@ export class ClaudeAgent extends BaseAgent {
   // Config watcher methods (startConfigWatcher, stopConfigWatcher) are now inherited from BaseAgent
   // Thinking level methods (setThinkingLevel, getThinkingLevel) are inherited from BaseAgent
 
-  // Permission command utilities (getBaseCommand, isDangerousCommand, extractDomainFromNetworkCommand)
-  // are now available via this.permissionManager
+  // "Always Allow" keys come with each prompt (PromptInfo.remember) and are applied via
+  // this.permissionManager.remember(); see core/permission-remember.ts
 
   /**
    * Respond to a pending permission request.
@@ -911,19 +1009,10 @@ export class ClaudeAgent extends BaseAgent {
     if (pending) {
       this.debug(`Resolving permission promise for ${requestId}`);
 
-      // If "always allow" was selected, remember it (with special handling for curl/wget)
-      if (alwaysAllow && allowed) {
-        if (['curl', 'wget'].includes(pending.baseCommand)) {
-          // For curl/wget, whitelist the domain instead of the command
-          const domain = this.permissionManager.extractDomainFromNetworkCommand(pending.command);
-          if (domain) {
-            this.permissionManager.whitelistDomain(domain);
-            this.debug(`Added domain "${domain}" to always-allowed domains`);
-          }
-        } else if (!this.permissionManager.isDangerousCommand(pending.baseCommand)) {
-          this.permissionManager.whitelistCommand(pending.baseCommand);
-          this.debug(`Added "${pending.baseCommand}" to always-allowed commands`);
-        }
+      // "Always Allow": remember exactly what the permission check computed (see permission-remember.ts).
+      if (alwaysAllow && allowed && pending.remember) {
+        this.permissionManager.remember(pending.remember);
+        this.debug(`Remembered ${JSON.stringify(pending.remember)} for this session`);
       }
 
       pending.resolve(allowed);
@@ -934,54 +1023,6 @@ export class ClaudeAgent extends BaseAgent {
   }
 
   // isInSafeMode() is now inherited from BaseAgent
-
-  /**
-   * Check if a tool requires permission and handle it
-   * Returns true if allowed, false if denied
-   */
-  private async checkToolPermission(
-    toolName: string,
-    input: Record<string, unknown>,
-    toolUseId: string
-  ): Promise<{ allowed: boolean; updatedInput: Record<string, unknown> }> {
-    // Bash commands require permission
-    if (toolName === 'Bash') {
-      const command = typeof input.command === 'string' ? input.command : JSON.stringify(input);
-      const baseCommand = command.trim().split(/\s+/)[0] || command;
-      const requestId = `perm-${toolUseId}`;
-
-      // Create a promise that will be resolved when user responds
-      const permissionPromise = new Promise<boolean>((resolve) => {
-        this.pendingPermissions.set(requestId, {
-          resolve,
-          toolName,
-          command,
-          baseCommand,
-        });
-      });
-
-      // Notify application of permission request via callback (not event yield)
-      if (this.onPermissionRequest) {
-        this.onPermissionRequest({
-          requestId,
-          toolName,
-          command,
-          description: `Execute bash command: ${command}`,
-        });
-      } else {
-        // No permission handler - deny by default for safety
-        this.pendingPermissions.delete(requestId);
-        return { allowed: false, updatedInput: input };
-      }
-
-      // Wait for user response
-      const allowed = await permissionPromise;
-      return { allowed, updatedInput: input };
-    }
-
-    // All other tools are auto-approved
-    return { allowed: true, updatedInput: input };
-  }
 
   private async getToken(): Promise<string | null> {
     // Only return token if explicitly provided via config
@@ -994,11 +1035,21 @@ export class ClaudeAgent extends BaseAgent {
     attachments?: FileAttachment[],
     options?: ChatOptions
   ): AsyncGenerator<AgentEvent> {
-    // Extract options (ChatOptions interface from AgentBackend)
-    const _isRetry = options?.isRetry ?? false;
+    yield* this.pendingSteers.runTurn(this.chatTurn(userMessage, attachments, options));
+  }
 
-    // Clear any leftover steer from a previous turn (safety net — should already be null)
-    this.pendingSteerMessage = null;
+  private async *chatTurn(
+    userMessage: string,
+    attachments?: FileAttachment[],
+    options?: ChatOptions
+  ): AsyncGenerator<AgentEvent> {
+    // Extract options (ChatOptions interface from AgentBackend). Read here: the SDK query
+    // options declared further down shadow the `options` parameter.
+    const _isRetry = options?.isRetry ?? false;
+    const thinkingOverride = options?.thinkingOverride;
+    // A handoff deferred in an earlier turn must never interrupt this one.
+    if (this.toolHandoff?.timer) clearTimeout(this.toolHandoff.timer);
+    this.toolHandoff = null;
 
     try {
       const sessionId = this.config.session?.id || `temp-${Date.now()}`;
@@ -1108,18 +1159,20 @@ export class ClaudeAgent extends BaseAgent {
         debug(`[chat] Custom provider: baseUrl=${activeBaseUrl}, model=${model}, hasApiKey=${!!process.env.ANTHROPIC_API_KEY}`);
       }
 
+      // A per-turn override (adaptive thinking) applies to this turn only.
+      const turnThinkingLevel = thinkingOverride ?? this._thinkingLevel;
       const thinkingOptions = resolveClaudeThinkingOptions({
-        thinkingLevel: this._thinkingLevel,
+        thinkingLevel: turnThinkingLevel,
         model,
         providerType: this.config.providerType,
         minimizeThinking: miniConfig.minimizeThinking,
       });
       if ('effort' in thinkingOptions && thinkingOptions.effort) {
-        debug(`[chat] Thinking: level=${this._thinkingLevel}, effort=${thinkingOptions.effort}`);
+        debug(`[chat] Thinking: level=${turnThinkingLevel}, effort=${thinkingOptions.effort}`);
       } else if ('maxThinkingTokens' in thinkingOptions) {
-        debug(`[chat] Thinking: level=${this._thinkingLevel}, tokens=${thinkingOptions.maxThinkingTokens}`);
+        debug(`[chat] Thinking: level=${turnThinkingLevel}, tokens=${thinkingOptions.maxThinkingTokens}`);
       } else {
-        debug(`[chat] Thinking: level=${this._thinkingLevel}, disabled`);
+        debug(`[chat] Thinking: level=${turnThinkingLevel}, disabled`);
       }
 
       // NOTE: Parent-child tracking for subagents is documented below (search for
@@ -1208,6 +1261,14 @@ export class ClaudeAgent extends BaseAgent {
           : {
               type: 'preset' as const,
               preset: 'claude_code' as const,
+              // Record the rendered system prompt once per SDK session and reuse it on
+              // every later request and on resume (SDK ≥0.3.267 default, pinned here on
+              // purpose). Craft already pins the append's inputs per session (see the
+              // pinnedPreferencesPrompt drift notice) — a prompt that changes
+              // mid-conversation invalidates the cache prefix and, on Opus 5.5 / Fable,
+              // can invalidate earlier thinking blocks. Per-turn context travels on the
+              // user-message tail, never in this append.
+              snapshot: true,
               // Working directory included for monorepo context file discovery
               append: getSystemPrompt(
                 this.pinnedPreferencesPrompt ?? undefined,
@@ -1253,7 +1314,7 @@ export class ClaudeAgent extends BaseAgent {
           // Internal hooks for permission handling and logging
           const internalHooks: Record<string, SdkAutomationCallbackMatcher[]> = {
           PreToolUse: [{
-            hooks: [async (_hookInput) => {
+            hooks: [this.pendingSteers.wrapHook(async (_hookInput, _toolUseId, hookOptions) => {
               // Only handle PreToolUse events
               if (_hookInput.hook_event_name !== 'PreToolUse') {
                 return { continue: true };
@@ -1322,11 +1383,11 @@ export class ClaudeAgent extends BaseAgent {
               // takes effect without restart. `getRtkPath()` is cached per
               // process; only the storage read happens each time.
               const rtkContext: RtkContext | undefined = getRtkEnabled()
-                ? { enabled: true, path: getRtkPath(), exclude: [] }
+                ? { enabled: true, path: getRtkPath(), exclude: getRtkExcludeCommands() }
                 : undefined;
 
-              // Run centralized PreToolUse checks
-              const checkResult = runPreToolUseChecks({
+              // Run centralized PreToolUse checks (plus the Guarded-mode risk check, when installed)
+              const preToolUseInput: PreToolUseInput = {
                 toolName: input.tool_name,
                 input: toolInput,
                 sessionId,
@@ -1343,27 +1404,22 @@ export class ClaudeAgent extends BaseAgent {
                 prerequisiteManager: this.prerequisiteManager,
                 rtkContext,
                 onDebug: (msg) => this.onDebug?.(msg),
-              });
-
-              // Consume pending steer message (if any) — will be injected via additionalContext
-              const steerMsg = this.pendingSteerMessage;
-              if (steerMsg) {
-                this.pendingSteerMessage = null;
-                this.debug(`Injecting steer via additionalContext on ${input.tool_name}`);
+              };
+              const baseResult = runPreToolUseChecks(preToolUseInput);
+              // Guarded-mode risk check (decision model): skipped without any await outside Guarded mode.
+              let checkResult = baseResult;
+              if (needsGuardedModeCheck(baseResult, preToolUseInput, this.guardedModeCheck)) {
+                const turnSignal = this.currentQueryAbortController?.signal;
+                const signals = [hookOptions?.signal, turnSignal].filter((signal): signal is AbortSignal => !!signal);
+                checkResult = await applyGuardedModeCheck(baseResult, preToolUseInput, this.guardedModeCheck, {
+                  signal: signals.length > 1 ? AbortSignal.any(signals) : signals[0],
+                });
               }
 
-              // Translate result to SDK format
+              // Translate result to SDK format. The wrapper drains steers only
+              // after this hook returns an emitting allow/modify result.
               switch (checkResult.type) {
                 case 'allow':
-                  if (steerMsg) {
-                    return {
-                      continue: true,
-                      hookSpecificOutput: {
-                        hookEventName: 'PreToolUse' as const,
-                        additionalContext: `The user just sent a new message while you were working. Stop what you are currently doing and address their message instead:\n\n${steerMsg}`,
-                      },
-                    };
-                  }
                   return { continue: true };
 
                 case 'modify':
@@ -1372,7 +1428,6 @@ export class ClaudeAgent extends BaseAgent {
                     hookSpecificOutput: {
                       hookEventName: 'PreToolUse' as const,
                       updatedInput: checkResult.input,
-                      ...(steerMsg ? { additionalContext: `The user just sent a new message while you were working. Stop what you are currently doing and address their message instead:\n\n${steerMsg}` } : {}),
                     },
                   };
 
@@ -1440,7 +1495,6 @@ export class ClaudeAgent extends BaseAgent {
                 case 'prompt': {
                   const requestId = `perm-${input.tool_use_id}`;
                   const command = checkResult.command || '';
-                  const baseCommand = this.permissionManager.getBaseCommand(command);
 
                   debug(`[PreToolUse] Requesting permission for ${input.tool_name}: ${command}`);
 
@@ -1449,7 +1503,7 @@ export class ClaudeAgent extends BaseAgent {
                       resolve,
                       toolName: input.tool_name,
                       command,
-                      baseCommand,
+                      remember: checkResult.remember,
                     });
                   });
 
@@ -1464,6 +1518,8 @@ export class ClaudeAgent extends BaseAgent {
                       reason: checkResult.reason,
                       impact: checkResult.impact,
                       requiresSystemPrompt: checkResult.requiresSystemPrompt,
+                      // "Always Allow" only has something to remember when the check produced a key.
+                      canRemember: checkResult.promptType === 'admin_approval' ? undefined : !!checkResult.remember,
                       rememberForMinutes: checkResult.rememberForMinutes,
                       commandHash: checkResult.commandHash,
                       approvalTtlSeconds: checkResult.approvalTtlSeconds,
@@ -1499,12 +1555,14 @@ export class ClaudeAgent extends BaseAgent {
                   return { continue: true };
                 }
               }
-            }],
+            })],
           }],
-          // NOTE: PostToolUse hook was removed because updatedMCPToolOutput is not a valid SDK output field.
-          // For API tools (api_*), summarization happens in api-tools.ts.
-          // For external MCP servers (stdio/HTTP), we cannot modify their output - they're responsible
-          // for their own size management via pagination or filtering.
+          // Large MCP tool results (external servers, session tools) are saved to a file and
+          // summarized or previewed BEFORE the model sees them. API tools (api_*) are guarded in
+          // api-tools.ts already and come through unchanged.
+          PostToolUse: [{
+            hooks: [async (input) => this.guardLargeMcpToolOutput(input)],
+          }],
 
           // ═══════════════════════════════════════════════════════════════════════════
           // SUBAGENT HOOKS: Logging only - parent tracking uses SDK's parent_tool_use_id
@@ -1569,12 +1627,10 @@ export class ClaudeAgent extends BaseAgent {
               }
             : {}),
         mcpServers,
-        // NOTE: This callback is NOT called by the SDK because we set `permissionMode: 'bypassPermissions'` above.
+        // No `canUseTool`: `permissionMode: 'bypassPermissions'` shadows it (SDK never calls it,
+        // and since SDK 0.3.198 the combination triggers a runtime warning on every query).
         // All permission logic is handled via the PreToolUse hook instead (see hooks.PreToolUse above).
         // Bash permission logic is in PreToolUse where it actually executes.
-        canUseTool: async (_toolName, input) => {
-          return { behavior: 'allow' as const, updatedInput: input as Record<string, unknown> };
-        },
         // Selectively disable tools - file tools are disabled (use MCP), web/code controlled by settings
         disallowedTools,
         // No plugins — skills are handled by BaseAgent.chat() via read-before-execute
@@ -1642,16 +1698,25 @@ This is a branched conversation. All prior messages in this conversation are par
 
       // Create the query - handle slash commands, binary attachments, or regular messages.
       //
-      // WS2 keep-alive: for non-slash turns, ride ONE persistent streaming-input
-      // query (created on the first turn, reused thereafter) so background
-      // sub-agents survive across turns. chatImpl then drains a per-turn *channel*
-      // (fed by the single consumer) instead of the raw query — ending that channel
-      // at `result` finishes the turn without closing the subprocess. Slash commands
-      // (e.g. /compact) always use the per-turn path (they mutate session state).
+      // WS2 keep-alive: ride ONE persistent streaming-input query for both normal
+      // turns and /compact. The installed SDK accepts raw SDKUserMessage content
+      // '/compact' on the live input; using a second query here leaves the old
+      // persistent iterator alive and resumes the uncompacted history afterwards.
       let turnMessageSource: AsyncIterable<SDKMessage>;
-      if (this.keepBackgroundTasksAlive && !isSlashCommand) {
+      let persistentTurn: { aborted: boolean } | null = null;
+      if (this.keepBackgroundTasksAlive && isSlashCommand) {
+        debug(`[chat] Detected SDK slash command on persistent input: ${trimmedMessage}`);
+        const sdkMessage: SDKUserMessage = {
+          type: 'user',
+          message: { role: 'user', content: trimmedMessage },
+          parent_tool_use_id: null,
+        };
+        turnMessageSource = await this.beginPersistentTurn(sdkMessage, optionsWithAbort, thinkingOptions);
+        persistentTurn = this.activeTurnState;
+      } else if (this.keepBackgroundTasksAlive && !isSlashCommand) {
         const sdkMessage = this.buildSDKUserMessage(effectiveUserMessage, attachments);
-        turnMessageSource = this.beginPersistentTurn(sdkMessage, optionsWithAbort);
+        turnMessageSource = await this.beginPersistentTurn(sdkMessage, optionsWithAbort, thinkingOptions);
+        persistentTurn = this.activeTurnState;
       } else if (isSlashCommand) {
         // Send slash commands directly to SDK without context wrapping.
         // The SDK processes these as internal commands (e.g., /compact triggers compaction).
@@ -1677,9 +1742,11 @@ This is a branched conversation. All prior messages in this conversation are par
       const metadataSessionDir = getSessionPath(this.workspaceRootPath, sessionId);
       this.eventAdapter.updateSessionDir(metadataSessionDir);
       this.eventAdapter.startTurn();
+      if (isSlashCommand && commandName === 'compact') {
+        this.eventAdapter.expectManualCompaction();
+      }
 
       // Process SDK messages and convert to AgentEvents
-      const summarizeCallback = this.getSummarizeCallback();
       let receivedComplete = false;
       // Track whether we received any assistant content (for empty response detection)
       // When SDK returns empty response (e.g., failed resume), we need to detect and recover
@@ -1727,6 +1794,8 @@ This is a branched conversation. All prior messages in this conversation are par
 
           const events = await this.eventAdapter.adapt(message);
           for (const event of events) {
+            this.releaseToolHandoffOn(event);
+
             // After source_test (or any session-scoped tool) successfully activates a
             // new source, activateSourceInSessionFn stashes a restart descriptor on the
             // agent. The drain controller captures the descriptor on the first
@@ -1758,7 +1827,8 @@ This is a branched conversation. All prior messages in this conversation are par
                   yield {
                     type: 'source_activated' as const,
                     sourceSlug,
-                    originalMessage: userMessage,
+                    // What the user typed, without this turn's host guidance (turnContext).
+                    originalMessage: this.getCurrentTurnUserMessage() ?? userMessage,
                   };
 
                   // Interrupt the turn - no point letting the model continue without the tools
@@ -1792,14 +1862,15 @@ This is a branched conversation. All prior messages in this conversation are par
               this.resetPrerequisiteState();
             }
 
-            // Intercept large/binary/media-rich tool results — save assets to disk,
-            // preserve original JSON when needed, and/or summarize oversized text.
+            // Intercept large/binary/media-rich tool results for the session's copy: save assets
+            // to disk and preview oversized text. The model has already seen this result (MCP
+            // results were guarded in PostToolUse, built-in tools cap their own output), so no
+            // summary is generated here: it would cost a model call for a copy nobody reads.
             if (event.type === 'tool_result' && !event.isError && event.result) {
               const guarded = await guardLargeResult(event.result, {
                 sessionPath: metadataSessionDir,
                 toolName: event.toolName || 'unknown',
                 input: event.input,
-                summarize: summarizeCallback,
                 contextWindow: this.usageTracker.getContextWindow(),
               });
               if (guarded) {
@@ -1879,6 +1950,12 @@ This is a branched conversation. All prior messages in this conversation are par
           }
         }
 
+        // Keep-alive: a Stop (forceAbort) tears the persistent query down and only ends this turn's
+        // channel, so the loop finishes without the AbortError a per-turn query throws. Take the
+        // interruption path below instead of the empty-response recovery, which would clear the
+        // SDK session and re-run the message the user just stopped.
+        if (persistentTurn?.aborted) throw new AbortError('Request was aborted.');
+
         // Stream-end fallback (#790): the SDK stream ended without any batch
         // boundary firing — defensive against the SDK closing in the same
         // adapted batch the capture happened in. `return` is critical here —
@@ -1955,6 +2032,11 @@ This is a branched conversation. All prior messages in this conversation are par
         if (sdkError instanceof AbortError) {
           const reason = this.lastAbortReason;
           this.lastAbortReason = null;  // Clear for next time
+
+          // Keep a finished text block that was waiting for its message_delta: without the flush it
+          // would be missing after a reload.
+          const flushedOnAbort = this.eventAdapter.flushPending();
+          if (flushedOnAbort) yield flushedOnAbort;
 
           // If interrupted before receiving any assistant content AND this was the first message,
           // clear session ID to prevent broken resume state where SDK session file is empty/invalid.
@@ -2357,6 +2439,13 @@ This is a branched conversation. All prior messages in this conversation are par
       }
 
     } catch (error) {
+      // Stopped while the turn was being prepared (e.g. during the keep-alive thinking update): an
+      // interruption, not an error.
+      if (error instanceof AbortError) {
+        yield { type: 'complete' };
+        return;
+      }
+
       // Debug: log outer catch trigger (stderr to avoid SDK JSON pollution)
       console.error(`[ClaudeAgent] OUTER CATCH triggered: ${error instanceof Error ? error.message : String(error)}`);
       console.error(`[ClaudeAgent] Error stack: ${error instanceof Error ? error.stack : 'no stack'}`);
@@ -2388,15 +2477,6 @@ This is a branched conversation. All prior messages in this conversation are par
       } else {
         debug(`[bg-lifecycle] chat() finally — currentQuery nulled, subprocess torn down`, { sessionId: this.config.session?.id, sdkSessionId: this.sessionId, keepAlive: this.keepBackgroundTasksAlive });
         this.currentQuery = null;
-      }
-
-      // If a steer message was never delivered (no PreToolUse fired), notify the session
-      // layer so it can re-queue the message for the next turn.
-      const undeliveredSteer = this.pendingSteerMessage;
-      if (undeliveredSteer) {
-        this.pendingSteerMessage = null;
-        this.debug(`Steer message was not delivered (no tool call fired) — emitting steer_undelivered`);
-        yield { type: 'steer_undelivered' as const, message: undeliveredSteer };
       }
     }
   }
@@ -2728,6 +2808,7 @@ This is a branched conversation. All prior messages in this conversation are par
   }
 
   clearHistory(): void {
+    this.pendingSteers.pause();
     // Clear session to start fresh conversation
     this.sessionId = null;
     // Clear pinned state so next chat() will capture fresh values
@@ -2743,15 +2824,71 @@ This is a branched conversation. All prior messages in this conversation are par
    * If no tool call fires before the turn ends, yields steer_undelivered so the
    * session layer can re-queue the message.
    */
-  override redirect(message: string): boolean {
+  override redirect(message: string, metadata?: RedirectMetadata): boolean {
     if (!this.currentQuery || !this.currentQueryAbortController) {
       // Not actively streaming — fall back to abort + queue
       this.forceAbort(AbortReason.Redirect);
       return false;
     }
     this.debug(`Steering mid-stream: "${message.slice(0, 100)}"`);
-    this.pendingSteerMessage = message;
-    return true;
+    if (this.pendingSteers.enqueue({ message, ...metadata })) return true;
+    this.forceAbort(AbortReason.Redirect);
+    return false;
+  }
+
+  override canSteerNow(): boolean {
+    return !!this.currentQuery && !!this.currentQueryAbortController && this.pendingSteers.isAccepting() && !this.isCompactionInFlight();
+  }
+
+  takePendingSteers(): PendingSteer[] {
+    this.pendingSteers.pause();
+    return this.pendingSteers.drain();
+  }
+
+  /**
+   * A /compact turn is running. Claude steers are delivered at the next tool
+   * call, which a compaction turn never makes, so the session layer queues
+   * the message for replay instead (OSS #1058).
+   */
+  override isCompactionInFlight(): boolean {
+    // Optional chaining: partially constructed agents (teardown, prototype-based
+    // test fixtures) have no adapter and must read as "not compacting".
+    return this.isProcessing() && this.eventAdapter?.isManualCompactionRequested() === true;
+  }
+
+  /**
+   * PostToolUse: replace a large MCP tool output with the saved-file form (summary or preview)
+   * via `updatedToolOutput` (SDK 0.3.280+). The replacement keeps the SDK's shape, an array of
+   * content blocks (an object makes the SDK fail the call), with non-text blocks kept as they are.
+   * Only outputs over the size limit change for the model; media in small outputs is still only
+   * extracted for the session's copy.
+   */
+  private async guardLargeMcpToolOutput(input: SdkAutomationInput): Promise<{
+    continue: boolean;
+    hookSpecificOutput?: { hookEventName: 'PostToolUse'; updatedToolOutput: unknown };
+  }> {
+    if (input.hook_event_name !== 'PostToolUse' || !input.tool_name?.startsWith('mcp__')) return { continue: true };
+    const sessionId = this.config.session?.id;
+    if (!sessionId) return { continue: true };
+    // Typed as a string for automations; for MCP tools the SDK passes the content-block array.
+    const response: unknown = input.tool_response;
+    const blocks = Array.isArray(response) ? response as Array<{ type?: unknown; text?: unknown }> : null;
+    const isText = (block: { type?: unknown; text?: unknown }) => block?.type === 'text' && typeof block.text === 'string';
+    const text = typeof response === 'string' ? response : blocks ? blocks.filter(isText).map(block => block.text as string).join('\n') : '';
+    const contextWindow = this.usageTracker.getContextWindow();
+    if (!text || estimateTokensDensityAware(text) <= tokenLimitFor(contextWindow)) return { continue: true };
+    const toolInput = (input.tool_input ?? {}) as Record<string, unknown>;
+    const guarded = await guardLargeResult(text, {
+      sessionPath: getSessionPath(this.workspaceRootPath, sessionId),
+      toolName: input.tool_name,
+      input: toolInput,
+      intent: typeof toolInput._intent === 'string' ? toolInput._intent : undefined,
+      summarize: this.getSummarizeCallback(),
+      contextWindow,
+    });
+    if (!guarded) return { continue: true };
+    const updatedToolOutput = blocks ? [{ type: 'text', text: guarded }, ...blocks.filter(block => !isText(block))] : guarded;
+    return { continue: true, hookSpecificOutput: { hookEventName: 'PostToolUse', updatedToolOutput } };
   }
 
   /**
@@ -2763,13 +2900,46 @@ This is a branched conversation. All prior messages in this conversation are par
    */
   override interruptForHandoff(reason: AbortReason): void {
     this.lastAbortReason = reason;
-    this.pendingSteerMessage = null; // Clear any undelivered steer
+    this.pendingSteers.pause(); // Retain accepted messages for host recovery.
 
     if (!this.currentQuery) {
       return;
     }
 
-    void this.currentQuery.interrupt().catch((error) => {
+    // Asked from inside the handing-off tool (SubmitPlan, an auth tool): interrupting before it
+    // returns makes the SDK store the call as rejected ("The user doesn't want to proceed with
+    // this tool use…"), which the model then takes for the user's refusal. Wait for its result.
+    if (this.toolHandoff) {
+      this.toolHandoff.interrupt = true;
+      this.toolHandoff.timer ??= setTimeout(() => this.releaseToolHandoff(), this.handoffResultWaitMs ?? HANDOFF_RESULT_WAIT_MS);
+      return;
+    }
+
+    this.interruptCurrentQuery();
+  }
+
+  /** A session tool is handing the turn to the UI; its handoff interrupt waits for its result. */
+  private beginToolHandoff(): void {
+    if (this.toolHandoff?.timer) clearTimeout(this.toolHandoff.timer);
+    this.toolHandoff = { interrupt: false, timer: null };
+  }
+
+  /** The tool that handed the turn to the UI has its result in the transcript: interrupt now. */
+  private releaseToolHandoffOn(event: AgentEvent): void {
+    if (this.toolHandoff && event.type === 'tool_result' && HANDOFF_TOOL_NAMES.has(event.toolName ?? '')) this.releaseToolHandoff();
+  }
+
+  /** Run the handoff interrupt deferred by `interruptForHandoff`, if one was asked for. */
+  private releaseToolHandoff(): void {
+    const handoff = this.toolHandoff;
+    if (!handoff) return;
+    this.toolHandoff = null;
+    if (handoff.timer) clearTimeout(handoff.timer);
+    if (handoff.interrupt) this.interruptCurrentQuery();
+  }
+
+  private interruptCurrentQuery(): void {
+    void this.currentQuery?.interrupt().catch((error) => {
       this.debug(`Claude handoff interrupt failed: ${error instanceof Error ? error.message : String(error)}`);
     });
   }
@@ -2783,7 +2953,16 @@ This is a branched conversation. All prior messages in this conversation are par
    */
   forceAbort(reason: AbortReason = AbortReason.UserStop): void {
     this.lastAbortReason = reason;
-    this.pendingSteerMessage = null; // Clear any undelivered steer
+    if (this.activeTurnState) this.activeTurnState.aborted = true;
+    // Keep-alive: end the stopped turn now, not when the killed CLI finally exits (seconds later).
+    if (this.activeTurnChannel) {
+      this.activeTurnChannel.end();
+      this.activeTurnChannel = null;
+      this.activeTurnState = null;
+    }
+    this.pendingSteers.pause(); // Retain accepted messages for host recovery.
+    if (this.toolHandoff?.timer) clearTimeout(this.toolHandoff.timer);
+    this.toolHandoff = null; // the hard abort supersedes a deferred handoff interrupt
     if (this.currentQueryAbortController) {
       this.currentQueryAbortController.abort(reason);
       this.currentQueryAbortController = null;
@@ -2898,6 +3077,8 @@ This is a branched conversation. All prior messages in this conversation are par
    * Calls super.destroy() for base cleanup, then Claude-specific cleanup.
    */
   destroy(): void {
+    // Never let a suspended hook inject into a subsequent turn.
+    this.pendingSteers.pause();
     // Claude-specific cleanup first
     this.currentQueryAbortController?.abort();
     // WS2: tear down the persistent streaming-input query (if any) so no

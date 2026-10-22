@@ -523,6 +523,8 @@ curl https://update.u-agents.u-studio.cn/v1.x.y/manifest.json
 - 看是否能 fetch 到 `update.u-agents.u-studio.cn/latest/latest-mac.yml`
 - 看 latest-mac.yml 中 sha512 / 文件大小是否与上传的 zip 匹配
 
+自动更新只是便利路径，不是唯一恢复入口。Electron 设置 → 关于必须常驻“手动下载”按钮；检查或安装失败的提示也必须提供同一动作，统一通过现有安全 `openUrl` 通道打开 `https://agents.u-studio.cn`。客户端不得使用明文 `http://`，也不得根据更新服务器响应拼接任意下载页 URL。该入口同时覆盖内部同版本构建无法触发 semver 自动更新的场景。
+
 ---
 
 ## 9. 版本回滚
@@ -615,3 +617,10 @@ rclone copy r2:u-agents-update/v1.x.y-1/latest-mac.yml r2:u-agents-update/latest
 ### 11.6 macOS Apple Silicon 用户装了 x64 版
 
 → 用户从下载页选错了。在网站上做 UA 检测自动推荐对应版本。
+
+
+## 2026-10-01 · v0.14.0 升级候选实施补充
+
+构建目标为锁定 v0.14.0 的独立升级分支。干净 Electron 编译与 frozen lock 验证是代码门禁；本轮没有签名、公证、生成正式安装包、发布更新或修改 main。正式数据停机备份、回滚、Windows/macOS 安装验收及付费生图对账仍是发布前置项。
+
+执行证据与剩余门禁见 [UPGRADE-EXECUTION-v0.14.0.md](UPGRADE-EXECUTION-v0.14.0.md)。本节记录候选分支，不代表 main 或已发布版本。

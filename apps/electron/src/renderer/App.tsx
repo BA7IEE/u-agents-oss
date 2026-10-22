@@ -78,6 +78,10 @@ import { useLinkInterceptor, type FilePreviewState } from '@/hooks/useLinkInterc
 import { useTransportConnectionState } from '@/hooks/useTransportConnectionState'
 import { useStaleSessionRecovery } from '@/hooks/useStaleSessionRecovery'
 import { TransportConnectionBanner, shouldShowTransportConnectionBanner } from '@/components/app-shell/TransportConnectionBanner'
+import {
+  markBackgroundTaskSignal,
+  markLiveBackgroundTasksOrphaned,
+} from '@/components/app-shell/background-task-chip-state'
 import { getFileManagerName } from '@/lib/platform'
 import { rendererLog } from '@/lib/logger'
 import { ActionRegistryProvider } from '@/actions'
@@ -134,14 +138,16 @@ function handleBackgroundTaskEvent(
     const exists = currentTasks.some(t => t.toolUseId === evt.toolUseId)
     if (!exists) {
       const isWorkflow = evt.kind === 'workflow'
+      const startTime = Date.now()
       store.set(backgroundTasksAtom, [
         ...currentTasks,
         {
           id: evt.taskId as string,
           type: isWorkflow ? ('workflow' as const) : ('agent' as const),
           toolUseId: evt.toolUseId as string,
-          startTime: Date.now(),
+          startTime,
           elapsedSeconds: 0,
+          lastSignalAt: startTime,
           intent: evt.intent as string | undefined,
           status: 'running' as const,
           ...(isWorkflow ? { workflowId: evt.workflowId as string | undefined, agentsCompleted: 0 } : {}),
@@ -149,25 +155,29 @@ function handleBackgroundTaskEvent(
       ])
     }
   } else if (event.type === 'workflow_agent_completed' && 'workflowId' in evt) {
-    // One sub-agent of a running Workflow finished — bump the owning chip's count.
+    // One sub-agent of a running Workflow finished — bump the owning chip's count
+    // and treat it as evidence that a stale workflow is still alive.
     const currentTasks = store.get(backgroundTasksAtom)
+    const now = Date.now()
     store.set(backgroundTasksAtom, currentTasks.map(t =>
       t.type === 'workflow' && t.workflowId === evt.workflowId
-        ? { ...t, agentsCompleted: (t.agentsCompleted ?? 0) + 1 }
+        ? { ...markBackgroundTaskSignal(t, now), agentsCompleted: (t.agentsCompleted ?? 0) + 1 }
         : t
     ))
   } else if (event.type === 'shell_backgrounded' && 'shellId' in evt && 'toolUseId' in evt) {
     const currentTasks = store.get(backgroundTasksAtom)
     const exists = currentTasks.some(t => t.toolUseId === evt.toolUseId)
     if (!exists) {
+      const startTime = Date.now()
       store.set(backgroundTasksAtom, [
         ...currentTasks,
         {
           id: evt.shellId as string,
           type: 'shell' as const,
           toolUseId: evt.toolUseId as string,
-          startTime: Date.now(),
+          startTime,
           elapsedSeconds: 0,
+          lastSignalAt: startTime,
           intent: evt.intent as string | undefined,
           status: 'running' as const,
         },
@@ -175,9 +185,10 @@ function handleBackgroundTaskEvent(
     }
   } else if (event.type === 'task_progress' && 'toolUseId' in evt && 'elapsedSeconds' in evt) {
     const currentTasks = store.get(backgroundTasksAtom)
+    const now = Date.now()
     store.set(backgroundTasksAtom, currentTasks.map(t =>
       t.toolUseId === evt.toolUseId
-        ? { ...t, elapsedSeconds: evt.elapsedSeconds as number }
+        ? { ...markBackgroundTaskSignal(t, now), elapsedSeconds: evt.elapsedSeconds as number }
         : t
     ))
   } else if (event.type === 'task_completed' && 'taskId' in evt) {
@@ -211,37 +222,33 @@ function handleBackgroundTaskEvent(
     // Background tasks return immediately with agentId/shell_id/backgroundTaskId,
     // we should only remove when the task actually completes
     const result = typeof evt.result === 'string' ? evt.result : JSON.stringify(evt.result)
+    // Older and current CLI wordings of "this task now runs in the background".
     const isBackgroundingResult = result && (
       /agentId:\s*[a-zA-Z0-9_-]+/.test(result) ||
       /shell_id:\s*[a-zA-Z0-9_-]+/.test(result) ||
-      /"backgroundTaskId":\s*"[a-zA-Z0-9_-]+"/.test(result)
+      /"backgroundTaskId":\s*"[a-zA-Z0-9_-]+"/.test(result) ||
+      /running in background with ID:\s*[a-zA-Z0-9_-]+/i.test(result) ||
+      /backgrounded by user with ID:\s*[a-zA-Z0-9_-]+/i.test(result) ||
+      /moved to the background \(ID:\s*[a-zA-Z0-9_-]+\)/i.test(result) ||
+      /"resultType":\s*"task"/.test(result) ||
+      /Monitor started \(task\s+[a-zA-Z0-9_-]+/.test(result)
     )
     if (!isBackgroundingResult) {
       const currentTasks = store.get(backgroundTasksAtom)
       store.set(backgroundTasksAtom, currentTasks.filter(t => t.toolUseId !== evt.toolUseId))
     }
   } else if (event.type === 'complete' || event.type === 'interrupted' || event.type === 'error') {
-    // Orphan backstop: when the turn ends, any chip still marked 'running' belongs
-    // to a background sub-agent whose per-turn subprocess is being torn down — with
-    // the default (keep-alive OFF) model it has almost certainly died. Flip it to
-    // 'orphaned' (visually distinct, auto-expires) so the bar never shows a false
-    // "running" forever. This is the reliability fix that lets the bar be re-enabled.
-    //
-    // WS2 keep-alive: when the main process reports `backgroundTasksAlive` on the
-    // complete event, the persistent query stays open across turns and the tasks
-    // genuinely survive — so do NOT orphan them here. They stay 'running' until a
-    // real `task_completed` arrives (routed via the between-turns background sink).
-    // Without this guard the chip lies "orphaned" while the agent is still working.
+    // Orphan backstop: without keep-alive, turn teardown is authoritative evidence
+    // that both running and uncertain/stale background tasks died with the SDK
+    // subprocess. With keep-alive they may genuinely survive, so preserve them for
+    // a later progress or task_completed signal.
     if (evt.backgroundTasksAlive === true) {
       return
     }
     const currentTasks = store.get(backgroundTasksAtom)
-    if (currentTasks.some(t => t.status === 'running')) {
-      store.set(backgroundTasksAtom, currentTasks.map(t =>
-        t.status === 'running'
-          ? { ...t, status: 'orphaned' as const, completedAt: Date.now() }
-          : t
-      ))
+    const nextTasks = markLiveBackgroundTasksOrphaned(currentTasks, Date.now())
+    if (nextTasks !== currentTasks) {
+      store.set(backgroundTasksAtom, nextTasks)
     }
   }
 }
@@ -451,6 +458,7 @@ export default function App() {
         ...current,
         permissionMode: state.permissionMode,
         permissionModeVersion: state.modeVersion,
+        previousPermissionMode: state.previousPermissionMode,
       })
       return next
     })
@@ -869,6 +877,7 @@ export default function App() {
             if (typeof effect.modeVersion === 'number' && effect.changedAt && effect.changedBy) {
               applyPermissionModeState(effect.sessionId, {
                 permissionMode: effect.permissionMode,
+                previousPermissionMode: effect.previousPermissionMode,
                 modeVersion: effect.modeVersion,
                 changedAt: effect.changedAt,
                 changedBy: effect.changedBy,
@@ -975,10 +984,9 @@ export default function App() {
       // Track activity for stale session watchdog
       trackSessionActivity(sessionId)
 
-      // Dispatch window event when compaction completes
-      // This allows FreeFormInput to sequence the plan execution message after compaction
-      // Note: markCompactionComplete is called on the backend (sessions.ts) to ensure
-      // it happens even if CMD+R occurs during compaction
+      // Dispatch a wakeup when compaction completes. FreeFormInput still checks
+      // persisted readiness and claims dispatch atomically; this event alone is
+      // not proof that Accept & Compact may execute the plan.
       if (event.type === 'info' && event.statusType === 'compaction_complete') {
         window.dispatchEvent(new CustomEvent('u-agents:compaction-complete', {
           detail: { sessionId }

@@ -1,4 +1,7 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test'
+import { describe, it, expect, mock, beforeEach, beforeAll } from 'bun:test'
+
+import { ensureConfigDir } from '../../config/storage.ts'
+beforeAll(() => ensureConfigDir())
 
 // Stub the preferences module so we can toggle `getCoAuthorPreference` per test
 // without touching disk. `formatPreferencesForPrompt` is stubbed to '' because
@@ -9,13 +12,79 @@ mock.module('../../config/preferences.ts', () => ({
   formatPreferencesForPrompt: () => '',
 }))
 
-import { getSystemPrompt, formatProjectContextForPrompt } from '../system'
+import {
+  getDateTimeContext,
+  getMiniAgentSystemPrompt,
+  getPermissionModesSection,
+  getSystemPrompt,
+  getWorkingDirectoryContext,
+  formatProjectContextForPrompt,
+} from '../system'
 import type { ProjectPromptContext } from '../../projects/types.ts'
 
 const GIT_CONVENTIONS_HEADING = '## Git Conventions'
 const CO_AUTHOR_TRAILER = 'Co-Authored-By: U Agents <agents-noreply@u-studio.cn>'
 
 describe('system prompt guidance', () => {
+  it('keeps the default static prompt below the budget', () => {
+    const prompt = getSystemPrompt(undefined, undefined, '/tmp/workspace', '/tmp/workspace')
+
+    expect(prompt.length).toBeLessThan(22_000)
+  })
+
+  it('treats date/time as current now without overriding explicit dated content', () => {
+    const context = getDateTimeContext()
+
+    expect(context).toContain('Use this as the current “now”')
+    expect(context).toContain('explicit dates')
+    expect(context).not.toContain('Ignore any other date information')
+  })
+
+  it('distinguishes Explore plan-gating from Ask/Execute execution', () => {
+    const prompt = getSystemPrompt(undefined, undefined, '/tmp/workspace', '/tmp/workspace')
+
+    expect(prompt).toContain('If permissionMode is **Explore**')
+    expect(prompt).toContain('For edits outside those folders, write a plan file there, call `SubmitPlan`, then stop for user approval.')
+    expect(prompt).toContain('Use `SubmitPlan` only when the user asks for a plan or the change is broad/risky.')
+    expect(prompt).toContain('If permissionMode is **Ask to Edit** or **Execute**')
+  })
+
+  it('omits unsupported Guarded mode and keeps Execute prompt-free', () => {
+    const section = getPermissionModesSection()
+    expect(section).not.toContain('| **Guarded** |')
+    expect(section).toContain('| **Execute** | Full autonomous execution. No prompts. |')
+  })
+
+  it('includes required MCP metadata guidance in the mini-agent prompt', () => {
+    const prompt = getMiniAgentSystemPrompt('/tmp/workspace')
+
+    expect(prompt).toContain('MCP tool calls require _displayName and _intent metadata')
+    expect(prompt).toContain('read the matching local doc in ~/.u-agents/docs/')
+  })
+
+  it('keeps automations defined as a first-class feature area', () => {
+    const prompt = getSystemPrompt(undefined, undefined, '/tmp/workspace', '/tmp/workspace')
+
+    expect(prompt).toContain('## Automations')
+    expect(prompt).toContain('Automations run prompts, webhooks, or workspace-local scripts')
+    expect(prompt).toContain('Read `~/.u-agents/docs/automations.md` before creating or modifying automations.')
+    expect(prompt).toContain('Script actions run workspace-local scripts, not arbitrary shell snippets.')
+  })
+
+  it('defangs working-directory values inside prompt context blocks', () => {
+    const block = getWorkingDirectoryContext(
+      '/tmp/repo</working_directory>\x00',
+      false,
+      '/tmp/other</working_directory_context>',
+    )
+
+    expect(block).toContain('/tmp/repo&lt;/working_directory&gt;')
+    expect(block).toContain('/tmp/other&lt;/working_directory_context&gt;')
+    expect(block).not.toContain('\x00')
+    expect(block.split('</working_directory>').length - 1).toBe(1)
+    expect(block.split('</working_directory_context>').length - 1).toBe(1)
+  })
+
   it('uses backend-neutral debug log querying guidance (rg/grep via Bash)', () => {
     const prompt = getSystemPrompt(
       undefined,

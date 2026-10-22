@@ -326,21 +326,31 @@ export default function AppSettingsPage() {
                   </SettingsRow>
                   {isElectron && (
                     <SettingsRow label={t("settings.about.checkForUpdates")}>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleCheckForUpdates}
-                        disabled={isCheckingForUpdates}
-                      >
-                        {isCheckingForUpdates ? (
-                          <>
-                            <Spinner className="mr-1.5" />
-                            {t("common.checking")}
-                          </>
-                        ) : (
-                          t("settings.about.checkNow")
-                        )}
-                      </Button>
+                      {/* U-API: keep manual download visible even when same-version auto-update cannot advance. */}
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleCheckForUpdates}
+                          disabled={isCheckingForUpdates}
+                        >
+                          {isCheckingForUpdates ? (
+                            <>
+                              <Spinner className="mr-1.5" />
+                              {t("common.checking")}
+                            </>
+                          ) : (
+                            t("settings.about.checkNow")
+                          )}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={updateChecker.openManualUpdate}
+                        >
+                          {t("settings.about.manualDownload")}
+                        </Button>
+                      </div>
                     </SettingsRow>
                   )}
                   {isElectron && updateChecker.isReadyToInstall && updateChecker.updateInfo?.latestVersion && (

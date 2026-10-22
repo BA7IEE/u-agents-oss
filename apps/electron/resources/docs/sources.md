@@ -484,6 +484,8 @@ When `headerNames` is specified:
 - All header values are stored together as a JSON object
 - Each header is added to every API request
 
+Use `headerName` (singular) for APIs that need one header. A credential entered through the multi-header prompt for a single-header source is unpacked to the bare value, never sent as a JSON blob. `source_test` sends exactly what the `api_<source>` tools send, so a passing authenticated test means real calls authenticate too.
+
 To prompt for multi-header credentials:
 ```typescript
 source_credential_prompt({
@@ -503,7 +505,7 @@ Common multi-header use cases:
 
 For API sources that use OAuth 2.0 but aren't Google, Slack, or Microsoft. Two modes:
 
-**Auto-discovery (recommended):** If the API supports RFC 9728 (OAuth Protected Resource Metadata), just set `authType: "oauth"` — endpoints and client registration are discovered automatically:
+**Auto-discovery (recommended):** If the API supports RFC 9728 (OAuth Protected Resource Metadata), just set `authType: "oauth"` — endpoints, client registration and the RFC 8707 `resource` indicator (so resource-bound servers accept the token) are discovered automatically:
 
 ```json
 {
@@ -545,6 +547,7 @@ The `oauth` block fields (only needed for explicit config):
 - `clientSecret` (optional): Client secret — not required for public PKCE clients
 - `scopes` (optional): Requested OAuth scopes
 - `audience` (optional): Auth0-style audience parameter
+- `resource` (optional): RFC 8707 resource indicator for servers that issue audience-scoped tokens; sent on the authorization, token and refresh requests
 - `extraParams` (optional): Additional query params for the authorization URL (e.g. `{"access_type": "offline"}`)
 
 To trigger OAuth authentication, use `source_oauth_trigger` (the same tool used for MCP OAuth):
@@ -810,7 +813,7 @@ Requires user-provided OAuth credentials in the source config:
 - `googleOAuthClientId`: Your Google OAuth Client ID
 - `googleOAuthClientSecret`: Your Google OAuth Client Secret
 
-Create credentials at [Google Cloud Console](https://console.cloud.google.com/apis/credentials) (Desktop app type).
+Create credentials at [Google Cloud Console](https://console.cloud.google.com/apis/credentials) as a **Web application** client (not "Desktop app"), and add `https://thecraftagents.com/auth/callback` as an authorized redirect URI. A client secret is required.
 Uses OAuth via `source_google_oauth_trigger`.
 
 ### Linear

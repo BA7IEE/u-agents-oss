@@ -14,7 +14,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
-import { createApiTool } from '../api-tools.ts';
+import { createApiTool, executeApiRequest } from '../api-tools.ts';
 import type { ApiCredential } from '../api-tools.ts';
 import type { ApiConfig } from '../types.ts';
 
@@ -201,16 +201,21 @@ describe('api-tools SSRF guard — redirect bypass防护（v24 F1.F3）', () => 
   });
 });
 
-describe('api-tools SSRF guard — marker 防回归', () => {
-  it('static source check: assertPublicHttpsUrl 接入 + redirect:"manual" 配置都在', async () => {
-    // 这是源码层防护，确保 import 和接入未来不被 revert
-    const { readFileSync } = await import('fs');
-    const { join } = await import('path');
-    const src = readFileSync(join(__dirname, '..', 'api-tools.ts'), 'utf-8');
-    expect(src).toMatch(/import\s*\{\s*assertPublicHttpsUrl\s*\}/);
-    expect(src).toMatch(/redirect:\s*['"]manual['"]/);
-    // marker 至少 4 处（import + redirect:'manual' 注释 + safety check + 30x reject 注释）
-    const markers = src.match(/\/\/\s*U-API:\s*M3 SSRF/g) ?? [];
-    expect(markers.length).toBeGreaterThanOrEqual(4);
+// U-API: test the new common path used by Pages, rather than counting old wrapper comments.
+describe('executeApiRequest shared protection', () => {
+  let originalFetch: typeof globalThis.fetch;
+  beforeEach(() => { originalFetch = globalThis.fetch; });
+  afterEach(() => { globalThis.fetch = originalFetch; });
+  it('blocks private targets without any fetch', async () => {
+    mockFetchOk();
+    await expect(executeApiRequest(makeConfig({ baseUrl: 'https://192.168.1.1' }), cred,
+      { path: '/private', method: 'GET' })).rejects.toThrow('SSRF');
+    expect(fetchCalls).toHaveLength(0);
+  });
+  it('does not follow redirects or disclose the Location token', async () => {
+    mockFetchRedirect('http://169.254.169.254/?token=secret-value');
+    await expect(executeApiRequest(makeConfig(), cred, { path: '/', method: 'GET' })).rejects.toThrow('redirect');
+    expect(fetchCalls).toHaveLength(1);
+    expect(fetchCalls[0]!.init.redirect).toBe('manual');
   });
 });

@@ -11,7 +11,7 @@
 
 import type { PermissionMode } from '../agent/mode-manager.ts';
 import type { ThinkingLevel } from '../agent/thinking-levels.ts';
-import type { StoredAttachment, MessageRole, ToolStatus, AuthRequestType, AuthStatus, CredentialInputMode, StoredMessage } from '@u-agents/core/types';
+import type { StoredAttachment, MessageRole, ToolStatus, AuthRequestType, AuthStatus, CredentialInputMode, StoredMessage, ContextUsageSnapshot } from '@u-agents/core/types';
 
 /**
  * Session fields that persist to disk.
@@ -96,6 +96,8 @@ export interface SessionTokenUsage {
   cacheCreationTokens?: number;
   /** Model's context window size in tokens (from SDK modelUsage) */
   contextWindow?: number;
+  /** Current occupancy, independent from billable/cumulative token counters. */
+  contextUsage?: ContextUsageSnapshot;
 }
 
 /**
@@ -122,7 +124,7 @@ export interface SessionConfig {
   lastMessageAt?: number;
   /** Whether this session is flagged */
   isFlagged?: boolean;
-  /** Permission mode for this session ('safe', 'ask', 'allow-all') */
+  /** Permission mode for this session ('safe', 'ask', 'guarded', 'allow-all') */
   permissionMode?: PermissionMode;
   /** Previous permission mode (used to preserve modeTransition context across restarts) */
   previousPermissionMode?: PermissionMode;
@@ -207,7 +209,15 @@ export interface SessionConfig {
   /** Whether the transferred-session summary has already been injected. */
   transferredSessionSummaryApplied?: boolean;
   /** Metadata for sessions created by automations */
-  triggeredBy?: { automationName?: string; event?: string; timestamp?: number };
+  triggeredBy?: {
+    automationName?: string;
+    /** Matcher id of the automation that created the session (loop guard: it never re-triggers itself). */
+    automationId?: string;
+    event?: string;
+    timestamp?: number;
+    /** 1 for a session an automation created from a user event; +1 per automation-created hop. */
+    depth?: number;
+  };
   /** Workspace-scoped project id this session belongs to (undefined = unbound). */
   projectId?: string;
   /** Parent session id — when set, this session is a subtask of the parent (undefined = top-level task). */
@@ -254,7 +264,7 @@ export interface SessionHeader {
   lastMessageAt?: number;
   /** Whether this session is flagged */
   isFlagged?: boolean;
-  /** Permission mode for this session ('safe', 'ask', 'allow-all') */
+  /** Permission mode for this session ('safe', 'ask', 'guarded', 'allow-all') */
   permissionMode?: PermissionMode;
   /** Previous permission mode (used to preserve modeTransition context across restarts) */
   previousPermissionMode?: PermissionMode;
@@ -314,7 +324,15 @@ export interface SessionHeader {
   /** Whether the transferred-session summary has already been injected. */
   transferredSessionSummaryApplied?: boolean;
   /** Metadata for sessions created by automations */
-  triggeredBy?: { automationName?: string; event?: string; timestamp?: number };
+  triggeredBy?: {
+    automationName?: string;
+    /** Matcher id of the automation that created the session (loop guard: it never re-triggers itself). */
+    automationId?: string;
+    event?: string;
+    timestamp?: number;
+    /** 1 for a session an automation created from a user event; +1 per automation-created hop. */
+    depth?: number;
+  };
   /** Workspace-scoped project id this session belongs to (undefined = unbound). */
   projectId?: string;
   /** Parent session id — when set, this session is a subtask of the parent (undefined = top-level task). */

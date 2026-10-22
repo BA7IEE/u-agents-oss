@@ -1,3 +1,5 @@
+import { CONFIG_FILE } from '../interceptor-common.ts';
+import { dirname } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import { writeFileSync, unlinkSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -123,7 +125,7 @@ describe('sanitizeEmptyTextCacheControl', () => {
 });
 
 describe('upgradePromptCacheTtl', () => {
-  const configFile = join(homedir(), '.u-agents', 'config.json');
+  const configFile = CONFIG_FILE;
   let originalConfig: string | null = null;
 
   beforeEach(() => {
@@ -146,7 +148,7 @@ describe('upgradePromptCacheTtl', () => {
   });
 
   function enableExtendedCache() {
-    const dir = join(homedir(), '.u-agents');
+    const dir = dirname(CONFIG_FILE);
     mkdirSync(dir, { recursive: true });
     const existing = originalConfig ? JSON.parse(originalConfig) : {};
     writeFileSync(configFile, JSON.stringify({ ...existing, extendedPromptCache: true }));
@@ -154,7 +156,7 @@ describe('upgradePromptCacheTtl', () => {
   }
 
   function disableExtendedCache() {
-    const dir = join(homedir(), '.u-agents');
+    const dir = dirname(CONFIG_FILE);
     mkdirSync(dir, { recursive: true });
     const existing = originalConfig ? JSON.parse(originalConfig) : {};
     writeFileSync(configFile, JSON.stringify({ ...existing, extendedPromptCache: false }));

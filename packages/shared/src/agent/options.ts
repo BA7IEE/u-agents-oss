@@ -4,6 +4,7 @@ import { homedir } from "os";
 import { existsSync, readFileSync, writeFileSync, unlinkSync, readdirSync } from "fs";
 import { debug } from "../utils/debug";
 import { getProxyEnvVars } from "../config/proxy-env.ts";
+import { getGitBashPath } from "../config/storage.ts";
 
 declare const CRAFT_AGENT_CLI_VERSION: string | undefined;
 
@@ -192,6 +193,23 @@ export function buildClaudeSubprocessEnv(
         // Propagate debug mode from argv flag OR existing env var
         CRAFT_DEBUG: (process.argv.includes('--debug') || process.env.CRAFT_DEBUG === '1') ? '1' : '0',
     };
+
+    // SDK 0.3.268 (Claude Code 2.1.268) stopped offering the task-tracking tools
+    // (TodoWrite and the Task* family) by default on Opus ≤4.7, Sonnet ≤4.6 and
+    // Haiku 4.5. Craft renders TodoWrite in the transcript regardless of model, so
+    // keep the tools available everywhere. No-op on models that still get them.
+    if (env.CLAUDE_CODE_ENABLE_TODO_TOOLS === undefined) {
+        env.CLAUDE_CODE_ENABLE_TODO_TOOLS = '1';
+    }
+
+    // Windows: point the SDK's Bash tool at the user-configured Git Bash if set.
+    // The SDK otherwise falls back to a hardcoded Program Files search that misses
+    // per-user installs (e.g. AppData\Local\Programs\Git) → "No bash shell found"
+    // (#935). Only fill when unset so a live-validated value (startup/CHECK) wins.
+    if (process.platform === 'win32' && !env.CLAUDE_CODE_GIT_BASH_PATH) {
+        const gitBash = getGitBashPath()?.trim();
+        if (gitBash) env.CLAUDE_CODE_GIT_BASH_PATH = gitBash;
+    }
 
     // Bedrock must never be routed through the Claude SDK path.
     // Strip only Claude-specific Bedrock routing vars here; keep generic AWS_*

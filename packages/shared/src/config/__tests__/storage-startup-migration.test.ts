@@ -65,7 +65,7 @@ function runMigration(configDir: string) {
   ], {
     env: {
       ...process.env,
-      CRAFT_CONFIG_DIR: configDir,
+      U_AGENTS_CONFIG_DIR: configDir, CRAFT_CONFIG_DIR: configDir,
     },
     stdout: 'pipe',
     stderr: 'pipe',

@@ -5,6 +5,7 @@ import type { StoredAttachment } from '@u-agents/core/types'
 import { getWorkspaceByNameOrId } from '@u-agents/shared/config'
 import { perf } from '@u-agents/shared/utils'
 import { isValidThinkingLevel, THINKING_LEVEL_IDS } from '@u-agents/shared/agent/thinking-levels'
+import { isPermissionMode, PERMISSION_MODE_ORDER } from '@u-agents/shared/agent/modes'
 
 const VALID_THINKING_LEVELS_LIST = THINKING_LEVEL_IDS.map(id => `'${id}'`).join(', ')
 import { pushTyped, type RpcServer } from '@u-agents/server-core/transport'
@@ -322,6 +323,10 @@ export function registerSessionsHandlers(server: RpcServer, deps: HandlerDeps): 
         // Track which session user is actively viewing (for unread state machine)
         return sessionManager.setActiveViewingSession(sessionId, command.workspaceId)
       case 'setPermissionMode':
+        // An unknown mode would fall through to Explore's checks in shouldAllowToolInMode.
+        if (!isPermissionMode(command.mode)) {
+          throw new Error(`Invalid permission mode: ${String(command.mode)}. Valid values: ${PERMISSION_MODE_ORDER.join(', ')}`)
+        }
         return sessionManager.setSessionPermissionMode(sessionId, command.mode)
       case 'setThinkingLevel':
         // Validate thinking level before passing to session manager

@@ -162,6 +162,21 @@ describe('chunked transfer handlers', () => {
 
   it('refreshes TTL as chunks arrive so slow healthy uploads survive', async () => {
     process.env.CRAFT_TRANSFER_TTL_MS = '40'
+    // U-API: deterministic clock; verify renewal without racing a loaded test runner.
+    const originalSetTimeout = globalThis.setTimeout
+    const originalClearTimeout = globalThis.clearTimeout
+    let now = 0
+    let nextId = 0
+    const timers = new Map<number, { at: number; callback: () => void }>()
+    globalThis.setTimeout = ((callback: () => void, delay: number) => {
+      const id = ++nextId; timers.set(id, { at: now + delay, callback }); return id
+    }) as unknown as typeof setTimeout
+    globalThis.clearTimeout = ((id: number) => { timers.delete(id) }) as unknown as typeof clearTimeout
+    const advance = (ms: number) => {
+      now += ms
+      for (const [id, timer] of timers) if (timer.at <= now) { timers.delete(id); timer.callback() }
+    }
+    try {
 
     const { start, chunk, commit } = createHarness()
     const payload = encodeParts({ hello: 'world', slow: true }, 8)
@@ -177,14 +192,14 @@ describe('chunked transfer handlers', () => {
       checksum: payload.checksum,
     }) as { transferId: string }
 
-    await new Promise(resolve => setTimeout(resolve, 25))
+    advance(25)
     await chunk(ctx('client-1'), {
       transferId,
       index: 0,
       data: payload.chunks[0],
     })
 
-    await new Promise(resolve => setTimeout(resolve, 25))
+    advance(25)
     await chunk(ctx('client-1'), {
       transferId,
       index: 1,
@@ -195,5 +210,10 @@ describe('chunked transfer handlers', () => {
       ok: true,
       body: { hello: 'world', slow: true },
     })
+    } finally {
+      __resetTransferStateForTests()
+      globalThis.setTimeout = originalSetTimeout
+      globalThis.clearTimeout = originalClearTimeout
+    }
   })
 })

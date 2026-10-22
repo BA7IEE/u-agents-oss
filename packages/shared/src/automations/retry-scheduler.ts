@@ -16,6 +16,8 @@ import { readFile, writeFile, appendFile } from 'fs/promises';
 import { join } from 'path';
 import { createLogger } from '../utils/debug.ts';
 import { executeWebhookRequest, createWebhookHistoryEntry } from './webhook-utils.ts';
+import { validateAutomationsConfig } from './validation.ts';
+import { resolveAutomationsConfigPath } from './resolve-config-path.ts';
 import { AUTOMATIONS_RETRY_QUEUE_FILE } from './constants.ts';
 import { appendAutomationHistoryEntry } from './history-store.ts';
 import type { WebhookAction, WebhookActionResult } from './types.ts';
@@ -55,6 +57,7 @@ export interface RetryQueueEntry {
   createdAt: number;
   /** Last error message */
   lastError?: string;
+  policyBlockReason?: string;
 }
 
 // ============================================================================
@@ -155,6 +158,10 @@ export class RetryScheduler {
 
       if (entries.length === 0) return;
 
+      // U-API: persisted webhook retries must not bypass unsupported semantic conditions.
+      const config = await readFile(resolveAutomationsConfigPath(this.workspaceRootPath), 'utf8')
+        .then(raw => validateAutomationsConfig(JSON.parse(raw)).config).catch(() => null);
+      const matchers = Object.values(config?.automations ?? {}).flatMap(items => items ?? []);
       const now = Date.now();
       const remaining: RetryQueueEntry[] = [];
 
@@ -165,6 +172,18 @@ export class RetryScheduler {
           continue;
         }
 
+        const matcher = matchers.find(item => item.id === entry.matcherId);
+        const blocked = !matcher ? '自动化配置缺失，重试已暂停'
+          : matcher.semanticCondition ? 'U Agents 不支持语义条件，重试已暂停'
+          : matcher.enabled === false ? '自动化已停用，重试已暂停' : undefined;
+        if (blocked) {
+          if (entry.policyBlockReason !== blocked) {
+            await appendAutomationHistoryEntry(this.workspaceRootPath, { id: entry.matcherId, ts: now, ok: false, skipped: blocked });
+          }
+          remaining.push({ ...entry, policyBlockReason: blocked });
+          continue;
+        }
+        delete entry.policyBlockReason;
         // Attempt retry
         log.debug(`[RetryScheduler] Retrying ${entry.id} (deferred attempt ${entry.deferredAttempt + 1}/${MAX_DEFERRED_ATTEMPTS})`);
         let result: WebhookActionResult;

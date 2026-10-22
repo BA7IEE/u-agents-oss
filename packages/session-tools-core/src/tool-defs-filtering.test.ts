@@ -24,6 +24,17 @@ describe('session tool filtering helpers', () => {
     expect(names.includes('send_developer_feedback')).toBe(true);
   });
 
+  it('keeps decide hidden even when callers request includeDecide', () => {
+    expect(getSessionToolDefs().some(d => d.name === 'decide')).toBe(false);
+    expect(getSessionToolDefs({ includeDeveloperFeedback: true }).some(d => d.name === 'decide')).toBe(false);
+    expect(getSessionToolDefs({ includeDecide: false }).some(d => d.name === 'decide')).toBe(false);
+    expect(getSessionToolDefs({ includeDecide: true }).some(d => d.name === 'decide')).toBe(false);
+    expect(getToolDefsAsJsonSchema({ prefix: 'mcp__session__' }).some(d => d.name === 'mcp__session__decide')).toBe(false);
+    expect(getToolDefsAsJsonSchema({ prefix: 'mcp__session__', includeDecide: true }).some(d => d.name === 'mcp__session__decide')).toBe(false);
+    // Unfiltered constants still know the tool so backends can execute it once advertised.
+    expect(SESSION_TOOL_DEFS.some(d => d.name === 'decide' && d.executionMode === 'registry' && d.readOnly === true)).toBe(true);
+  });
+
   it('name set and registry stay aligned for filtered output', () => {
     const names = getSessionToolNames({ includeDeveloperFeedback: false });
     const registry = getSessionToolRegistry({ includeDeveloperFeedback: false });
@@ -67,10 +78,20 @@ describe('session tool filtering helpers', () => {
     expect(allowed.has('call_llm')).toBe(true);
     expect(allowed.has('browser_tool')).toBe(true);
     expect(allowed.has('script_sandbox')).toBe(true);
+    // decide only reads and judges; Explore-safe once it is advertised
+    expect(getSessionSafeAllowedToolNames({ includeDecide: true }).has('decide')).toBe(false);
 
     expect(blocked.has('source_oauth_trigger')).toBe(true);
     expect(blocked.has('source_credential_prompt')).toBe(true);
     expect(blocked.has('spawn_session')).toBe(true);
+
+    // Pages: reads are Explore-safe, mutations are not
+    expect(allowed.has('list_pages')).toBe(true);
+    expect(allowed.has('get_page')).toBe(true);
+    expect(blocked.has('create_page')).toBe(true);
+    expect(blocked.has('update_page')).toBe(true);
+    expect(blocked.has('write_page_data')).toBe(true);
+    expect(blocked.has('delete_page')).toBe(true);
   });
 
   it('safe-mode helpers support MCP prefixing', () => {

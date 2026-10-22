@@ -35,7 +35,8 @@ export async function handleConfigValidate(
   args: ConfigValidateArgs
 ): Promise<ToolResult> {
   const { target, sourceSlug } = args;
-  const craftAgentRoot = join(homedir(), '.u-agents');
+  // Same rule as shared config/paths.ts resolveConfigDir(); this package cannot import it.
+  const craftAgentRoot = process.env.U_AGENTS_CONFIG_DIR?.trim() || process.env.CRAFT_CONFIG_DIR?.trim() || join(homedir(), '.u-agents');
 
   // If full validators available (Claude), use them
   if (ctx.validators) {

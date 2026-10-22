@@ -1,3 +1,4 @@
+import { preserveUApiImageCapabilities } from '../domain/u-api-model-discovery'
 /**
  * Model Refresh Service
  *
@@ -94,9 +95,8 @@ class ModelRefreshService {
         })
 
         updateLlmConnection(slug, {
-          models: selection.models,
+          ...preserveUApiImageCapabilities(connection, selection),
           defaultModel: selection.defaultModel,
-          customEndpoint: selection.customEndpoint,
           piAuthProvider: selection.piAuthProvider,
           modelSelectionMode: 'automaticallySyncedFromProvider',
         })

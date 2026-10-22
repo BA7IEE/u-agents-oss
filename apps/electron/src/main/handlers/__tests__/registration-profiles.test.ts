@@ -94,6 +94,7 @@ async function getExpectedCoreChannels(): Promise<Set<string>> {
     labels,
     llm,
     oauth,
+    pages,
     projects,
     sessions,
     settings,
@@ -106,6 +107,7 @@ async function getExpectedCoreChannels(): Promise<Set<string>> {
     onboarding,
     resources,
     transfer,
+    decisions,
   ] = await Promise.all([
     import('@u-agents/server-core/handlers/rpc/auth'),
     import('@u-agents/server-core/handlers/rpc/automations'),
@@ -113,6 +115,7 @@ async function getExpectedCoreChannels(): Promise<Set<string>> {
     import('@u-agents/server-core/handlers/rpc/labels'),
     import('@u-agents/server-core/handlers/rpc/llm-connections'),
     import('@u-agents/server-core/handlers/rpc/oauth'),
+    import('@u-agents/server-core/handlers/rpc/pages'),
     import('@u-agents/server-core/handlers/rpc/projects'),
     import('@u-agents/server-core/handlers/rpc/sessions'),
     import('@u-agents/server-core/handlers/rpc/settings'),
@@ -125,6 +128,7 @@ async function getExpectedCoreChannels(): Promise<Set<string>> {
     import('@u-agents/server-core/handlers/rpc/onboarding'),
     import('@u-agents/server-core/handlers/rpc/resources'),
     import('@u-agents/server-core/handlers/rpc/transfer'),
+    import('@u-agents/server-core/handlers/rpc/decisions'),
   ])
 
   return new Set([
@@ -135,6 +139,7 @@ async function getExpectedCoreChannels(): Promise<Set<string>> {
     ...llm.HANDLED_CHANNELS,
     ...oauth.HANDLED_CHANNELS,
     ...projects.HANDLED_CHANNELS,
+    ...pages.HANDLED_CHANNELS,
     ...sessions.HANDLED_CHANNELS,
     ...settings.HANDLED_CHANNELS,
     ...skills.HANDLED_CHANNELS,
@@ -146,6 +151,7 @@ async function getExpectedCoreChannels(): Promise<Set<string>> {
     ...onboarding.HANDLED_CHANNELS,
     ...resources.HANDLED_CHANNELS,
     ...transfer.HANDLED_CHANNELS,
+    ...decisions.HANDLED_CHANNELS,
   ])
 }
 

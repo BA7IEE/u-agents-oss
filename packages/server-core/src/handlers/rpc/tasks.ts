@@ -44,7 +44,10 @@ import {
 import { createLogger } from '@u-agents/shared/utils'
 import { pushTyped, type RpcServer } from '@u-agents/server-core/transport'
 import type { HandlerDeps } from '../handler-deps'
-import { TaskRunner } from '../../tasks'
+import { TaskRunner, createTaskFromSpec, finishTaskOrchestrator } from '../../tasks'
+import { buildTaskVerdictDecider } from '../../decisions/task-verdict'
+import { buildNodeOutcomeClassifier } from '../../decisions/turn-outcome'
+import { buildRepairScopePicker } from '../../decisions/task-repairs'
 
 const tasksLog = createLogger('tasks-generate')
 
@@ -104,7 +107,19 @@ export function registerTasksHandlers(server: RpcServer, deps: HandlerDeps): voi
     let runner = runners.get(workspaceId)
     if (!runner) {
       const ws = workspaceOrThrow(workspaceId)
-      runner = new TaskRunner({ host: deps.sessionManager, workspaceId: ws.id, workspaceRoot: ws.rootPath })
+      runner = new TaskRunner({
+        host: deps.sessionManager,
+        workspaceId: ws.id,
+        workspaceRoot: ws.rootPath,
+        // Decision model (Jev) reads verdicts out of replies without a VERDICT line; gated per call,
+        // `null` when the layer is off → the runner re-asks exactly as before.
+        decide: buildTaskVerdictDecider(),
+        // Decision model reads how a child's turn ended; a child that asked for input or gave up
+        // is failed (retry / needs-review) instead of marked done. `null` → marked done as before.
+        classifyNodeOutcome: buildNodeOutcomeClassifier(),
+        // Decision model narrows a FAIL without named subtasks to the ones its reason implicates.
+        pickRepairNodes: buildRepairScopePicker(),
+      })
       runners.set(workspaceId, runner)
     }
     return runner
@@ -129,21 +144,11 @@ export function registerTasksHandlers(server: RpcServer, deps: HandlerDeps): voi
     // Single choke point for ALL orchestrator paths (attach / adopt / fresh): apply the reserved
     // "Task" label (surfacing its resolved id so the renderer can navigate to the label filter)
     // and enable the spec's sources on the orchestrator session. Fail-soft — neither a label nor
-    // a sources problem may fail task creation.
+    // a sources problem may fail task creation. The body lives in finishTaskOrchestrator
+    // (../../tasks/create-task) so the create_task session tool shares it verbatim.
     const finish = async (orchestratorSessionId: string): Promise<TaskCreateResult> => {
-      const applied = await deps.sessionManager
-        .applyTaskLabel(orchestratorSessionId)
-        .catch((err: unknown) => {
-          tasksLog.warn('applyTaskLabel failed for orchestrator', { orchestratorSessionId, err })
-          return undefined
-        })
-      if (spec.sources?.length) {
-        await Promise.resolve(deps.sessionManager.setSessionSources(orchestratorSessionId, spec.sources))
-          .catch((err: unknown) => {
-            tasksLog.warn('setSessionSources failed for orchestrator', { orchestratorSessionId, err })
-          })
-      }
-      return { slug: spec.id, orchestratorSessionId, validation, taskLabelId: applied?.labelId }
+      const setup = await finishTaskOrchestrator(deps.sessionManager, orchestratorSessionId, spec)
+      return { slug: spec.id, orchestratorSessionId, validation, taskLabelId: setup.taskLabelId }
     }
 
     // Edit-mode bind: the user saved this spec onto an existing, visible tile (e.g. a quick-add
@@ -186,23 +191,11 @@ export function registerTasksHandlers(server: RpcServer, deps: HandlerDeps): voi
       }
     }
 
-    const orchestrator = await deps.sessionManager.createSession(workspaceId, {
-      name: spec.title,
-      projectId: spec.project,
-      sessionStatus: 'todo',
-      // Stable linkage: this session orchestrates task `spec.id` across all of its runs.
-      taskSlug: spec.id,
-      // Explicit cwd from the spec seeds the orchestrator; children inherit it at dispatch.
-      // Omitted → orchestrator falls back to the project/workspace default working directory.
-      ...(spec.cwd ? { workingDirectory: spec.cwd } : {}),
-      ...(spec.defaults?.model ? { model: spec.defaults.model } : {}),
-      ...(spec.defaults?.llmConnection ? { llmConnection: spec.defaults.llmConnection } : {}),
-      // Persisted task autonomy also seeds the orchestrator session (children read it via the runner).
-      ...(spec.defaults?.permissionMode ? { permissionMode: spec.defaults.permissionMode } : {}),
-    })
-    // createSession announces the orchestrator to the renderer by default, so its tile appears
-    // on the board immediately.
-    return finish(orchestrator.id)
+    // Fresh create — shared core with the create_task session tool. The spec was already saved
+    // above (all three paths persist first), so skip the core's save. createSession announces the
+    // orchestrator to the renderer by default, so its tile appears on the board immediately.
+    const created = await createTaskFromSpec(deps.sessionManager, workspaceId, ws.rootPath, spec, { save: false })
+    return { slug: created.slug, orchestratorSessionId: created.orchestratorSessionId, validation, taskLabelId: created.taskLabelId }
   })
 
   // tasks:generate — the persistent orchestrator session AUTHORS the task.yaml from a goal (#2).
@@ -413,6 +406,9 @@ export function registerTasksHandlers(server: RpcServer, deps: HandlerDeps): voi
           result: entry.result,
           ...(entry.reason ? { reason: entry.reason } : {}),
           ...(entry.nodes?.length ? { nodes: entry.nodes } : {}),
+          // Provenance: a decision-model verdict must stay distinguishable from a parsed VERDICT line.
+          ...(entry.via ? { via: entry.via } : {}),
+          ...(typeof entry.confidence === 'number' ? { confidence: entry.confidence } : {}),
         })
       } else if (entry.kind === 'run-completed') {
         runStatus = 'completed'
