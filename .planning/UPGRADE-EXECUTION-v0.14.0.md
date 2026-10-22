@@ -139,3 +139,10 @@
 - [Windows 测试包 artifact 11117773907](https://github.com/BA7IEE/u-agents-oss/actions/runs/36758479955/artifacts/11117773907)，名称 `U-Agents-0.14.0-windows-x64`，压缩包 286794607 bytes；内含 `U-Agents-x64.exe`（约 273.57 MiB）、`SHA256SUMS.txt`、`BUILD.txt`，保留 14 天。
 - 本机下载速度约 70 KB/s，已停止不完整的本地回传，交付 GitHub artifact 链接；没有声称本地 EXE 校验通过。
 - 完整构建日志已保存 `/tmp/uagents-v014-execution/logs/windows-public-build.log`。尚未 Windows GUI/真实网关/付费生图验收，未创建 Release、未推送正式更新。
+
+## PR 合并准备（2026-10-22）
+
+- 用户确认 macOS / Windows 测试均正常，明确要求创建 PR、检查通过后合入 main。
+- [PR #1](https://github.com/BA7IEE/u-agents-oss/pull/1) 对应原候选 `875d161c9c342b38fb0699a9ab55eccaf3484931`，合并目标 main。
+- 首轮 [Validate 39747095869](https://github.com/BA7IEE/u-agents-oss/actions/runs/39747095869) 在冻结依赖安装阶段失败：流程使用 Bun 1.3.10，既有本地及 Windows 成功环境为 1.3.12。
+- 将 `validate.yml` 与手动集成流程 `validate-server.yml` 的 Bun 固定到 1.3.12，与已验证环境一致；保留 `--frozen-lockfile`，不改依赖版本或锁文件。修复后须重新通过 PR Validate 才能合并。
