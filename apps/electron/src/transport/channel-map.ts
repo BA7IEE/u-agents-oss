@@ -26,8 +26,8 @@ export const CHANNEL_MAP = {
   deleteSession: invoke(RPC_CHANNELS.sessions.DELETE),
   sendMessage: invoke(RPC_CHANNELS.sessions.SEND_MESSAGE),
   cancelProcessing: invoke(RPC_CHANNELS.sessions.CANCEL),
-  killShell: invoke(RPC_CHANNELS.sessions.KILL_SHELL),
-  getTaskOutput: invoke(RPC_CHANNELS.tasks.GET_OUTPUT),
+  getBackgroundTaskOutput: invoke(RPC_CHANNELS.sessions.GET_BACKGROUND_TASK_OUTPUT),
+  stopBackgroundTask: invoke(RPC_CHANNELS.sessions.STOP_BACKGROUND_TASK),
 
   // Tasks (Conductor)
   validateTask: invoke(RPC_CHANNELS.tasks.VALIDATE),
@@ -171,6 +171,10 @@ export const CHANNEL_MAP = {
   testLlmConnectionSetup: invoke(RPC_CHANNELS.settings.TEST_LLM_CONNECTION_SETUP),
   getDefaultThinkingLevel: invoke(RPC_CHANNELS.settings.GET_DEFAULT_THINKING_LEVEL),
   setDefaultThinkingLevel: invoke(RPC_CHANNELS.settings.SET_DEFAULT_THINKING_LEVEL),
+  getAutoCompactWindow: invoke(RPC_CHANNELS.settings.GET_AUTO_COMPACT_WINDOW),
+  setAutoCompactWindow: invoke(RPC_CHANNELS.settings.SET_AUTO_COMPACT_WINDOW),
+  getSubagentModel: invoke(RPC_CHANNELS.settings.GET_SUBAGENT_MODEL),
+  setSubagentModel: invoke(RPC_CHANNELS.settings.SET_SUBAGENT_MODEL),
   getNetworkProxySettings: invoke(RPC_CHANNELS.settings.GET_NETWORK_PROXY),
   setNetworkProxySettings: invoke(RPC_CHANNELS.settings.SET_NETWORK_PROXY),
 
@@ -332,6 +336,7 @@ export const CHANNEL_MAP = {
   deleteDecisionApiKey: invoke(RPC_CHANNELS.decisions.DELETE_API_KEY),
   testDecisionConnection: invoke(RPC_CHANNELS.decisions.TEST),
   probeDecisionServer: invoke(RPC_CHANNELS.decisions.PROBE_SERVER),
+  getDecisionUsage: invoke(RPC_CHANNELS.decisions.GET_USAGE),
 
   // Badge
   refreshBadge: invoke(RPC_CHANNELS.badge.REFRESH),
@@ -346,6 +351,15 @@ export const CHANNEL_MAP = {
 
   // Git
   getGitBranch: invoke(RPC_CHANNELS.git.GET_BRANCH),
+  listCodingRepos: invoke(RPC_CHANNELS.git.LIST_REPOS),
+  createCodingWorktree: invoke(RPC_CHANNELS.git.CREATE_WORKTREE),
+
+  // PR watcher (Coding mode chat-header chip)
+  prWatchSubscribe: invoke(RPC_CHANNELS.prWatch.SUBSCRIBE),
+  prWatchUnsubscribe: invoke(RPC_CHANNELS.prWatch.UNSUBSCRIBE),
+  prWatchRefresh: invoke(RPC_CHANNELS.prWatch.REFRESH),
+  prWatchGetDetails: invoke(RPC_CHANNELS.prWatch.GET_DETAILS),
+  onPrWatchChanged: listener(RPC_CHANNELS.prWatch.CHANGED),
   checkGitBash: invoke(RPC_CHANNELS.gitbash.CHECK),
   browseForGitBash: invoke(RPC_CHANNELS.gitbash.BROWSE),
   setGitBashPath: invoke(RPC_CHANNELS.gitbash.SET_PATH),
@@ -424,6 +438,7 @@ export const CHANNEL_MAP = {
   publishPage: invoke(RPC_CHANNELS.pages.PUBLISH),
   setPagePublicationPassword: invoke(RPC_CHANNELS.pages.SET_PUBLICATION_PASSWORD),
   unpublishPage: invoke(RPC_CHANNELS.pages.UNPUBLISH),
+  publishPageAsClaudeArtifact: invoke(RPC_CHANNELS.pages.PUBLISH_CLAUDE_ARTIFACT),
   getPageThumbnail: invoke(RPC_CHANNELS.pages.GET_THUMBNAIL),
   regeneratePageThumbnail: invoke(RPC_CHANNELS.pages.REGENERATE_THUMBNAIL),
   onPagesChanged: listener(RPC_CHANNELS.pages.CHANGED),

@@ -2,7 +2,7 @@ name: Windows Candidate
 
 on:
   push:
-    branches: [codex/upstream-v0.14.0]
+    branches: [codex/upstream-v0.15.5]
     paths:
       - '.github/workflows/windows-candidate.yml'
       - 'apps/**'
@@ -39,7 +39,7 @@ jobs:
           if ($process.ExitCode -ne 0) { throw "Installer failed: $($process.ExitCode)" }
           $resources = Join-Path $destination 'resources'
           $app = Join-Path $resources 'app'
-          foreach ($relative in @('dist/main.cjs', 'dist/bootstrap-preload.cjs', 'dist/browser-toolbar-preload.cjs', 'dist/interceptor.cjs', 'resources/pi-agent-server/index.js', 'node_modules/@anthropic-ai/claude-agent-sdk/sdk.mjs', 'node_modules/@anthropic-ai/claude-agent-sdk-binary/claude.exe', 'node_modules/@vscode/ripgrep/bin/rg.exe', 'packages/shared/src/config/u-agents-feature-policy.ts')) {
+          foreach ($relative in @('dist/main.cjs', 'dist/bootstrap-preload.cjs', 'dist/browser-toolbar-preload.cjs', 'dist/interceptor.cjs', 'resources/pi-agent-server/index.js', 'resources/pi-agent-server/node_modules/@silvia-odwyer/photon-node/photon_rs_bg.wasm', 'resources/pi-agent-server/photon_rs_bg.wasm', 'resources/pi-agent-server/node_modules/quickjs-wasi/quickjs.wasm', 'node_modules/@anthropic-ai/claude-agent-sdk/sdk.mjs', 'node_modules/@anthropic-ai/claude-agent-sdk-binary/claude.exe', 'node_modules/@vscode/ripgrep/bin/rg.exe', 'packages/shared/src/config/u-agents-feature-policy.ts')) {
             if (-not (Test-Path (Join-Path $app $relative))) { throw "Missing installed resource: $relative" }
           }
           if (-not (Test-Path "$resources/messaging-whatsapp-worker/worker.cjs")) { throw 'Missing WhatsApp worker' }
@@ -57,7 +57,7 @@ jobs:
           "Commit: $env:GITHUB_SHA" | Set-Content apps/electron/release/BUILD.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: U-Agents-0.14.0-windows-x64
+          name: U-Agents-0.15.5-windows-x64
           path: |
             apps/electron/release/U-Agents-x64.exe
             apps/electron/release/SHA256SUMS.txt

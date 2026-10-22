@@ -88,6 +88,8 @@ export interface ToolResultEvent {
   parentToolUseId?: string
   /** Timestamp from main process for consistent ordering */
   timestamp?: number
+  /** Replaces the input from tool_start (a browser_tool password fill, redacted once its result is known) */
+  toolInput?: Record<string, unknown>
 }
 
 /**
@@ -140,6 +142,15 @@ export interface SourcesChangedEvent {
   type: 'sources_changed'
   sessionId: string
   enabledSourceSlugs: string[]
+}
+
+/**
+ * Coding mode changed event (only before the conversation starts; see SessionManager.setSessionCodingMode)
+ */
+export interface CodingModeChangedEvent {
+  type: 'coding_mode_changed'
+  sessionId: string
+  codingMode: boolean
 }
 
 /**
@@ -390,6 +401,21 @@ export interface WorkflowAgentCompletedEvent {
 }
 
 /**
+ * Task activity - what a running background task is doing (live summary, step count). The chip is
+ * updated in App.tsx's handleBackgroundTaskEvent; messages and session state do not change.
+ */
+export interface TaskActivityEvent {
+  type: 'task_activity'
+  sessionId: string
+  taskId: string
+  toolUseId?: string
+  summary?: string
+  lastToolName?: string
+  toolUses?: number
+  turnId?: string
+}
+
+/**
  * Shell backgrounded event - background bash shell started
  */
 export interface ShellBackgroundedEvent {
@@ -528,6 +554,7 @@ export type AgentEvent =
   | PermissionRequestEvent
   | CredentialRequestEvent
   | SourcesChangedEvent
+  | CodingModeChangedEvent
   | LabelsChangedEvent
   | ProjectIdChangedEvent
   | SessionStatusChangedEvent
@@ -553,6 +580,7 @@ export type AgentEvent =
   | ShellBackgroundedEvent
   | TaskProgressEvent
   | TaskCompletedEvent
+  | TaskActivityEvent
   | WorkflowAgentCompletedEvent
   | UserMessageEvent
   | MessageAnnotationsUpdatedEvent
@@ -571,6 +599,7 @@ export type Effect =
   | { type: 'credential_request'; request: CredentialRequest }
   | { type: 'generate_title'; sessionId: string; userMessage: string }
   | { type: 'permission_mode_changed'; sessionId: string; permissionMode: PermissionMode; previousPermissionMode?: PermissionMode; transitionDisplay?: string; modeVersion?: number; changedAt?: string; changedBy?: 'user' | 'system' | 'restore' | 'automation' | 'unknown' }
+  | { type: 'coding_mode_changed'; sessionId: string; codingMode: boolean }
   | { type: 'restore_input'; text: string }
   | { type: 'toast_error'; message: string }
 

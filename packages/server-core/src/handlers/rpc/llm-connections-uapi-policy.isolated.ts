@@ -6,6 +6,7 @@ import * as backend from '@u-agents/shared/agent/backend'
 import { RPC_CHANNELS } from '@u-agents/shared/protocol'
 
 let keyReads = 0
+const keyReadSlugs: string[] = []
 let probes: Record<string, unknown>[] = []
 const slugs = ['u-api-default', 'u-api', 'u-api-2']
 mock.module('@u-agents/shared/config', () => ({
@@ -14,7 +15,7 @@ mock.module('@u-agents/shared/config', () => ({
 }))
 mock.module('@u-agents/shared/credentials', () => ({
   ...credentials,
-  getCredentialManager: () => ({ getLlmApiKey: async () => { keyReads++; return 'fixture-token' } }),
+  getCredentialManager: () => ({ getLlmApiKey: async (slug: string) => { keyReads++; keyReadSlugs.push(slug); return 'fixture-token' } }),
 }))
 mock.module('@u-agents/shared/agent/backend', () => ({
   ...backend,
@@ -32,7 +33,7 @@ describe('U-API setup credential routing', () => {
     const originalFetch = globalThis.fetch
     let fetches = 0
     globalThis.fetch = mock(async () => { fetches++; throw new Error('unexpected network') }) as unknown as typeof fetch
-    keyReads = 0; probes = []
+    keyReads = 0; keyReadSlugs.length = 0; probes = []
     try {
       for (const connectionSlug of slugs) {
         for (const patch of [
@@ -58,7 +59,7 @@ describe('U-API setup credential routing', () => {
       urls.push(String(url))
       return Response.json({ data: [{ id: 'chat-model', supported_endpoint_types: ['openai'] }] })
     }) as typeof fetch
-    keyReads = 0; probes = []
+    keyReads = 0; keyReadSlugs.length = 0; probes = []
     try {
       for (const connectionSlug of slugs) {
         const result = await testConnection({}, { provider: 'pi', baseUrl: config.U_API_BASE_URL,
@@ -66,7 +67,9 @@ describe('U-API setup credential routing', () => {
         expect(result.success).toBe(true)
         expect(JSON.stringify(result)).not.toContain('fixture-token')
       }
-      expect(keyReads).toBe(3)
+      // Save/test revalidation may read a credential again, but only for these trusted slugs.
+      expect(keyReads).toBeGreaterThanOrEqual(3)
+      expect(new Set(keyReadSlugs)).toEqual(new Set(slugs))
       expect(urls).toEqual(slugs.map(() => `${config.U_API_BASE_URL}/models`))
       expect(probes).toHaveLength(3)
       for (const probe of probes) expect(probe.baseUrl).toBe(config.U_API_BASE_URL)

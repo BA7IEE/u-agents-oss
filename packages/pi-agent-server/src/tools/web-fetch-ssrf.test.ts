@@ -62,8 +62,8 @@ describe('web-fetch SSRF guard — redirect bypass 防护（v27 真修）', () =
     const result = await tool.execute('test-2', { url: 'https://93.184.216.34' });
     // fetch was called once (to example.com legitimately), but redirect was NOT followed
     expect(fetchCalls).toHaveLength(1);
-    const errResult = result as { content: Array<{ text: string }>; details?: { isError?: boolean } };
-    expect(errResult.details?.isError).toBe(true);
+    const errResult = result as { content: Array<{ text: string }>; isError?: boolean };
+    expect(errResult.isError).toBe(true);
     expect(errResult.content[0]?.text).toContain('redirect blocked');
     expect(errResult.content[0]?.text).toContain('SSRF protection');
   });
@@ -72,8 +72,8 @@ describe('web-fetch SSRF guard — redirect bypass 防护（v27 真修）', () =
     globalThis.fetch = mockFetchRedirect('http://192.168.1.1/admin', 301);
     const tool = createWebFetchTool(() => null);
     const result = await tool.execute('test-3', { url: 'https://93.184.216.34' });
-    const errResult = result as { content: Array<{ text: string }>; details?: { isError?: boolean } };
-    expect(errResult.details?.isError).toBe(true);
+    const errResult = result as { content: Array<{ text: string }>; isError?: boolean };
+    expect(errResult.isError).toBe(true);
     expect(errResult.content[0]?.text).toContain('301');
   });
 
@@ -81,8 +81,8 @@ describe('web-fetch SSRF guard — redirect bypass 防护（v27 真修）', () =
     globalThis.fetch = mockFetchRedirect('https://attacker.com/', 307);
     const tool = createWebFetchTool(() => null);
     const result = await tool.execute('test-4', { url: 'https://93.184.216.34' });
-    const errResult = result as { content: Array<{ text: string }>; details?: { isError?: boolean } };
-    expect(errResult.details?.isError).toBe(true);
+    const errResult = result as { content: Array<{ text: string }>; isError?: boolean };
+    expect(errResult.isError).toBe(true);
     expect(errResult.content[0]?.text).toContain('307');
   });
 
@@ -90,8 +90,8 @@ describe('web-fetch SSRF guard — redirect bypass 防护（v27 真修）', () =
     globalThis.fetch = mockFetchRedirect('https://elsewhere.com/', 308);
     const tool = createWebFetchTool(() => null);
     const result = await tool.execute('test-5', { url: 'https://93.184.216.34' });
-    const errResult = result as { content: Array<{ text: string }>; details?: { isError?: boolean } };
-    expect(errResult.details?.isError).toBe(true);
+    const errResult = result as { content: Array<{ text: string }>; isError?: boolean };
+    expect(errResult.isError).toBe(true);
     expect(errResult.content[0]?.text).toContain('308');
   });
 
@@ -100,8 +100,8 @@ describe('web-fetch SSRF guard — redirect bypass 防护（v27 真修）', () =
     const tool = createWebFetchTool(() => null);
     const result = await tool.execute('test-6', { url: 'https://93.184.216.34' });
     expect(fetchCalls).toHaveLength(1);
-    const okResult = result as { content: Array<{ text: string }>; details?: { isError?: boolean } };
-    expect(okResult.details?.isError).toBeUndefined();
+    const okResult = result as { content: Array<{ text: string }>; isError?: boolean };
+    expect(okResult.isError).toBeUndefined();
   });
 });
 

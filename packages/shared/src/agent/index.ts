@@ -178,6 +178,13 @@ export {
   isBrowserToolNameOrAlias,
 } from './browser-tool-names.ts';
 
+// Keep passwords typed with browser_tool fill out of stored tool inputs
+export {
+  passwordFillRefs,
+  redactBrowserToolInput,
+  redactBrowserPasswordFills,
+} from './browser-tool-redaction.ts';
+
 // Export PowerShell validator root setter (for Electron startup on Windows)
 export { setPowerShellValidatorRoot } from './powershell-validator.ts';
 
@@ -190,3 +197,5 @@ export {
 
 // Guarded-mode risk check seam (the host implements the check; see core/guarded-mode.ts)
 export type { GuardedModeCheck, GuardedModeCall, GuardedModeRisk, GuardedModeVerdict } from './core/guarded-mode.ts';
+// Subagent model choice seam (Settings default + optional host picker; see core/subagent-model.ts)
+export type { SubagentModelPicker, SubagentTask } from './core/subagent-model.ts';

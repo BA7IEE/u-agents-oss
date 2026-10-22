@@ -12,6 +12,8 @@ import {
 } from '@u-agents/session-tools-core';
 import { FEATURE_FLAGS } from '../../../feature-flags.ts';
 import { isDecisionFeatureActive } from '../../../decisions/resolve.ts';
+import { getBrowserToolEnabled } from '../../../config/storage.ts';
+import type { SessionToolProfileOptions } from '../../session-scoped-tools.ts';
 
 // U-API: Pi registration is filtered by full/mini agent kind before merge registration (16 §10.2).
 
@@ -19,14 +21,15 @@ export type SessionToolProxyDef = JsonSchemaToolDef;
 
 export { SESSION_TOOL_NAMES };
 
-export function getSessionToolProxyDefs(agentKind: 'full' | 'mini' = 'full'): SessionToolProxyDef[] {
+export function getSessionToolProxyDefs(options?: SessionToolProfileOptions | 'full' | 'mini'): SessionToolProxyDef[] {
+  const profileOptions = typeof options === 'string' ? { agentKind: options } : options;
   return getToolDefsAsJsonSchema({
     prefix: 'mcp__session__',
     includeDeveloperFeedback: FEATURE_FLAGS.developerFeedback,
     surface: 'pi',
-    agentKind,
-    // Same gate as the Claude path (session-scoped-tools.ts): advertise `decide`
-    // only while the decision layer is on.
+    // U-API: use the same full/mini, coding and feature filters as Claude.
     includeDecide: isDecisionFeatureActive('decideTool'),
+    includeBrowser: getBrowserToolEnabled(),
+    ...profileOptions,
   });
 }

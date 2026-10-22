@@ -1,6 +1,6 @@
 {
   "name": "@u-agents/pi-agent-server",
-  "version": "0.14.0",
+  "version": "0.15.5",
   "license": "Apache-2.0",
   "description": "Out-of-process Pi agent server communicating via JSONL over stdio",
   "type": "module",
@@ -9,14 +9,14 @@
     "pi-agent-server": "./dist/index.js"
   },
   "scripts": {
-    "build": "bun build src/index.ts --outdir=dist --target=bun --format=esm --external koffi",
+    "build": "bun build src/index.ts --outdir=dist --target=bun --format=esm --external koffi --external @silvia-odwyer/photon-node",
     "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
     "validate": "bun run typecheck && bun run build"
   },
   "dependencies": {
-    "@earendil-works/pi-coding-agent": "0.87.1",
-    "@earendil-works/pi-agent-core": "0.87.1",
-    "@earendil-works/pi-ai": "0.87.1",
+    "@earendil-works/pi-coding-agent": "1.1.0",
+    "@earendil-works/pi-agent-core": "1.1.0",
+    "@earendil-works/pi-ai": "1.1.0",
     "duck-duck-scrape": "^2.2.7",
     "node-html-parser": "^6.1.0",
     "pdfjs-dist": "^5.4.0",

@@ -1,4 +1,5 @@
 import { preserveUApiImageCapabilities } from '../domain/u-api-model-discovery'
+import { uApiConnectionRevision } from '../domain/u-api-connection-state'
 /**
  * Model Refresh Service
  *
@@ -80,6 +81,7 @@ class ModelRefreshService {
     // U-API: unlike arbitrary compat endpoints, U-API owns a token-scoped model catalog that can be refreshed safely
     if (isCompatProvider(connection.providerType)) {
       if (isUApiSlug(connection.slug)) {
+        const revision = uApiConnectionRevision(slug)
         const credentials = await this.getCredentials(slug)
         if (!credentials.apiKey) {
           handlerLog.warn(`Model refresh [${slug}]: U-API credential is missing`)
@@ -87,15 +89,21 @@ class ModelRefreshService {
         }
 
         const discovery = await discoverUApiModels(credentials.apiKey)
-        const currentModelIds = (connection.models ?? []).map(model => typeof model === 'string' ? model : model.id)
+        const latestCredentials = await this.getCredentials(slug)
+        const latest = getLlmConnection(slug)
+        // U-API: discard obsolete results; preserve metadata from the latest saved connection only.
+        if (!latest || revision !== uApiConnectionRevision(slug)
+          || latestCredentials.apiKey !== credentials.apiKey
+          || latest.customEndpoint?.api !== connection.customEndpoint?.api) return
+        const currentModelIds = (latest.models ?? []).map(model => typeof model === 'string' ? model : model.id)
         const selection = resolveUApiRefreshSelection(discovery, {
-          defaultModel: connection.defaultModel,
+          defaultModel: latest.defaultModel,
           modelIds: currentModelIds,
-          customEndpointApi: connection.customEndpoint?.api,
+          customEndpointApi: latest.customEndpoint?.api,
         })
 
         updateLlmConnection(slug, {
-          ...preserveUApiImageCapabilities(connection, selection),
+          ...preserveUApiImageCapabilities(latest, selection),
           defaultModel: selection.defaultModel,
           piAuthProvider: selection.piAuthProvider,
           modelSelectionMode: 'automaticallySyncedFromProvider',

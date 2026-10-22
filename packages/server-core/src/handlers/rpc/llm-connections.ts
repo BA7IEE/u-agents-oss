@@ -14,6 +14,7 @@ import { pushTyped, type RpcServer } from '@u-agents/server-core/transport'
 import type { HandlerDeps } from '../handler-deps'
 import { randomUUID } from 'node:crypto'
 import { CLIENT_OPEN_EXTERNAL } from '@u-agents/server-core/transport'
+import { preserveUApiEndpointLimit, withUApiConnectionWrite } from '../../domain/u-api-connection-state'
 
 // Local OAuth state
 let copilotOAuthAbort: AbortController | null = null
@@ -64,8 +65,11 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
   }
 
   // Unified handler for LLM connection setup
-  server.handle(RPC_CHANNELS.settings.SETUP_LLM_CONNECTION, async (_ctx, setup: LlmConnectionSetup): Promise<{ success: boolean; error?: string }> => {
+  server.handle(RPC_CHANNELS.settings.SETUP_LLM_CONNECTION, (_ctx, setup: LlmConnectionSetup): Promise<{ success: boolean; error?: string }> => withUApiConnectionWrite(setup.slug, async () => {
     try {
+      if (!isUApiSlug(setup.slug) || setup.baseUrl?.trim().replace(/\/+$/, '') !== U_API_BASE_URL) {
+        return { success: false, error: '仅支持 U-API 连接和固定网关地址' }
+      }
       const manager = getCredentialManager()
 
       // Ensure connection exists in config
@@ -121,7 +125,10 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
       const customEndpoint = hasConfiguredBaseUrl ? setup.customEndpoint : undefined
       const isCustomEndpointCompat = !!customEndpoint
       if (customEndpoint) {
-        updates.customEndpoint = customEndpoint
+        const storedKey = isNewConnection ? null : await manager.getLlmApiKey(setup.slug)
+        const submittedKey = !setup.credential || isMaskedApiKey(setup.credential) ? storedKey : setup.credential
+        // U-API: revalidate on save; stale test results cannot restore a cap for another Token/protocol.
+        updates.customEndpoint = preserveUApiEndpointLimit(connection, customEndpoint, storedKey, submittedKey)
         updates.providerType = 'pi_compat'
         const branch = resolveCustomEndpointSetup({
           baseUrl: setup.baseUrl ?? undefined,
@@ -326,7 +333,7 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
       deps.platform.logger?.error('Failed to setup LLM connection:', message)
       return { success: false, error: message }
     }
-  })
+  }))
 
   // Unified connection test — uses the agent factory to spawn a real agent subprocess
   // and validate credentials via runMiniCompletion(). Same code path as actual chat.
@@ -360,6 +367,9 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
       try {
         const discovery = await discoverUApiModels(trimmedKey)
         const selection = await selectWorkingUApiModel(discovery, async (candidate, candidateSelection) => {
+          const storedConnection = connectionSlug ? getLlmConnection(connectionSlug) : null
+          const storedKey = connectionSlug ? await getCredentialManager().getLlmApiKey(connectionSlug) : null
+          candidateSelection.customEndpoint = preserveUApiEndpointLimit(storedConnection, candidateSelection.customEndpoint, storedKey, trimmedKey)
           const hint = resolveSetupTestConnectionHint({
             provider: 'pi',
             baseUrl: U_API_BASE_URL,
@@ -381,6 +391,10 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
         })
 
         deps.platform.logger?.info(`[testLlmConnectionSetup] U-API discovery complete: candidates=${discovery.candidates.length} selected=${selection.defaultModel} elapsed=${Date.now() - startedAt}ms`)
+        selection.customEndpoint = preserveUApiEndpointLimit(
+          connectionSlug ? getLlmConnection(connectionSlug) : null, selection.customEndpoint,
+          connectionSlug ? await getCredentialManager().getLlmApiKey(connectionSlug) : null, trimmedKey,
+        )
         return {
           success: true,
           resolvedSetup: {
@@ -511,20 +525,32 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
 
   // Save (create or update) an LLM connection
   // If connection.slug exists and is found, updates it; otherwise creates new
-  server.handle(RPC_CHANNELS.llmConnections.SAVE, async (_ctx, connection: LlmConnection): Promise<{ success: boolean; error?: string }> => {
+  server.handle(RPC_CHANNELS.llmConnections.SAVE, (_ctx, connection: LlmConnection): Promise<{ success: boolean; error?: string }> => withUApiConnectionWrite(connection.slug, async () => {
     try {
+      if (!isUApiSlug(connection.slug) || connection.baseUrl?.trim().replace(/\/+$/, '') !== U_API_BASE_URL
+        || connection.providerType !== 'pi_compat' || connection.authType !== 'api_key_with_endpoint') {
+        return { success: false, error: '仅支持 U-API 连接和固定网关地址' }
+      }
       // Check if this is an update or create
       const existing = getLlmConnection(connection.slug)
+      const storedKey = existing ? await getCredentialManager().getLlmApiKey(connection.slug) : null
+      // U-API: generic metadata saves also ignore renderer caps and serialize with Token changes.
+      const safeConnection = {
+        ...connection,
+        customEndpoint: connection.customEndpoint
+          ? preserveUApiEndpointLimit(existing, connection.customEndpoint, storedKey, storedKey)
+          : undefined,
+      }
       if (existing) {
         // Update existing connection (can't change slug)
-        const { slug: _slug, ...updates } = connection
+        const { slug: _slug, ...updates } = safeConnection
         const success = updateLlmConnection(connection.slug, updates)
         if (!success) {
           return { success: false, error: 'Failed to update connection' }
         }
       } else {
         // Create new connection
-        const success = addLlmConnection(connection)
+        const success = addLlmConnection(safeConnection)
         if (!success) {
           return { success: false, error: 'Connection with this slug already exists' }
         }
@@ -552,10 +578,10 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
       deps.platform.logger?.error('Failed to save LLM connection:', error)
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
-  })
+  }))
 
   // Delete an LLM connection (at least one connection must remain)
-  server.handle(RPC_CHANNELS.llmConnections.DELETE, async (_ctx, slug: string): Promise<{ success: boolean; error?: string }> => {
+  server.handle(RPC_CHANNELS.llmConnections.DELETE, (_ctx, slug: string): Promise<{ success: boolean; error?: string }> => withUApiConnectionWrite(slug, async () => {
     try {
       const connection = getLlmConnection(slug)
       if (!connection) {
@@ -576,7 +602,7 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
       deps.platform.logger?.error('Failed to delete LLM connection:', error)
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
-  })
+  }))
 
   // Test an LLM connection (validate credentials and connectivity with actual API call)
   server.handle(RPC_CHANNELS.llmConnections.TEST, async (_ctx, slug: string): Promise<{ success: boolean; error?: string }> => {

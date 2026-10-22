@@ -78,8 +78,9 @@ import type {
   DecisionProviderId,
   DecisionServerProbe,
   DecisionTestResult,
+  DecisionToggleUsage,
 } from '@u-agents/shared/decisions';
-export type { DecisionLayerFeature, DecisionLayerSettings, DecisionLayerSettingsPatch, DecisionLayerStatus, DecisionProviderId, DecisionServerProbe, DecisionTestResult };
+export type { DecisionLayerFeature, DecisionLayerSettings, DecisionLayerSettingsPatch, DecisionLayerStatus, DecisionProviderId, DecisionServerProbe, DecisionTestResult, DecisionToggleUsage };
 
 // =============================================================================
 // GUI-only types (not used by server/handler code)
@@ -175,6 +176,8 @@ export interface TransportConnectionState {
   nextRetryInMs?: number
   lastError?: TransportConnectionError
   lastClose?: TransportCloseInfo
+  /** Largest message the connected server accepts (from handshake_ack); absent for older servers */
+  maxMessageBytes?: number
   updatedAt: number
 }
 
@@ -231,7 +234,12 @@ import type {
   DirectoryListingResult,
   RemoteSessionTransferPayload,
   ImportRemoteSessionTransferResult,
+  BackgroundTaskOutput,
+  StopBackgroundTaskResult,
 } from '@u-agents/shared/protocol'
+
+/** Native window material the renderer may paint translucently over (see ThemeContext data-vibrancy). */
+export type WindowVibrancy = 'under-window' | 'mica'
 
 export interface ElectronAPI {
   // Session management
@@ -243,8 +251,10 @@ export interface ElectronAPI {
   deleteSession(sessionId: string): Promise<void>
   sendMessage(sessionId: string, message: string, attachments?: FileAttachment[], storedAttachments?: StoredAttachmentType[], options?: SendMessageOptions): Promise<void>
   cancelProcessing(sessionId: string, silent?: boolean): Promise<void>
-  killShell(sessionId: string, shellId: string): Promise<{ success: boolean; error?: string }>
-  getTaskOutput(taskId: string): Promise<string | null>
+  /** A background task's output so far (shell tail, or an agent's latest message + steps); null when there is none */
+  getBackgroundTaskOutput(sessionId: string, taskId: string, kind?: 'agent' | 'shell' | 'workflow'): Promise<BackgroundTaskOutput | null>
+  /** Stop one background task (shell, agent or workflow); the stopped status arrives as a task_completed event */
+  stopBackgroundTask(sessionId: string, taskId: string): Promise<StopBackgroundTaskResult>
 
   // Tasks (Conductor)
   validateTask(workspaceId: string, yaml: string): Promise<TaskValidationResultDto>
@@ -265,7 +275,8 @@ export interface ElectronAPI {
 
   // Consolidated session command handler
   sessionCommand(sessionId: string, command: Extract<SessionCommand, { type: 'markPendingPlanExecutionDispatched' }>): Promise<boolean>
-  sessionCommand(sessionId: string, command: Exclude<SessionCommand, { type: 'markPendingPlanExecutionDispatched' }>): Promise<void | ShareResult | RefreshTitleResult | { count: number }>
+  sessionCommand(sessionId: string, command: Extract<SessionCommand, { type: 'continueInNewSession' }>): Promise<{ sessionId: string }>
+  sessionCommand(sessionId: string, command: Exclude<SessionCommand, { type: 'markPendingPlanExecutionDispatched' | 'continueInNewSession' }>): Promise<void | ShareResult | RefreshTitleResult | { count: number }>
 
   // Server info (REMOTE_ELIGIBLE — returns data from whichever server owns the workspace)
   getServerHomeDir(): Promise<string>
@@ -278,6 +289,10 @@ export interface ElectronAPI {
   // App lifecycle
   relaunchApp(): Promise<void>
   removeWorkspace(workspaceId: string): Promise<boolean>
+  /** Default zoom for app windows in percent (Electron only; Appearance settings). */
+  getDefaultZoomLevel?(): Promise<number>
+  /** Saves and applies the default zoom; resolves to the stored (snapped) level. */
+  setDefaultZoomLevel?(level: number): Promise<number>
   invokeOnServer(url: string, token: string, channel: string, ...args: any[]): Promise<any>
 
   // Remote session transfer (main-process orchestrated, supports chunked upload)
@@ -398,6 +413,9 @@ export interface ElectronAPI {
   // System warnings (startup checks)
   getSystemWarnings(): Promise<{ vcredistMissing: boolean; downloadUrl?: string }>
 
+  /** Native material behind this window (macOS vibrancy, Windows 11 22H2+ Mica); null when the window is opaque. */
+  getWindowVibrancy(): WindowVibrancy | null
+
   // Shell operations
   openUrl(url: string): Promise<void>
   openFile(path: string): Promise<void>
@@ -495,8 +513,10 @@ export interface ElectronAPI {
   getDefaultPermissionsConfig(): Promise<{ config: import('@u-agents/shared/agent').PermissionsConfigFile | null; path: string }>
   getMcpTools(workspaceId: string, sourceSlug: string): Promise<McpToolsResult>
 
-  // OAuth (server-owned credentials, client-orchestrated flow)
-  performOAuth(args: { sourceSlug: string; sessionId?: string; authRequestId?: string }): Promise<{ success: boolean; error?: string; email?: string }>
+  // OAuth (server-owned credentials, client-orchestrated flow). One flow per workspace + source:
+  // a call while another session's sign-in for the source is live waits for that one instead.
+  // `restart` replaces the live sign-in (its browser window was closed or lost).
+  performOAuth(args: { sourceSlug: string; sessionId?: string; authRequestId?: string; restart?: boolean }): Promise<{ success: boolean; error?: string; email?: string }>
   oauthRevoke(sourceSlug: string): Promise<{ success: boolean }>
 
   // Session content search (full-text search via ripgrep)
@@ -605,6 +625,8 @@ export interface ElectronAPI {
   testDecisionConnection(options?: { settings?: DecisionLayerSettingsPatch; apiKey?: string }): Promise<DecisionTestResult>
   /** GET {baseUrl}/health of the configured local decision server (Laya / custom). Never rejects for network errors. */
   probeDecisionServer(options?: { baseUrl?: string }): Promise<DecisionServerProbe>
+  /** Per-feature checks, failures and changes over the last 7 days (from decisions.jsonl). */
+  getDecisionUsage(): Promise<Partial<Record<DecisionLayerFeature, DecisionToggleUsage>>>
 
   // Network proxy settings
   getNetworkProxySettings(): Promise<NetworkProxySettings | undefined>
@@ -619,8 +641,8 @@ export interface ElectronAPI {
   onNotificationNavigate(callback: (data: { workspaceId: string; sessionId: string }) => void): () => void
 
   // Theme preferences sync across windows
-  broadcastThemePreferences(preferences: { mode: string; colorTheme: string; font: string }): Promise<void>
-  onThemePreferencesChange(callback: (preferences: { mode: string; colorTheme: string; font: string }) => void): () => void
+  broadcastThemePreferences(preferences: { mode: string; colorTheme: string; font: string; motion?: string }): Promise<void>
+  onThemePreferencesChange(callback: (preferences: { mode: string; colorTheme: string; font: string; motion?: string }) => void): () => void
 
   // Workspace theme sync across windows
   broadcastWorkspaceThemeChange(workspaceId: string, themeId: string | null): Promise<void>
@@ -628,6 +650,17 @@ export interface ElectronAPI {
 
   // Git operations
   getGitBranch(dirPath: string): Promise<string | null>
+  /** Coding mode worktree picker: local repos (workspace folder + these recent folders) and `gh repo list` */
+  listCodingRepos(workspaceId: string, recentDirs: string[], options?: { refreshGitHub?: boolean }): Promise<import('@u-agents/shared/protocol').RepoListing>
+  /** Creates a new session's worktree (cloning a GitHub-only repo first); rejects with git's reason */
+  createCodingWorktree(workspaceId: string, request: import('@u-agents/shared/protocol').CreateWorktreeRequest, recentDirs: string[]): Promise<import('@u-agents/shared/protocol').CreateWorktreeResult>
+
+  // PR watcher (Coding mode): subscribe per session, then receive pushes; see protocol/pr-watch.ts
+  prWatchSubscribe(sessionId: string): Promise<{ subscriptionId: string | null; state: import('@u-agents/shared/protocol').PrWatchState }>
+  prWatchUnsubscribe(subscriptionId: string): Promise<void>
+  prWatchRefresh(sessionId: string): Promise<void>
+  prWatchGetDetails(sessionId: string): Promise<import('@u-agents/shared/protocol').PrDetails | null>
+  onPrWatchChanged(callback: (sessionId: string, state: import('@u-agents/shared/protocol').PrWatchState) => void): () => void
 
   // Git Bash (Windows)
   checkGitBash(): Promise<GitBashStatus>
@@ -678,6 +711,12 @@ export interface ElectronAPI {
   setDefaultLlmConnection(slug: string): Promise<{ success: boolean; error?: string }>
   getDefaultThinkingLevel(): Promise<ThinkingLevel>
   setDefaultThinkingLevel(level: ThinkingLevel): Promise<{ success: boolean; error?: string }>
+  /** Claude auto-compact window in tokens; null = the SDK default (the model's full window) */
+  getAutoCompactWindow(): Promise<number | null>
+  setAutoCompactWindow(tokens: number | null): Promise<void>
+  /** Model for Claude subagents whose call names none; null = the session's model */
+  getSubagentModel(): Promise<'haiku' | 'sonnet' | null>
+  setSubagentModel(model: 'haiku' | 'sonnet' | null): Promise<void>
   setWorkspaceDefaultLlmConnection(workspaceId: string, slug: string | null): Promise<{ success: boolean; error?: string }>
 
   // Projects (workspace-scoped)
@@ -714,6 +753,7 @@ export interface ElectronAPI {
   publishPage(workspaceId: string, pageSlug: string, options: { includeData: boolean; password?: string; viewOnlyAcknowledged?: boolean }): Promise<import('@u-agents/shared/pages/types').PageConfig>
   setPagePublicationPassword(workspaceId: string, pageSlug: string, password: string | null): Promise<import('@u-agents/shared/pages/types').PageConfig>
   unpublishPage(workspaceId: string, pageSlug: string): Promise<{ config: import('@u-agents/shared/pages/types').PageConfig; warning?: 'remote-copy-may-remain' }>
+  publishPageAsClaudeArtifact(workspaceId: string, pageSlug: string): Promise<import('@u-agents/shared/pages/types').PageConfig>
   /** Read a page's cached poster as a data URL — only returns when fresh (digest matches current content). */
   getPageThumbnail(workspaceId: string, pageSlug: string): Promise<{ dataUrl: string; digest: string } | null>
   /** Request a (re)capture of a page's poster (no-op on hosts without a capturer). */

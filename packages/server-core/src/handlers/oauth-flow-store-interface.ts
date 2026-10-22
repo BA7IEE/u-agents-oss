@@ -5,10 +5,13 @@
  * See OAuthFlowStore in @u-agents/shared/auth for the canonical impl.
  */
 
-import type { PendingOAuthFlow } from '@u-agents/shared/auth'
+import type { PendingOAuthFlow, OAuthFlowWaiter, OAuthFlowOutcome, OAuthFlowStatus } from '@u-agents/shared/auth'
 
 export interface IOAuthFlowStore {
   store(flow: PendingOAuthFlow): void
   getByState(state: string): PendingOAuthFlow | null
-  remove(state: string): void
+  getLiveForSource(workspaceId: string, sourceSlug: string): PendingOAuthFlow | null
+  join(state: string, waiter: OAuthFlowWaiter): PendingOAuthFlow | null
+  remove(state: string, outcome?: OAuthFlowOutcome): PendingOAuthFlow | null
+  getStatus(flowId: string, workspaceId: string): OAuthFlowStatus
 }

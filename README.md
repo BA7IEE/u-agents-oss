@@ -2,7 +2,7 @@
 
 U Agents 是一款面向中国非技术及半技术用户的桌面 AI Agent 应用。项目基于 Apache 2.0 许可的 [Craft Agents OSS](https://github.com/craft-ai-agents/craft-agents-oss) 二次开发，由独立开发者以闭源方式商业分发。
 
-当前源码版本为 `0.10.5`。应用使用 Electron、React、Bun monorepo，并同时保留 Claude Agent SDK 与 Pi SDK 后端；面向最终用户的模型调用统一通过 U-API。
+当前源码版本为 `0.15.5`。应用使用 Electron、React、Bun monorepo，并同时保留 Claude Agent SDK 与 Pi SDK 后端；面向最终用户的模型调用统一通过 U-API。
 
 ## 产品边界
 

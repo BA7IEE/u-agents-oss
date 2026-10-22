@@ -3,6 +3,7 @@ import {
   type CustomEndpointApi,
   type LlmConnection,
 } from '@u-agents/shared/config'
+import { validUApiMaxTokens } from './u-api-connection-state'
 
 const DEFAULT_DISCOVERY_TIMEOUT_MS = 10_000
 
@@ -352,6 +353,8 @@ export function preserveUApiImageCapabilities(
     }),
     customEndpoint: {
       ...selection.customEndpoint,
+      ...(connection.customEndpoint?.api === selection.customEndpoint.api && validUApiMaxTokens(connection.customEndpoint.maxTokens)
+        ? { maxTokens: connection.customEndpoint.maxTokens } : {}),
       ...(typeof connection.customEndpoint?.supportsImages === 'boolean'
         ? { supportsImages: connection.customEndpoint.supportsImages }
         : {}),

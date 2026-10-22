@@ -231,7 +231,7 @@ export function SessionViewer({
 
             {/* Bottom branding */}
             <div className={CHAT_CLASSES.brandingContainer}>
-              <UAgentsLogo className="w-8 h-8 text-[#7C3AED]/40" />
+              <UAgentsLogo className="size-8 text-accent/40" />
             </div>
             </div>
           </div>

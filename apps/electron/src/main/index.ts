@@ -60,6 +60,7 @@ Sentry.init({
 import { setupI18n, i18n, SUPPORTED_LANGUAGE_CODES, type LanguageCode } from '@u-agents/shared/i18n'
 import { getPersistedUiLanguage, setPersistedUiLanguage } from '@u-agents/shared/config'
 import { CONFIG_DIR } from '@u-agents/shared/config/paths'
+import { registerDefaultZoomIpc } from './zoom'
 setupI18n()
 const persistedUiLanguage = getPersistedUiLanguage()
 if (persistedUiLanguage) {
@@ -78,7 +79,7 @@ import { RPC_CHANNELS } from '@u-agents/shared/protocol'
 import { SessionManager, setSessionPlatform, setSessionRuntimeHooks } from '@u-agents/server-core/sessions'
 import { PageThumbnailer } from './page-thumbnailer'
 import { registerAllRpcHandlers } from './handlers/index'
-import { registerCoreRpcHandlers, cleanupSessionFileWatchForClient } from '@u-agents/server-core/handlers/rpc'
+import { registerCoreRpcHandlers, cleanupRpcClientResources } from '@u-agents/server-core/handlers/rpc'
 import type { PlatformServices } from '../runtime/platform'
 import { createElectronPlatform } from './platform'
 import type { HandlerDeps } from './handlers/handler-deps'
@@ -447,6 +448,8 @@ app.whenReady().then(async () => {
   try {
     // Initialize window manager
     windowManager = new WindowManager()
+    const windows = windowManager
+    registerDefaultZoomIpc(() => windows.getAllWindows().map(managed => managed.window))
 
     // Create the application menu (needs windowManager for New Window action)
     createApplicationMenu(windowManager)
@@ -725,7 +728,7 @@ app.whenReady().then(async () => {
           for (const [wcId, cId] of clientMap) {
             if (cId === clientId) { clientMap.delete(wcId); break }
           }
-          cleanupSessionFileWatchForClient(clientId)
+          cleanupRpcClientResources(clientId)
         },
       })
 

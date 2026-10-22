@@ -1,6 +1,6 @@
 /**
  * Modified by U Studio for U Agents (优智体) — derivative work
- * based on Craft Agents (Apache 2.0).
+ * based on U Agents (Apache 2.0).
  *
  * Original: https://github.com/lukilabs/craft-agents-oss
  * Modifications: see .planning/02-llm-gateway-spec.md and .planning/03-ui-lockdown-spec.md
@@ -269,6 +269,7 @@ const PI_AUTH_PROVIDER_DISPLAY_NAMES: Record<string, string> = {
   google: 'Google AI Studio',
   openrouter: 'OpenRouter',
   'azure-openai-responses': 'Azure OpenAI',
+  'cloudflare-ai-gateway': 'Cloudflare AI Gateway',
   'amazon-bedrock': 'Amazon Bedrock',
   groq: 'Groq',
   mistral: 'Mistral',

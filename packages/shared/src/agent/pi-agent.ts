@@ -42,7 +42,7 @@ import type { Workspace } from '../config/storage.ts';
 // Event adapter
 import { PiEventAdapter } from './backend/pi/event-adapter.ts';
 import type { PiCompactResult, PiLargeResultGateRequest, PiLargeResultGateResponse } from './backend/pi/protocol.ts';
-import { askLargeResultSummaryGate } from '../utils/large-response.ts';
+import { askLargeResultFilter } from '../utils/large-response.ts';
 import { EventQueue } from './backend/event-queue.ts';
 
 // System prompt for U Agents context
@@ -100,7 +100,7 @@ import { runPreToolUseChecks, type PreToolUseCheckResult, type PreToolUseInput }
 import type { PermissionRemember } from './core/permission-remember.ts';
 import { applyGuardedModeCheck, needsGuardedModeCheck } from './core/guarded-mode.ts';
 import { getRtkPath } from './core/rtk-detector.ts';
-import { getRtkEnabled, getRtkExcludeCommands, getBrowserToolEnabled } from '../config/storage.ts';
+import { getRtkEnabled, getRtkExcludeCommands } from '../config/storage.ts';
 import type { RtkContext } from './core/rtk-rewrite.ts';
 
 // Workspace slug extraction for skill qualification
@@ -135,7 +135,7 @@ function mapBrowserToolErrorCode(code: string): string | null {
   switch (code) {
     case 'BROWSER_NO_CAPABLE_CLIENT':
     case 'CAPABILITY_UNAVAILABLE':
-      // U-API: brand — v0.10.0 remote browser 错误文案 Craft Agent → U Agents
+        // U-API: brand — v0.10.0 remote browser 错误文案 Craft Agent → U Agents
       return 'No connected desktop client supports browser tools, or no client is currently connected. ' +
         'Ask the user to open this workspace from the U Agents desktop app.';
     case 'CLIENT_DISCONNECTED':
@@ -594,6 +594,7 @@ export class PiAgent extends BaseAgent {
       baseUrl: runtime.baseUrl,
       customEndpoint: runtime.customEndpoint,
       customModels: runtime.customModels,
+      autoCompactWindow: this.config.autoCompactWindow,
       // Branch params for Pi SDK session fork
       branchFromSdkSessionId: this.config.session?.branchFromSdkSessionId,
       branchFromSessionPath: this.config.session?.branchFromSessionPath,
@@ -617,16 +618,14 @@ export class PiAgent extends BaseAgent {
     // These tools (SubmitPlan, config_validate, source auth, call_llm, etc.)
     // are executed in the main process when the LLM calls them.
     this.assertBackendSessionToolParity();
-    // U-API: mini agents never receive the paid image tool definition (16 §0).
-    let sessionToolDefs = getSessionToolProxyDefs(this.isMiniAgent() ? 'mini' : 'full');
-
-    // Mirror Claude's gate: hide `browser_tool` when the user has disabled
-    // the built-in browser tool. Without this filter, Pi would still advertise
-    // `mcp__session__browser_tool` while Claude doesn't — sessions would behave
-    // inconsistently depending on backend.
-    if (!getBrowserToolEnabled()) {
-      sessionToolDefs = sessionToolDefs.filter(d => d.name !== 'mcp__session__browser_tool');
-    }
+    // Same visibility filters as Claude (session-scoped-tools.ts): feature flags, the
+    // "Built-in browser" setting and the agent profile (coding mode).
+    const sessionToolDefs = getSessionToolProxyDefs({
+      agentKind: this.isMiniAgent() ? 'mini' : 'full',
+      profile: this._agentProfile,
+      hasEnabledSources: this.sourceManager.getIntendedSlugs().size > 0,
+      hasProject: !!this.config.session?.projectId,
+    });
 
     // Patch call_llm description with provider-specific model hint
     if (this.config.miniModel) {
@@ -910,15 +909,16 @@ export class PiAgent extends BaseAgent {
     }
   }
 
-  /** Answer the subprocess with the large-result gate installed in this process (`null` without one). */
+  /** Answer the subprocess with the large-result filter installed in this process (`null` without one). */
   private async handleLargeResultGateRequest(msg: PiLargeResultGateRequest): Promise<void> {
-    const summarize = await askLargeResultSummaryGate({
+    const excerpt = await askLargeResultFilter({
       text: msg.text,
       context: { toolName: msg.toolName, intent: msg.intent },
-      estimatedTokens: msg.estimatedTokens,
+      budgetChars: msg.budgetChars,
+      filePath: msg.filePath,
       sessionId: this.config.session?.id,
     });
-    const response: PiLargeResultGateResponse = { type: 'large_result_gate_response', requestId: msg.requestId, summarize };
+    const response: PiLargeResultGateResponse = { type: 'large_result_gate_response', requestId: msg.requestId, excerpt };
     this.send({ ...response });
   }
 
@@ -1467,6 +1467,7 @@ export class PiAgent extends BaseAgent {
   private async handleToolExecuteRequest(request: {
     requestId: string;
     toolName: string;
+    toolCallId?: string;
     args: Record<string, unknown>;
   }): Promise<void> {
     // Prerequisite check: block source tools until guide.md is read
@@ -1481,7 +1482,9 @@ export class PiAgent extends BaseAgent {
     }
 
     try {
-      const result = await this.routeToolCall(request.toolName, request.args);
+      // The approved args no longer carry `_intent`; the pre-tool-use bridge kept it by call id.
+      const intent = request.toolCallId ? this.preToolMetadataByCallId.get(request.toolCallId)?.intent : undefined;
+      const result = await this.routeToolCall(request.toolName, request.args, intent);
       this.send({
         type: 'tool_execute_response',
         requestId: request.requestId,
@@ -1511,7 +1514,8 @@ export class PiAgent extends BaseAgent {
    */
   private async routeToolCall(
     toolName: string,
-    args: Record<string, unknown>
+    args: Record<string, unknown>,
+    intent?: string,
   ): Promise<{ content: string; isError: boolean }> {
     // Session-scoped tools — strip mcp__session__ prefix added by the Pi SDK
     // registration (tools are registered as mcp__session__SubmitPlan, etc.)
@@ -1525,7 +1529,7 @@ export class PiAgent extends BaseAgent {
 
     // MCP source tools — route through centralized pool
     if (this.mcpPool?.isProxyTool(toolName)) {
-      return this.mcpPool.callTool(toolName, args);
+      return this.mcpPool.callTool(toolName, args, { intent });
     }
 
     // Unknown tool
@@ -2171,10 +2175,11 @@ export class PiAgent extends BaseAgent {
         'U-API', // backendName
         this.pinnedIncludeCoAuthoredBy ?? undefined,
         this.pinnedProjectContext ?? undefined,
+        this._agentProfile,
       );
 
       // Build context from sources
-      const sourceContext = this.sourceManager.formatSourceState();
+      const sourceContext = this.sourceManager.formatSourceState({ activeOnly: this._agentProfile === 'coding' });
 
       const promptModeDiagnostics = getPermissionModeDiagnostics(this._sessionId)
       this.debug(
