@@ -1,7 +1,8 @@
 # v0.15.5 升级实施与测试包记录
 
 > 2026-10-22；按 r2 方案执行。本次用户明确允许改代码，仅独立候选、macOS 测试包；不合主线、不发布。
-> 当前：v0.15.5 macOS arm64 DMG/ZIP 已生成并验包。GUI 因 Mac 锁屏待解锁，G12 未运行。
+> 2026-10-23 更新：DMG/ZIP 保留，GUI 已进行一轮，结论 HOLD。空 Token 完成页、会话分享入口及中文漏翻译待修复；本轮发生隔离事故，获准恢复的正式配置字段已恢复。真实网关仅 GET models/鉴权通过，其余 G12 未验。详见 [GUI 验收记录](UPGRADE-GUI-v0.15.5-20261023.md)。
+> 2026-10-23 修订：三个 GUI 问题已修复，源码提交 `bb605b286d863927a5e28f97267df04ee0b0a1b6`；完整测试 6,743 + isolated 195 pass，12 原有 skip，validate:ci/lint/clean build 通过。新 DMG/ZIP 的 2,136 文件/链接完全一致，包内 Pi 图片请求与输出上限、QuickJS 通过。首次配置空 Token 已 GUI 通过，其余受影响 GUI 项等待 Mac 解锁。当前状态及新摘要见 [修订复验记录](UPGRADE-GUI-FIX-v0.15.5-20261023.md)。下文保留首轮实施证据，不把历史包摘要当作修订包摘要。
 
 ## 候选与范围
 
@@ -10,7 +11,7 @@
 - O：`2c496aaa7871fb4beaf99b63c0ef5746b89fe55e`；B/v0.14.0：`73bd9c2a3573158bea880984eb8d5fdb41e0cac2`；固定 T/v0.15.5：`cede6ea49e0c4a42933ed0f1bc129db698fc581f`。
 - 合入固定 tag，未使用旧缓存 upstream/main。实际初始冲突 121 个文件；不把方案中的 285 个路径交集当冲突数。
 - r2 方案原样保留，SHA-256 `dfb590cbc44c5e443c0887f98b8953ed93cffd33ef5f26979d2491e09bd383d1`。版本统一为 0.15.5，包括保留的 legacy session-mcp workspace；后者不重新进入运行链。
-- 证据根：`/private/tmp/uagents-v0155-execution-20261022`。最终包源码 SHA 为 `88d8cc7b0f81215418b2299f95edd70fd177cec9`；随后文档补记不改变包内源码。产物 SHA-256 由 release/BUILD.txt 和 SHA256SUMS.txt 记录。
+- 证据根：`/private/tmp/uagents-v0155-execution-20261022`。首轮包源码 SHA 为 `88d8cc7b0f81215418b2299f95edd70fd177cec9`；该轮产物现归档于 `revision-20261023/previous-release`。修订包源码为页首所列提交，当前产物 SHA-256 由 release/BUILD.txt 和 SHA256SUMS.txt 记录。
 
 ## 四项评审落实
 
@@ -55,26 +56,26 @@
 
 | 门禁 | 本轮状态 |
 |---|---|
-| G0 | PASS，源码及包内进程的根与访问/网络限制通过 |
+| G0 | 10-22 探针通过；10-23 GUI 发现系统代理绕行及桌面工具自动启动遗漏隔离，整轮不通过。专用入口和严格 GUI 子阶段复验通过，不能抹去事故 |
 | G1–G5 | 本地测试 PASS；发现/探活/模型调用使用 mock/loopback，不能替代真实网关 |
-| G6–G8 | 自动测试与静态检查 PASS；GUI 视觉/点击、Coding 实操待解锁 |
+| G6–G8 | 自动测试与静态检查 PASS；GUI 的 Coding 开关、导航、合成渲染等通过，发现会话分享入口及中文漏翻译，未整体验收 |
 | G9 | 依赖、版本、改造点与源码差异检查通过；原样纳入的两份方案文档各有一个既存 EOF 空行；保留原有 skips/warnings |
-| G10 | macOS DMG/ZIP 与包内运行通过；GUI、Windows NOT_RUN，G10 整体尚未完全验收 |
-| G11 | 合成旧版→新版→恢复旧版 PASS；正式用户数据迁移与恢复 NOT_RUN，未触碰原件 |
-| G12 | NOT_RUN：真实网关、长对话、真实生图与扣费、自动更新 |
+| G10 | macOS DMG/ZIP 与包内运行通过；GUI 因首次配置等问题 HOLD，Office 查看及原包安装待验；Windows NOT_RUN |
+| G11 | 合成旧版→新版→恢复旧版 PASS；10-23 误启动触及正式 profile，两项配置获准恢复；窗口状态影响 UNKNOWN，正式数据迁移未验 |
+| G12 | 追加授权的真实 GET /v1/models 与鉴权 HTTP 200、6 个模型；应用探活/保存、长对话、真实生图与扣费、自动更新仍 NOT_RUN |
 
-Mac 被锁屏，桌面工具返回无法访问；未使用 CDP/DOM 绕过锁屏进行 UI 操作。测试 app 的原生进程、渲染页加载和后端 RPC 可验证，不能称为 GUI 点击验收。嵌套 Electron sandbox 在 sandbox-exec 内无法启动，测试启动额外传 `--no-sandbox`，外层文件与外网限制始终生效；产品包默认参数未修改。仅为 Chromium Singleton socket 允许本机标准临时目录中新建 scoped_dir/Singleton 文件，不开放用户 Library/config。
+10-22 的记录：Mac 被锁屏，桌面工具返回无法访问；未使用 CDP/DOM 绕过锁屏进行 UI 操作，当时的原生进程、渲染页及后端 RPC 证据不算 GUI 点击验收。嵌套 Electron sandbox 在 sandbox-exec 内无法启动，测试启动额外传 `--no-sandbox`，产品默认参数未改。10-23 已解锁，但发现旧 localhost 策略可绕行系统代理，故此前“外网限制始终生效”的结论撤回；另发生一次桌面工具非隔离重启，影响及修正见 GUI 报告 §4。Chromium Singleton 临时 socket 例外仍仅限标准临时目录中的 scoped_dir/Singleton 文件。
 
 ## 品牌与交付边界
 
 新界面、主题（Studio）、Coding 分支前缀、7 份版本日志和新错误文案已适配。LICENSE/NOTICE 保留。CRAFT 兼容变量、内部 Craft 标识、历史修改说明、已注册 OAuth relay/callback 与关闭功能下的上游 CLI 指引保留，不把这些内部/兼容项当用户界面品牌替换。真实 OAuth 和未开放 provider 不因此获得启用授权。
 
-当前仅 macOS arm64 本地测试候选，adhoc 签名，未公证。未安装覆盖 `/Applications/U Agents.app`，未接真实 profile/workspace，未合回 main、push 或发布。原 checkout 的 HEAD/main/origin-main 均仍为 O，状态与原 10 项未跟踪文件哈希相同。运行证据和合成备份保留；两个测试 app 已正常退出，资产代理停止，18555/18655/18656/18657 均释放；只卸载本次 DMG 验证挂载。
+当前仅 macOS arm64 本地测试候选，adhoc 签名，未公证。未安装覆盖 `/Applications/U Agents.app`，未合回 main、push 或发布。10-22 未接正式 profile 的边界在 10-23 误启动中失效，两项配置已按用户授权恢复，不能再表述为整轮未触碰原件。原 checkout 的 HEAD/main/origin-main 均仍为 O，状态与原 10 项未跟踪文件哈希相同。运行证据和合成备份保留；本轮专用 app、验证服务及 tunnel 已退出，18556/18656/18657 释放；10-22 的资产代理和 DMG 验证挂载已停止/卸载。
 
-## 最终产物
+## 首轮产物（已归档）
 
-- DMG：`apps/electron/release/U-Agents-arm64.dmg`，328,839,318 bytes。
-- ZIP：`apps/electron/release/U-Agents-arm64.zip`，318,387,836 bytes。
+- DMG：`revision-20261023/previous-release/U-Agents-arm64.dmg`（相对证据根），328,839,318 bytes。
+- ZIP：`revision-20261023/previous-release/U-Agents-arm64.zip`，318,387,836 bytes。
 - 启动说明：`apps/electron/release/TESTING.md`；来源与摘要：`BUILD.txt`、`SHA256SUMS.txt`。
 - 证据副本：`apps/electron/release/verification/`；不复制真实 profile、凭据或合成加密 Token。
 
