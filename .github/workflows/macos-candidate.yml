@@ -55,16 +55,19 @@ jobs:
           test "$(lipo -archs "$app/Contents/MacOS/U Agents")" = arm64
           hdiutil verify apps/electron/release/U-Agents-arm64.dmg
           unzip -tq apps/electron/release/U-Agents-arm64.zip
+          for asset in latest-mac.yml U-Agents-arm64.dmg.blockmap U-Agents-arm64.zip.blockmap; do
+            test -s "apps/electron/release/$asset"
+          done
           bun .github/scripts/verify-packaged-runtime.ts "$root" "$root/vendor/bun/bun" apps/electron/release/RUNTIME-CHECK.json
           (
             cd apps/electron/release
-            shasum -a 256 U-Agents-arm64.dmg U-Agents-arm64.zip > SHA256SUMS.txt
+            shasum -a 256 U-Agents-arm64.dmg U-Agents-arm64.zip U-Agents-arm64.dmg.blockmap U-Agents-arm64.zip.blockmap latest-mac.yml > SHA256SUMS.txt
             cat > BUILD.txt <<EOF
           Commit: $GITHUB_SHA
           Version: 0.15.5
           Platform: macos-arm64
           Run: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
-          Candidate only; ad hoc signing; not notarized; no Release or update publication
+          Built without automatic publication; ad hoc signing; not notarized
           Real image generation: NOT_RUN (test Token has no image model)
           EOF
           )
@@ -74,6 +77,9 @@ jobs:
           path: |
             apps/electron/release/U-Agents-arm64.dmg
             apps/electron/release/U-Agents-arm64.zip
+            apps/electron/release/U-Agents-arm64.dmg.blockmap
+            apps/electron/release/U-Agents-arm64.zip.blockmap
+            apps/electron/release/latest-mac.yml
             apps/electron/release/SHA256SUMS.txt
             apps/electron/release/BUILD.txt
             apps/electron/release/RUNTIME-CHECK.json
