@@ -8,26 +8,25 @@
 
 ## 0. 当前基线（速查）
 
-| 指标 | 基线（2026-10-01 v0.14.0 候选复核）| 下次同步允许浮动 |
+| 指标 | 基线（2026-10-23 v0.15.5 GUI 修订候选；未合主线）| 下次同步允许浮动 |
 |---|---|---|
-| U-API 标记总数（含全部注释格式）| **216** | ±2 |
-| `/* U-API START */` 块数 | **10** | 必须等于 END |
-| `/* U-API END */` 块数 | **10** | 必须等于 START |
+| U-API 标记总数（含全部注释格式）| **239** | ±2 |
+| `/* U-API START */` 块数 | **9** | 必须等于 END |
+| `/* U-API END */` 块数 | **9** | 必须等于 START |
 
 **每次同步必跑 grep（覆盖全部注释格式）**：
 
 ```bash
-# 全部 U-API 标记（含 // 单行 / /* 块 / <!-- HTML / {/* JSX 行内）
-# SOP-REHEARSAL 2026-05-05 改进：用 --exclude-dir 替代 grep -v 过滤，
-# 同时排除 apps/electron/release/ 下的历史打包副本；否则会重复统计已打包源码副本
-grep -rEn --exclude-dir=node_modules --exclude-dir=release "U-API" packages apps --include="*.ts" --include="*.tsx" 2>/dev/null \
-  | grep -E "^[^:]+:[0-9]+:.*(//|/\*|\{/\*|<!--)\s*U-API" | wc -l
-# 期望：216（候选基线，允许 214-218）
+# 在新文件已 git add 后执行；只看 Git 管理的主源码，排除构建时暂存的源码副本。
+# 覆盖 //、/*、HTML、JSX 全部注释格式。
+git grep -n -E '(//|/\*|\{/\*|<!--)[[:space:]]*U-API' -- \
+  'apps/**/*.ts' 'apps/**/*.tsx' 'packages/**/*.ts' 'packages/**/*.tsx' | wc -l
+# 期望：239（候选基线，允许 237-241）
 
 # 块标记 START/END 配对（数量必须相等）
-grep -rE --exclude-dir=node_modules --exclude-dir=release "/\* U-API START" packages apps --include="*.ts" --include="*.tsx" | wc -l
-grep -rE --exclude-dir=node_modules --exclude-dir=release "/\* U-API END" packages apps --include="*.ts" --include="*.tsx" | wc -l
-# 期望：均 = 10
+git grep -n -F '/* U-API START' -- 'apps/**/*.ts' 'apps/**/*.tsx' 'packages/**/*.ts' 'packages/**/*.tsx' | wc -l
+git grep -n -F '/* U-API END' -- 'apps/**/*.ts' 'apps/**/*.tsx' 'packages/**/*.ts' 'packages/**/*.tsx' | wc -l
+# 期望：均 = 9
 ```
 
 **基线刷新规则**（每次同步成功后照做）：
@@ -104,9 +103,9 @@ if (!apiKey && connection.baseUrl) {
 | 20 | ConnectionRow isUApiConnection 判定 | 同上 | 注释 `ConnectionRow isUApiConnection 判定` + 4 行解释 | 单行（5 处连排）| 02 §6.2 |
 | 21 | getApiKeyMethodForConnection | 同上 | 注释 `every U-API slug routes to the U-API setup wizard` | 单行 | 02 §6.2.2 |
 | 22 | uApiConnections filter | 同上 | 注释 `show every U-API slug, not just primary` | 单行 | 02 §6.2.2 |
-| 23 | Default Connection selector 恢复 | 同上 | 注释 `always show Default Connection`（多行注释起始行）| 块 | 02 §6.2 |
-| 24 | last-connection 删除保护 | 同上 | 注释 `last U-API connection cannot be deleted` | 单行 | 02 §6.2 Q2 |
-| 25 | Add Connection button 恢复 | 同上 | 注释 `restore Add Connection button removed by 540509b` | 块 | 02 §6.2 |
+| 23 | Default Connection selector 恢复 | 同上 | 注释 `keep all authorized connections selectable` | 块 | 02 §6.2 |
+| 24 | last-connection 删除保护 | 同上 | 注释 `last U-API connection cannot be deleted`；新列表传入 `uApiConnections.length === 1` | 单行 | 02 §6.2 Q2 |
+| 25 | Add Connection button 恢复 | 同上 | v0.15.5 随上游新卡片结构保留按钮，仍进入 U-API Token 流程；旧包围块退役，行为未退役 | 并入新布局，无独立块 | 02 §6.2 |
 | 26a | onboarding 防护性禁用 — LocalModelStep | `apps/electron/src/renderer/components/onboarding/LocalModelStep.tsx` | 注释 `intentionally not reached by the M1 onboarding state machine` | 单行 | 03 §1.10（裁剪后防护）|
 | 26b | onboarding 防护性禁用 — ProviderSelectStep | `apps/electron/src/renderer/components/onboarding/ProviderSelectStep.tsx` | 同上注释 | 单行 | 同上 |
 | 27 | first-install onboarding 路由到 placeholder slug | `apps/electron/src/renderer/App.tsx` | 注释 `first-install onboarding edits the placeholder` + `first-install onboarding always targets the placeholder` | 单行（2 处）| 02 §6.2.3 |
@@ -265,6 +264,23 @@ if (!apiKey && connection.baseUrl) {
 
 ---
 
+**v0.15.5 候选适配（2026-10-22）**：
+
+| # | 改造类别 | 文件 / 定位 | 回归证据 |
+|---|---|---|---|
+| 85 | full/mini、paid owner、workspace、Coding/source/project、feature 条件统一进缓存身份；仅复用 tools，MCP wrapper 每次新建 | `shared/src/agent/session-scoped-tools.ts`、`backend/pi/session-tool-defs.ts` | `session-tool-profiles.test.ts`、`session-tool-cache.isolated.ts`；#79 的 Pi mini 注释迁入统一过滤处 |
+| 86 | U_AGENTS/CRAFT 继承运行时清理，保留两个 CONFIG_DIR；先清理再求启动 assets 路径 | `server-core/src/runtime/inherited-app-env.ts`、`server/src/index.ts` | `inherited-app-env.test.ts`、`inherited-app-runtime.isolated.ts` |
+| 87 | 服务端复核 cap，设置保存和通用元数据保存串行；刷新失效检查，拒绝旧 Token/协议结果 | `server-core/src/domain/u-api-connection-state.ts`、`handlers/rpc/llm-connections.ts`、`model-fetchers/index.ts` | `u-api-cap-lifecycle.isolated.ts`、refresh preservation/storage；覆盖 SAVE 与 SETUP 两入口 |
+| 88 | 新 Claude artifact 发布 RPC 在取凭据、SDK import、联网前拒绝 | `server-core/src/handlers/rpc/pages.ts` | `pages-artifact-policy.isolated.ts`，包内原生 RPC 负例 |
+| 89 | SDK 新增保温仍关闭，保留 main/ephemeral 重试预算 | `pi-agent-server/src/session-settings.ts` | `session-settings.test.ts` |
+| 90 | 新聊天头隐藏公开分享；Coding 自动分支前缀改为 U Agents | `ChatHeader.tsx`、`CodingWorkspacePanel.tsx` | lint/typecheck、feature/coding 回归；GUI 待解锁 |
+| 91t | 真实 Pi bundle 在仓库外加载 Photon/QuickJS 资产，模型请求确实含图片 | `pi-agent-server/src/packaged-images.isolated.ts` | 打包、拒绝旧 WASM 绝对路径、loopback 图片请求与输出上限断言 |
+| 92/92t | 首次配置的占位 slug 不等于已有凭据；空 Token 首配报错，已认证连接空值编辑完成无写入 | `renderer/hooks/useOnboarding.ts`、`pages/settings/AiSettingsPage.tsx`、`hooks/__tests__/useOnboarding-empty-token.test.tsx`（净增 3 处） | 真实 React Hook 五种状态回归，全部无 RPC；GUI 复验见修订记录 |
+| 93/93t | 会话分享在普通、紧凑及预留组件隐藏；RPC 和 SessionManager 在取会话、事件、网络前拒绝 share/update/revoke | `SessionMenu.tsx`、`CompactSessionMenu.tsx`、`chat-header/ChatShareMenu.tsx`、`handlers/rpc/sessions.ts`、`sessions/SessionManager.ts`、`session-sharing-policy.isolated.ts`（净增 8 处） | 新会话、历史分享、缺失会话 × 三命令，RPC 与 service 零状态访问、零网络 |
+| 94/94t | Token 页按钮使用 locale；固定网关错误按安全类别翻译，未知错误不回显 SDK 原文或凭据 | `onboarding/primitives.tsx`、`domain/connection-setup-logic.ts` 及测试、`handlers/rpc/llm-connections.ts`、旧 main parser 测试（净增 5 处） | 错误分类、中英文与脱敏回归；七个 locale parity/sorted/coverage；JSON 不计 marker |
+
+逐项增减、44 个上游交集文件的语义处置与完整清单见 [`UPGRADE-MARKERS-v0.15.5-20261022.md`](UPGRADE-MARKERS-v0.15.5-20261022.md)。旧 FAB 两处样式 lint 豁免随上游样式删除；设置页旧块和 TurnCard 旧辅助函数标记随结构迁移，未关闭多连接或生图展示。
+
 ## 4. Build 脚本 marker（M2 后期补充，不计入主基线）
 
 主基线 grep 命令仅扫 `packages` + `apps` 下的 `.ts/.tsx`，build 脚本（`.sh` / `.ps1`）不在覆盖范围内——但仍需登记，方便上游同步时辨识改造点。
@@ -283,6 +299,7 @@ if (!apiKey && connection.baseUrl) {
 | B4 | Windows EXE 缺 dist/interceptor.cjs 修复（事故 #5，事故 #3/#4 同根第 3 个）| `apps/electron/scripts/build-win.ps1` | 注释 `build-win.ps1 misses electron-build-main.ts:332 buildInterceptor() step` | `# U-API:` 单行 | v16 review B 路静态分析触发（详见 [`12-subprocess-build-pipeline.md`](12-subprocess-build-pipeline.md) §0.5） |
 | B8 | **macOS DMG 缺 copy-subprocess-servers**（piServerPath；build-dmg.sh ≠ build-win.ps1 长期不对称——root chain `electron:build:subprocess` 被 sync 删后失效）| `apps/electron/scripts/build-dmg.sh` | 注释 `copy subprocess servers (pi-agent-server + session-mcp-server) into apps/electron/resources/` | `# U-API:` 单行 | **v0.10.0 macOS arm64 实测触发**（详见 [`12-subprocess-build-pipeline.md`](12-subprocess-build-pipeline.md) §0.6 事故 #6 + SYNC-v0.10.0 §8.1）|
 | B9 | **Linux AppImage 缺 copy-subprocess-servers**（事故 #6 三平台对称核查连带发现）| `apps/electron/scripts/build-linux.sh` | 注释 `同 build-dmg.sh（事故 #6 三平台对称）` | `# U-API:` 单行 | v0.10.0 事故 #6 连带修（详见 [`12-subprocess-build-pipeline.md`](12-subprocess-build-pipeline.md) §0.6）|
+| B10 | Pi 1.1 的 Photon WASM 不得烘焙构建机路径；各构建入口 external Photon，复制完整 Photon/QuickJS 包 | `scripts/build/common.ts`、`scripts/electron-build-main.ts`、`packages/pi-agent-server/package.json` | `Pi 1.1 resolves QuickJS and Photon WASM by filename` | TS 单行（scripts 不计主基线）| v0.15.5 候选；#91t 真实 bundle 回归 |
 
 **Build 脚本 marker 单独 grep 命令**：
 
@@ -304,6 +321,10 @@ grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_mod
 > **历史注解**：初版基线注释一度推断"实测多 1，是历史漂移"，但实际是 §3 表漏登记了 v0.9.5 sync 自身的 #54 model-picker brand patch（marker 真实存在于代码中，被 grep 计入 98，但子表登记环节漏盘）。已通过补加"v0.9.5 sync 期间新增改造点"子表修正，无漂移。
 
 **历次基线演进**：
+
+- **v0.15.5 GUI 修订候选（2026-10-23）**：针对 G-01 空 Token 停滞、G-02 分享入口、G-03 中文文案修订，14 个主源码/测试文件净增 16 个 marker，START/END 均不变；当前基线只以 §0 为准。逐文件增减见 `/private/tmp/uagents-v0155-execution-20261022/revision-20261023/artifacts/marker-audit.json`。完整测试 6,743 pass、12 原有 skip，16 个 isolated 入口另 195 pass；未合主线、未发布。
+- **v0.15.5 独立候选（2026-10-22）**：原 216 处逐条核对，206 处原注释原样保留，10 个旧出现项经迁移/退役，新增或改写 17 个出现项；新总数与配对数见 §0。44 个上游交集文件按功能核对。当前仅候选，未合回主线、未发布，GUI 与 G12 未验收。详见 `UPGRADE-MARKERS-v0.15.5-20261022.md`。
+
 
 - REVIEW-2（2026-05-04 上午）：44 处（旧 grep 命令漏 3 处 HTML/JSX 注释）
 - REVIEW-3（同日修正）：47 处（grep 命令改全格式，覆盖率 100%）

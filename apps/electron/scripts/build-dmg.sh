@@ -75,7 +75,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Configuration
-BUN_VERSION="bun-v1.3.9"  # Pinned version for reproducible builds
+BUN_VERSION="bun-v1.3.12"  # Same runner as validate and packaged subprocesses
 
 echo "=== Building U Agents DMG (${ARCH}) using electron-builder ==="
 if [ "$UPLOAD" = true ]; then

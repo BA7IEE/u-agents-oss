@@ -83,16 +83,26 @@ export interface SessionScopedToolCallbacks {
   getMessagingBindingsFn?: (sessionId: string) => Array<{ platform: string; channelId: string; threadId?: number; channelName?: string; enabled: boolean }>;
   /** Unbind messaging channels from a session. Returns count of removed bindings. */
   unbindMessagingChannelFn?: (sessionId: string, platform?: string) => number;
-  /** Create a Craft Agents Task (board card + task.yaml + orchestrator session) without running it. */
+  /** Create a U Agents Task (board card + task.yaml + orchestrator session) without running it. */
   createTaskFn?: (
     input: import('@u-agents/session-tools-core').CreateTaskInput
   ) => Promise<import('@u-agents/session-tools-core').CreateTaskResult>;
+  /** Append a dated note to the session's project MEMORY.md (project_memory_append). */
+  appendProjectMemoryFn?: (
+    input: import('@u-agents/session-tools-core').ProjectMemoryAppendInput
+  ) => Promise<import('@u-agents/session-tools-core').ProjectMemoryAppendResult>;
   /**
    * Pages tools (list/get/create/update/write data/delete) — grouped in one
    * object because the six operations always ship together. Wired by
    * SessionManager to the invoking session's workspace.
    */
   pages?: import('@u-agents/session-tools-core').PagesToolCallbacks;
+  /**
+   * MCP source resources & prompts tools (source_list_resources/read_resource/
+   * list_prompts/get_prompt). Wired by SessionManager to the session's MCP pool,
+   * read at call time; only the session's enabled, connected sources are reachable.
+   */
+  mcpSources?: import('@u-agents/session-tools-core').McpSourceToolCallbacks;
   /**
    * Decision-layer callback for the `decide` tool (Jev / System One). Wired by
    * SessionManager from `@u-agents/shared/decisions`; gating (Settings switch,

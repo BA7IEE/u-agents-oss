@@ -45,8 +45,8 @@ Automations are configured in `automations.json` at the root of your workspace:
 
 | Event | Trigger | Match Value |
 |-------|---------|-------------|
-| `LabelAdd` | Label added to session | Label ID (e.g., `bug`, not `Bug`) |
-| `LabelRemove` | Label removed from session | Label ID (e.g., `bug`, not `Bug`) |
+| `LabelAdd` | Label added to session | The label entry: the ID for a plain label (`bug`, not `Bug`), `id::value` for a valued one (`priority::3`; match it with `^priority(::|$)`) |
+| `LabelRemove` | Label removed from session | The label entry, as for `LabelAdd` |
 | `LabelConfigChange` | Label configuration changed | Always matches |
 | `PermissionModeChange` | Permission mode changed | New mode name |
 | `FlagChange` | Session flagged/unflagged | `true` or `false` |
@@ -212,7 +212,7 @@ These are automatically set by the automation system based on the triggering eve
 
 | Event | Variable | Description |
 |-------|----------|-------------|
-| `LabelAdd` / `LabelRemove` | `$CRAFT_LABEL` | The label that was added/removed |
+| `LabelAdd` / `LabelRemove` | `$CRAFT_LABEL` | The label entry that was added/removed (`bug`, `priority::3`) |
 | `PermissionModeChange` | `$CRAFT_OLD_MODE`, `$CRAFT_NEW_MODE` | Previous and new permission mode |
 | `FlagChange` | `$CRAFT_IS_FLAGGED` | `true` or `false` |
 | `SessionStatusChange` | `$CRAFT_OLD_STATE`, `$CRAFT_NEW_STATE` | Previous and new status |

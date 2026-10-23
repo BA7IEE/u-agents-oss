@@ -29,6 +29,8 @@ export interface SessionMeta {
   lastReadMessageId?: string
   workingDirectory?: string
   enabledSourceSlugs?: string[]
+  /** Coding mode: lean coding prompt and session tools (shown as a glyph in the session list) */
+  codingMode?: boolean
   /** Shared viewer URL (if shared via viewer) */
   sharedUrl?: string
   /** Shared session ID in viewer (for revoke) */
@@ -735,6 +737,10 @@ export interface BackgroundTask {
   outputFile?: string
   /** Short summary, set when task_completed arrives */
   summary?: string
+  /** What a running task is doing (task_activity): the agent's one-line summary, its last tool, its step count */
+  activity?: { summary?: string; lastToolName?: string; toolUses?: number }
+  /** A stop was requested; the stopped status arrives as task_completed */
+  stopping?: boolean
 }
 
 /**

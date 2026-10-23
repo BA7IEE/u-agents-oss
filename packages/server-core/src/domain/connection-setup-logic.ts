@@ -1,6 +1,6 @@
 /**
  * Modified by U Studio for U Agents (优智体) — derivative work
- * based on Craft Agents (Apache 2.0).
+ * based on U Agents (Apache 2.0).
  *
  * Original: https://github.com/lukilabs/craft-agents-oss
  * Modifications: see .planning/02-llm-gateway-spec.md and .planning/03-ui-lockdown-spec.md
@@ -12,6 +12,7 @@
  */
 
 import type { ModelDefinition } from '@u-agents/shared/config/models'
+import { setupI18n } from '@u-agents/shared/i18n'
 import {
   type LlmConnection,
   type CustomEndpointApi,
@@ -28,35 +29,36 @@ import {
 // Error Parsing
 // ============================================================
 
-/**
- * Parse an error message from a connection test into a user-friendly string.
- */
-export function parseTestConnectionError(msg: string): string {
+// U-API: classify fixed-gateway failures without exposing SDK text, credentials or editable-provider guidance.
+export function classifyTestConnectionError(msg: string): string {
   const lower = msg.toLowerCase()
+  if (/(insufficient[_ ](?:balance|quota)|balance.*(?:low|exhausted)|credit.*(?:low|exhausted))/.test(lower)) {
+    return 'uapi.error.insufficientBalance'
+  }
+  if (/\b401\b|unauthorized|authentication|invalid api key|no api key|api key is required/.test(lower)) {
+    return 'uapi.error.tokenInvalid'
+  }
+  if (/\b403\b|permission denied|does not have permission/.test(lower)) {
+    return 'uapi.error.permissionDenied'
+  }
+  if (/\b429\b|rate limit/.test(lower)) {
+    return 'uapi.error.rateLimited'
+  }
+  if (/timeout|timed out|etimedout/.test(lower)) {
+    return 'uapi.error.networkTimeout'
+  }
+  if (/econnrefused|enotfound|eai_again|econnreset|enetunreach|fetch failed/.test(lower)) {
+    return 'uapi.error.unreachable'
+  }
+  if (/(model.*(?:not found|unavailable|unsupported)|no compatible chat models|no available channel)/.test(lower)) {
+    return 'uapi.error.modelUnavailable'
+  }
+  if (/\b(?:404|5\d\d)\b/.test(lower)) return 'uapi.error.unreachable'
+  return 'uapi.error.connectionFailed'
+}
 
-  if (lower.includes('econnrefused') || lower.includes('enotfound') || lower.includes('fetch failed')) {
-    return 'Cannot connect to API server. Check the URL and ensure the server is running.'
-  }
-  if (lower.includes('no api key found for')) {
-    return 'Provider mismatch during setup. Select a provider preset in U-API API Key mode, or use Anthropic API Key mode for arbitrary compatible endpoints.'
-  }
-  if (lower.includes('401') || lower.includes('unauthorized') || lower.includes('authentication')) {
-    return 'Invalid API key'
-  }
-  if (lower.includes('404') && lower.includes('model')) {
-    return 'Model not found. Check the model name and try again.'
-  }
-  if (lower.includes('404')) {
-    return 'API endpoint not found. Check the URL.'
-  }
-  if (lower.includes('429') || lower.includes('rate limit')) {
-    return 'Rate limit exceeded. Please try again.'
-  }
-  if (lower.includes('403')) {
-    return 'API key does not have permission to access this resource'
-  }
-
-  return msg.slice(0, 300)
+export function parseTestConnectionError(msg: string): string {
+  return setupI18n().t(classifyTestConnectionError(msg))
 }
 
 /**
@@ -269,6 +271,7 @@ const PI_AUTH_PROVIDER_DISPLAY_NAMES: Record<string, string> = {
   google: 'Google AI Studio',
   openrouter: 'OpenRouter',
   'azure-openai-responses': 'Azure OpenAI',
+  'cloudflare-ai-gateway': 'Cloudflare AI Gateway',
   'amazon-bedrock': 'Amazon Bedrock',
   groq: 'Groq',
   mistral: 'Mistral',

@@ -1,6 +1,6 @@
 {
   "name": "@u-agents/server-core",
-  "version": "0.14.0",
+  "version": "0.15.5",
   "license": "Apache-2.0",
   "description": "Reusable headless server infrastructure for U Agents",
   "type": "module",
@@ -31,11 +31,13 @@
     "jose": "^6.0.0",
     "ws": "^8.21.0",
     "sharp": "0.34.5",
-    "@earendil-works/pi-ai": "0.87.1"
+    "@earendil-works/pi-ai": "1.1.0",
+    "heic-convert": "^2.1.0"
   },
   "devDependencies": {
     "typescript": "^5.8.2",
-    "@types/node": "^22.0.0"
+    "@types/node": "^22.0.0",
+    "@types/heic-convert": "^2.1.1"
   },
   "private": true
 }

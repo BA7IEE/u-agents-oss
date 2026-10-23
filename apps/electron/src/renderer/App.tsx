@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTheme } from '@/hooks/useTheme'
-import type { ThemeOverrides } from '@config/theme'
 import { useSetAtom, useStore, useAtomValue, useAtom } from 'jotai'
 import type { Session, Workspace, SessionEvent, Message, FileAttachment, StoredAttachment, PermissionRequest, CredentialRequest, CredentialResponse, SetupNeeds, SessionStatus, NewChatActionParams, ContentBadge, LlmConnectionWithStatus, PermissionModeState } from '../shared/types'
 import type { SessionDraft, DraftAttachmentRef } from '@u-agents/shared/config'
@@ -191,6 +190,26 @@ function handleBackgroundTaskEvent(
         ? { ...markBackgroundTaskSignal(t, now), elapsedSeconds: evt.elapsedSeconds as number }
         : t
     ))
+  } else if (event.type === 'task_activity' && 'taskId' in evt) {
+    // What a running task is doing: the chip card shows its live line and step count. No write when
+    // no chip matches (the array identity stays, so nothing re-renders).
+    const currentTasks = store.get(backgroundTasksAtom)
+    const now = Date.now()
+    let changed = false
+    const nextTasks = currentTasks.map(t => {
+      if (t.id !== evt.taskId && !(typeof evt.toolUseId === 'string' && t.toolUseId === evt.toolUseId)) return t
+      changed = true
+      return {
+        ...markBackgroundTaskSignal(t, now),
+        activity: {
+          ...t.activity,
+          ...(typeof evt.summary === 'string' ? { summary: evt.summary } : {}),
+          ...(typeof evt.lastToolName === 'string' ? { lastToolName: evt.lastToolName } : {}),
+          ...(typeof evt.toolUses === 'number' ? { toolUses: evt.toolUses } : {}),
+        },
+      }
+    })
+    if (changed) store.set(backgroundTasksAtom, nextTasks)
   } else if (event.type === 'task_completed' && 'taskId' in evt) {
     // Transition the chip to a terminal status (keep it visible with a terminal
     // icon + click-through to output). The ActiveTasksBar auto-expiry ticker
@@ -203,6 +222,7 @@ function handleBackgroundTaskEvent(
         ? {
             ...t,
             status,
+            stopping: false,
             completedAt: Date.now(),
             outputFile: (evt.outputFile as string | undefined) ?? t.outputFile,
             summary: (evt.summary as string | undefined) ?? t.summary,
@@ -214,7 +234,7 @@ function handleBackgroundTaskEvent(
     const currentTasks = store.get(backgroundTasksAtom)
     store.set(backgroundTasksAtom, currentTasks.map(t =>
       t.id === evt.shellId
-        ? { ...t, status: 'stopped' as const, completedAt: Date.now() }
+        ? { ...t, status: 'stopped' as const, stopping: false, completedAt: Date.now() }
         : t
     ))
   } else if (event.type === 'tool_result' && 'toolUseId' in evt) {
@@ -377,7 +397,6 @@ export default function App() {
   const [sessionOptions, setSessionOptions] = useState<Map<string, SessionOptions>>(new Map())
 
   // Theme state (app-level only)
-  const [appTheme, setAppTheme] = useState<ThemeOverrides | null>(null)
   // Reset confirmation dialog
   const [showResetDialog, setShowResetDialog] = useState(false)
 
@@ -412,10 +431,10 @@ export default function App() {
     setSplashHidden(true)
   }, [])
 
-  // Apply theme via hook (injects CSS variables)
+  // Theme state (ThemeProvider injects CSS variables, incl. ~/.craft-agent/theme.json overrides).
   // shikiTheme is passed to ShikiThemeProvider to ensure correct syntax highlighting
   // theme for dark-only themes in light system mode
-  const { shikiTheme, isDark } = useTheme({ appTheme })
+  const { shikiTheme, isDark } = useTheme()
 
   // Ref for sessionOptions to access current value in event handlers without re-registering
   const sessionOptionsRef = useRef(sessionOptions)
@@ -489,12 +508,13 @@ export default function App() {
         ...current,
         permissionMode: session.permissionMode ?? defaultSessionOptions.permissionMode,
         thinkingLevel: session.thinkingLevel ?? DEFAULT_THINKING_LEVEL,
+        codingMode: session.codingMode === true,
       }
 
       const hasNonDefaultMode = merged.permissionMode !== defaultSessionOptions.permissionMode
       const hasNonDefaultThinking = merged.thinkingLevel !== DEFAULT_THINKING_LEVEL
 
-      if (!hasNonDefaultMode && !hasNonDefaultThinking && merged.permissionModeVersion == null) {
+      if (!hasNonDefaultMode && !hasNonDefaultThinking && !merged.codingMode && merged.permissionModeVersion == null) {
         next.delete(session.id)
       } else {
         next.set(session.id, merged)
@@ -541,10 +561,11 @@ export default function App() {
       for (const s of loadedSessions) {
         const hasNonDefaultMode = s.permissionMode && s.permissionMode !== 'ask'
         const hasNonDefaultThinking = s.thinkingLevel && s.thinkingLevel !== DEFAULT_THINKING_LEVEL
-        if (hasNonDefaultMode || hasNonDefaultThinking) {
+        if (hasNonDefaultMode || hasNonDefaultThinking || s.codingMode) {
           optionsMap.set(s.id, {
             permissionMode: s.permissionMode ?? 'ask',
             thinkingLevel: s.thinkingLevel ?? DEFAULT_THINKING_LEVEL,
+            codingMode: s.codingMode === true,
           })
         }
       }
@@ -804,19 +825,7 @@ export default function App() {
         sessionDraftsRef.current = new Map(Object.entries(drafts))
       }
     })
-    // Load app-level theme
-    window.electronAPI.getAppTheme().then(setAppTheme)
   }, [appState, loadSessionsFromServer, resolveDefaultConnectionSlug])
-
-  // Subscribe to theme change events (live updates when theme.json changes)
-  useEffect(() => {
-    const cleanupApp = window.electronAPI.onAppThemeChange((theme) => {
-      setAppTheme(theme)
-    })
-    return () => {
-      cleanupApp()
-    }
-  }, [])
 
   // Subscribe to LLM connections change events (live updates when models are fetched)
   useEffect(() => {
@@ -892,6 +901,15 @@ export default function App() {
               })
               void reconcilePermissionModeState(effect.sessionId)
             }
+            break
+          }
+          case 'coding_mode_changed': {
+            // Another window or client changed it (this one already applied it optimistically)
+            setSessionOptions(prevOpts => {
+              const next = new Map(prevOpts)
+              next.set(effect.sessionId, mergeSessionOptions(next.get(effect.sessionId), { codingMode: effect.codingMode }))
+              return next
+            })
             break
           }
           case 'credential_request': {
@@ -980,6 +998,13 @@ export default function App() {
       }
 
       const agentEvent = event as unknown as AgentEvent
+
+      // Background-task activity only updates a chip: it is not turn traffic (no watchdog reset, no
+      // session/message processing, which would re-render the session for every progress tick).
+      if (event.type === 'task_activity') {
+        handleBackgroundTaskEvent(store, sessionId, event, agentEvent)
+        return
+      }
 
       // Track activity for stale session watchdog
       trackSessionActivity(sessionId)
@@ -1341,12 +1366,15 @@ export default function App() {
             }
             // Include storedPath and markdownPath for all attachment types
             // Agent will use Read tool to access text/office files via these paths
-            // If image was resized, use the resized base64 for Claude API
+            // If image was resized/normalized, use the stored base64 + mimeType for Claude API
             return {
               ...att,
               storedPath: stored.storedPath,
               markdownPath: stored.markdownPath,
-              // Use resized base64 if available (for images that exceeded size limits)
+              // Reflect any server-side normalization (e.g. HEIC/HEIF → JPEG) so the
+              // model receives a supported media type instead of silently dropping the image.
+              mimeType: stored.mimeType,
+              // Use resized/normalized base64 when the store produced one
               base64: stored.resizedBase64 ?? att.base64,
             }
           })
@@ -1465,7 +1493,22 @@ export default function App() {
       // Sync thinking level change with backend (session-level, persisted)
       window.electronAPI.sessionCommand(sessionId, { type: 'setThinkingLevel', level: updates.thinkingLevel })
     }
-  }, [sessionOptions])
+    if (updates.codingMode !== undefined) {
+      const enabled = updates.codingMode
+      // The server refuses once the conversation has started (the composer then offers a new
+      // session instead); roll the optimistic value back if it does
+      window.electronAPI.sessionCommand(sessionId, { type: 'setCodingMode', enabled }).catch((error: unknown) => {
+        setSessionOptions(prev => {
+          const next = new Map(prev)
+          next.set(sessionId, mergeSessionOptions(next.get(sessionId), { codingMode: !enabled }))
+          return next
+        })
+        toast.error(t('chat.codingMode.toggleFailed'), {
+          description: error instanceof Error ? error.message : String(error),
+        })
+      })
+    }
+  }, [sessionOptions, t])
 
   // Handle input draft changes per session with debounced persistence
   const draftSaveTimeoutRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
@@ -2060,7 +2103,7 @@ export default function App() {
       <FocusProvider>
         <DismissibleLayerProvider>
         <ModalProvider>
-        <TooltipProvider delayDuration={0}>
+        <TooltipProvider>
         <NavigationProvider
           workspaceId={windowWorkspaceId}
           workspaceSlug={windowWorkspaceSlug}

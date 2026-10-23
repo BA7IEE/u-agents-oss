@@ -25,7 +25,8 @@
  *   CRAFT_MESSAGING_NODE_BIN   — Node binary used to spawn the WhatsApp worker (default: node)
  */
 
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { createHeadlessPlatform } from '@u-agents/server-core/runtime'
 import { readFileSync, existsSync } from 'node:fs'
 import { version as packageVersion } from '../package.json'
 import { enableDebug } from '@u-agents/shared/utils/debug'
@@ -43,7 +44,7 @@ if (process.argv.includes('--generate-token')) {
   process.exit(0)
 }
 import type { WsRpcTlsOptions } from '@u-agents/server-core/transport'
-import { registerCoreRpcHandlers, cleanupSessionFileWatchForClient } from '@u-agents/server-core/handlers/rpc'
+import { registerCoreRpcHandlers, cleanupRpcClientResources } from '@u-agents/server-core/handlers/rpc'
 import { SessionManager, setSessionPlatform, setSessionRuntimeHooks } from '@u-agents/server-core/sessions'
 import { initModelRefreshService, setFetcherPlatform } from '@u-agents/server-core/model-fetchers'
 import { setSearchPlatform, setImageProcessor } from '@u-agents/server-core/services'
@@ -90,10 +91,10 @@ function parseOptionalWebSocketUrl(name: string, value: string | undefined): str
   }
 }
 
-// In dev (monorepo), bundled assets root is the repo root (4 levels up from this file).
-// In packaged mode, use U_AGENTS_BUNDLED_ASSETS_ROOT env or cwd.
+// U-API: sanitize inherited paths before evaluating any runtime/asset override.
+const startupPlatform = createHeadlessPlatform({ appVersion: packageVersion })
 const bundledAssetsRoot = process.env.U_AGENTS_BUNDLED_ASSETS_ROOT
-  ?? join(import.meta.dir, '..', '..', '..', '..')
+  ?? dirname(startupPlatform.resourcesPath)
 
 // TLS configuration — when cert + key paths are provided, server listens on wss://
 let tls: WsRpcTlsOptions | undefined
@@ -156,7 +157,7 @@ if (webuiEnabled && serverToken) {
 // pass an explicit `nodeBin` (Electron defaults nodeBin to process.execPath
 // which is correct there but wrong under Bun).
 const waWorkerEntry = process.env.CRAFT_MESSAGING_WA_WORKER
-  ?? join(bundledAssetsRoot, 'packages', 'messaging-whatsapp-worker', 'dist', 'worker.cjs')
+  ?? join(startupPlatform.appRootPath, 'packages', 'messaging-whatsapp-worker', 'dist', 'worker.cjs')
 const waNodeBin = process.env.CRAFT_MESSAGING_NODE_BIN ?? 'node'
 
 // Built inside createHandlerDeps (needs sessionManager), populated with the WS
@@ -166,6 +167,7 @@ let messagingHandle: MessagingBootstrapHandle | null = null
 const instance = await (async () => {
   try {
     return await bootstrapServer<SessionManager, HandlerDeps>({
+      platformFactory: () => startupPlatform,
       bundledAssetsRoot,
       serverVersion: process.env.CRAFT_VERSION ?? packageVersion,
       tls,
@@ -246,7 +248,7 @@ const instance = await (async () => {
           sessionManager.cleanup()
         }
       },
-      cleanupClientResources: cleanupSessionFileWatchForClient,
+      cleanupClientResources: cleanupRpcClientResources,
     })
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error))

@@ -8,7 +8,7 @@ $ElectronDir = Split-Path -Parent $ScriptDir
 $RootDir = Split-Path -Parent (Split-Path -Parent $ElectronDir)
 
 # Configuration
-$BunVersion = "bun-v1.3.9"  # Pinned version for reproducible builds
+$BunVersion = "bun-v1.3.12"  # Same runner as validate and packaged subprocesses
 
 # U-API: M3-Sentry — 信号 packaging 模式（与 build-dmg.sh 等价；详见
 # .planning/M3-SENTRY-DSN-ASSERTION-SPEC.md §2.3）。Windows 路径直接 inline

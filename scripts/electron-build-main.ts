@@ -219,6 +219,8 @@ async function buildPiAgentServer(): Promise<void> {
       "--target", "bun",
       "--format", "esm",
       "--external", "koffi",
+      // U-API: preserve Photon's module-relative WASM lookup in the packaged Pi runtime.
+      "--external", "@silvia-odwyer/photon-node",
     ],
     cwd: ROOT_DIR,
     stdout: "inherit",

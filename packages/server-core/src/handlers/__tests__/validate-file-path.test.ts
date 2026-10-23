@@ -87,7 +87,8 @@ describe('validateFilePath', () => {
   })
 
   it.skipIf(process.platform !== 'darwin')('canonicalizes macOS /tmp roots before containment checks', async () => {
-    const root = await mkdtemp('/tmp/u-agents-validate-path-')
+    const canonicalRoot = await mkdtemp(join(tmpdir(), 'u-agents-validate-path-'))
+    const root = canonicalRoot.replace(/^\/private\/tmp\//, '/tmp/')
     const path = join(root, 'generated.png')
     try {
       await writeFile(path, 'png')

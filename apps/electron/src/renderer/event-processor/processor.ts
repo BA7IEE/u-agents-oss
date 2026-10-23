@@ -20,6 +20,7 @@ import {
   handleError,
   handleTypedError,
   handleSourcesChanged,
+  handleCodingModeChanged,
   handleLabelsChanged,
   handleProjectIdChanged,
   handleSessionStatusChanged,
@@ -114,8 +115,9 @@ export function processEvent(
     }
 
     case 'workflow_agent_completed':
-      // Live workflow fan-out progress — the chip counter is updated in App.tsx's
-      // handleBackgroundTaskEvent; nothing to change in message/session state here.
+    case 'task_activity':
+      // Live background-task progress (workflow fan-out count, an agent's summary): the chip is
+      // updated in App.tsx's handleBackgroundTaskEvent; nothing to change in message/session state.
       return { state, effects: [] }
 
     case 'complete':
@@ -166,6 +168,9 @@ export function processEvent(
 
     case 'sources_changed':
       return handleSourcesChanged(state, event)
+
+    case 'coding_mode_changed':
+      return handleCodingModeChanged(state, event)
 
     case 'labels_changed':
       return handleLabelsChanged(state, event)

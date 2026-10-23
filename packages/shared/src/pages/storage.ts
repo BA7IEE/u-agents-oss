@@ -29,6 +29,7 @@ import type {
   PageDataSnapshot,
   PageRefreshStatus,
   PageShareInfo,
+  PageClaudeArtifactInfo,
   PageThumbnailInfo,
 } from '@u-agents/core';
 import { atomicWriteFileSync, readJsonFileSync } from '../utils/files.ts';
@@ -322,7 +323,7 @@ export type UpdatePagePatch = Partial<
   // (string | null) = string) and silently forbid the null again.
   Omit<
     PageConfig,
-    'schemaVersion' | 'id' | 'slug' | 'createdAt' | 'contentDigest' | 'lastRefresh' | 'grants' | 'share' | 'thumbnail' | 'projectId' | 'description' | 'refresh'
+    'schemaVersion' | 'id' | 'slug' | 'createdAt' | 'contentDigest' | 'lastRefresh' | 'grants' | 'share' | 'thumbnail' | 'claudeArtifact' | 'projectId' | 'description' | 'refresh'
   >
 > & {
   projectId?: string | null;
@@ -336,9 +337,9 @@ const NULL_CLEARABLE_PAGE_FIELDS = ['projectId', 'description', 'refresh'] as co
 /**
  * Update a page's config with a partial patch.
  * `id`, `slug`, and the managed fields (`contentDigest`, `lastRefresh`,
- * `grants`, `share`, `thumbnail`) cannot be changed here — use savePageContent /
- * recordPageRefresh / the grant operations / setPageShareState /
- * recordPageThumbnail instead.
+ * `grants`, `share`, `thumbnail`, `claudeArtifact`) cannot be changed here — use
+ * savePageContent / recordPageRefresh / the grant operations / setPageShareState /
+ * recordPageThumbnail / setPageClaudeArtifactState instead.
  *
  * This is the single normalization point for null-clears — the pages:update
  * RPC and the update_page session tool both pass their patches through
@@ -375,6 +376,7 @@ export function updatePage(
     grants: existing.grants,
     share: existing.share,
     thumbnail: existing.thumbnail,
+    claudeArtifact: existing.claudeArtifact,
     updatedAt: Date.now(),
   };
 
@@ -634,6 +636,30 @@ export function setPageShareState(
   const updated: PageConfig = {
     ...rest,
     ...(share ? { share } : {}),
+    updatedAt: Date.now(),
+  };
+  savePageConfig(workspaceRootPath, updated);
+  return updated;
+}
+
+/**
+ * Record (or clear) the page's claude.ai artifact pointer (the managed
+ * `claudeArtifact` field). Written only by the "Publish as Claude artifact" flow.
+ */
+export function setPageClaudeArtifactState(
+  workspaceRootPath: string,
+  pageSlug: string,
+  claudeArtifact: PageClaudeArtifactInfo | undefined,
+): PageConfig {
+  const existing = loadPageConfig(workspaceRootPath, pageSlug);
+  if (!existing) {
+    throw new Error(`Page not found: ${pageSlug}`);
+  }
+
+  const { claudeArtifact: _previous, ...rest } = existing;
+  const updated: PageConfig = {
+    ...rest,
+    ...(claudeArtifact ? { claudeArtifact } : {}),
     updatedAt: Date.now(),
   };
   savePageConfig(workspaceRootPath, updated);

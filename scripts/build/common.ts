@@ -34,7 +34,8 @@ export interface BuildConfig {
  * Update this when upgrading Bun. Check latest at: https://github.com/oven-sh/bun/releases
  * This should match or be close to the version used in CI (setup-bun action).
  */
-export const BUN_VERSION = 'bun-v1.3.9';
+// U-API: use the same verified Bun runner in CI, development and packaged subprocesses.
+export const BUN_VERSION = 'bun-v1.3.12';
 
 /**
  * uv version to bundle with the app.
@@ -514,11 +515,23 @@ export function copyPiAgentServer(config: BuildConfig): void {
   // 1. Copy index.js
   copyFileSync(join(piSourceDir, 'index.js'), join(piDestDir, 'index.js'));
 
+  // U-API: Pi 1.1 resolves QuickJS and Photon WASM by filename after bundling.
+  // These runtime assets must travel with index.js, independently of repository node_modules.
+  for (const packageName of ['quickjs-wasi', '@silvia-odwyer/photon-node']) {
+    const source = join(rootDir, 'node_modules', packageName);
+    if (!existsSync(source)) throw new Error(`Missing Pi runtime asset package: ${packageName}`);
+    cpSync(source, join(piDestDir, 'node_modules', packageName), { recursive: true });
+  }
+  copyFileSync(
+    join(rootDir, 'node_modules', '@silvia-odwyer', 'photon-node', 'photon_rs_bg.wasm'),
+    join(piDestDir, 'photon_rs_bg.wasm'),
+  );
+
   // 2. Copy koffi npm package (external import, resolved via node_modules at runtime)
   const koffiSource = join(rootDir, 'node_modules', 'koffi');
 
   if (!existsSync(koffiSource)) {
-    console.warn('  Warning: koffi not found in node_modules. Pi SDK sessions may not work.');
+    // Older SDKs used koffi; Pi 1.1 no longer requires it.
     return;
   }
 
@@ -541,7 +554,9 @@ export function copyPiAgentServer(config: BuildConfig): void {
   if (existsSync(nativeSrc)) {
     mkdirSync(nativeDest, { recursive: true });
     cpSync(nativeSrc, nativeDest, { recursive: true });
-    const size = lstatSync(join(nativeSrc, readdirSync(nativeSrc)[0])).size;
+    const firstBinary = readdirSync(nativeSrc)[0];
+    if (!firstBinary) throw new Error(`Empty koffi runtime directory: ${nativeSrc}`);
+    const size = lstatSync(join(nativeSrc, firstBinary)).size;
     console.log(`  Copied index.js + koffi/${targetDir} (${(size / 1024 / 1024).toFixed(1)}MB)`);
   } else {
     console.warn(`  Warning: koffi native binary not found for ${targetDir}`);
@@ -570,8 +585,8 @@ export function buildSubprocessServers(config: BuildConfig): void {
   if (existsSync(join(piDir, 'src'))) {
     mkdirSync(join(piDir, 'dist'), { recursive: true });
     execSync(
-      `bun build ${join(piDir, 'src', 'index.ts')} --outdir ${join(piDir, 'dist')} --target bun --format esm --external koffi`,
-      { cwd: rootDir, stdio: 'inherit', shell: true }
+      `bun build ${join(piDir, 'src', 'index.ts')} --outdir ${join(piDir, 'dist')} --target bun --format esm --external koffi --external @silvia-odwyer/photon-node`,
+      { cwd: rootDir, stdio: 'inherit' }
     );
     if (!existsSync(piOut)) {
       throw new Error(`Pi agent server output not found at ${piOut}`);
@@ -592,7 +607,7 @@ export function buildWhatsAppWorker(config: BuildConfig): void {
 
   console.log('Building WhatsApp worker...');
 
-  execSync('bun run build:wa-worker', { cwd: rootDir, stdio: 'inherit', shell: true });
+  execSync('bun run build:wa-worker', { cwd: rootDir, stdio: 'inherit' });
 
   if (!existsSync(workerOut)) {
     throw new Error(`WhatsApp worker output not found at ${workerOut}`);

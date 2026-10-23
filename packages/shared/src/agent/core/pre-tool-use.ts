@@ -640,6 +640,8 @@ export interface PreToolUseInput {
   prerequisiteManager?: PrerequisiteManagerLike;
   /** Backend metadata (e.g. Pi forwards intent / displayName via input.metadata) */
   backendMetadata?: { intent?: string; displayName?: string };
+  /** Keep `_intent` on source tools: Claude's source proxies require it and take it out themselves */
+  keepSourceToolIntent?: boolean;
   /** RTK Bash-rewrite context (undefined when toggle is off or rtk binary missing) */
   rtkContext?: import('./rtk-rewrite.ts').RtkContext;
   /** Debug callback */
@@ -661,7 +663,8 @@ export interface PermissionManagerLike {
  */
 export interface PrerequisiteManagerLike {
   checkPrerequisites(toolName: string): PrerequisiteCheckResult;
-  trackBashSkillRead(input: Record<string, unknown>): boolean;
+  /** Bash's check: files the command prints (cat, head, sed -n …) count as read. */
+  checkBashPrerequisites(command: string): PrerequisiteCheckResult;
 }
 
 /** Built-in MCP servers that are always available (not user sources) */
@@ -778,14 +781,13 @@ export function runPreToolUseChecks(ctx: PreToolUseInput): PreToolUseCheckResult
   // 3. PREREQUISITE CHECK (guide.md before source tools)
   // ============================================================
   if (prerequisiteManager) {
-    // Allow Bash through if it's reading a pending skill file (clears the prerequisite)
-    if (toolName === 'Bash' && prerequisiteManager.trackBashSkillRead(input)) {
-      // Prerequisite cleared — fall through to remaining pipeline steps
-    } else {
-      const prereqResult = prerequisiteManager.checkPrerequisites(toolName);
-      if (!prereqResult.allowed) {
-        return { type: 'block', reason: prereqResult.blockReason!, source: 'prerequisite' };
-      }
+    // A shell read of a guide or skill file (cat, head, sed -n) counts like the Read tool.
+    // Pi's `bash` tool arrives here as "Bash" too (PI_TOOL_NAME_MAP).
+    const prereqResult = toolName === 'Bash'
+      ? prerequisiteManager.checkBashPrerequisites(typeof input.command === 'string' ? input.command : '')
+      : prerequisiteManager.checkPrerequisites(toolName);
+    if (!prereqResult.allowed) {
+      return { type: 'block', reason: prereqResult.blockReason!, source: 'prerequisite' };
     }
   }
 
@@ -852,7 +854,9 @@ export function runPreToolUseChecks(ctx: PreToolUseInput): PreToolUseCheckResult
   // 5f. Metadata stripping
   const metadataResult = stripToolMetadata(toolName, currentInput, onDebug);
   if (metadataResult.modified) {
-    currentInput = metadataResult.input;
+    const serverName = toolName.startsWith('mcp__') ? toolName.split('__')[1] : undefined;
+    const keepIntent = ctx.keepSourceToolIntent && serverName && activeSourceSlugs.includes(serverName) && '_intent' in currentInput;
+    currentInput = keepIntent ? { ...metadataResult.input, _intent: currentInput._intent } : metadataResult.input;
     wasModified = true;
   }
 

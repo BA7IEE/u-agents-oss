@@ -109,6 +109,8 @@ async function getExpectedChannels(): Promise<Set<string>> {
     projects,
     pages,
     decisions,
+    prWatch,
+    codingRepos,
   ] = await Promise.all([
     import('@u-agents/server-core/handlers/rpc/auth'),
     import('@u-agents/server-core/handlers/rpc/automations'),
@@ -130,6 +132,8 @@ async function getExpectedChannels(): Promise<Set<string>> {
     import('@u-agents/server-core/handlers/rpc/projects'),
     import('@u-agents/server-core/handlers/rpc/pages'),
     import('@u-agents/server-core/handlers/rpc/decisions'),
+    import('@u-agents/server-core/handlers/rpc/pr-watch'),
+    import('@u-agents/server-core/handlers/rpc/coding-repos'),
   ])
 
   // GUI handler channels (remain in electron)
@@ -161,6 +165,8 @@ async function getExpectedChannels(): Promise<Set<string>> {
     ...projects.HANDLED_CHANNELS,
     ...pages.HANDLED_CHANNELS,
     ...decisions.HANDLED_CHANNELS,
+    ...prWatch.HANDLED_CHANNELS,
+    ...codingRepos.HANDLED_CHANNELS,
     ...browser.HANDLED_CHANNELS,
     ...guiSystem.GUI_HANDLED_CHANNELS,
     ...guiWorkspace.GUI_HANDLED_CHANNELS,
