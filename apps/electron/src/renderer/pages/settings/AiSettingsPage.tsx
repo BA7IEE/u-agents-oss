@@ -1012,6 +1012,8 @@ export default function AiSettingsPage() {
       apiSetupOnboarding.reset()
     },
     editingSlug: editingConnectionSlug,
+    // U-API: an unauthenticated placeholder cannot use the keep-existing-Token edit path.
+    hasExistingCredentials: uApiConnections.some(c => c.slug === editingConnectionSlug && c.isAuthenticated),
     existingSlugs,
   })
 

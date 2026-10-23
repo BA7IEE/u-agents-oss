@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils"
 import { Button, type ButtonProps } from "@/components/ui/button"
 import { Spinner } from "@u-agents/ui"
+import { useTranslation } from 'react-i18next'
 
 /* =============================================================================
    ONBOARDING PRIMITIVES
@@ -248,10 +249,12 @@ interface BackButtonProps extends Omit<ButtonProps, 'variant' | 'children'> {
 /**
  * BackButton - Back/cancel is a ghost button (spec D5) — never heavier than the primary action
  */
-export function BackButton({ children = 'Back', className, ...props }: BackButtonProps) {
+// U-API: wizard button defaults follow the active UI language, including Token-only configuration.
+export function BackButton({ children, className, ...props }: BackButtonProps) {
+  const { t } = useTranslation()
   return (
     <Button variant="ghost" size="lg" className={cn("flex-1", className)} {...props}>
-      {children}
+      {children ?? t('common.back')}
     </Button>
   )
 }
@@ -266,22 +269,23 @@ interface ContinueButtonProps extends Omit<ButtonProps, 'children'> {
  * ContinueButton - The step's one primary action: solid accent (spec D5)
  */
 export function ContinueButton({
-  children = 'Continue',
+  children,
   loading,
-  loadingText = 'Loading...',
+  loadingText,
   className,
   disabled,
   ...props
 }: ContinueButtonProps) {
+  const { t } = useTranslation()
   return (
     <Button variant="primary" size="lg" className={cn("flex-1", className)} disabled={disabled || loading} {...props}>
       {loading ? (
         <>
           <Spinner className="mr-2" />
-          {loadingText}
+          {loadingText ?? t('common.loading')}
         </>
       ) : (
-        children
+        children ?? t('common.continue')
       )}
     </Button>
   )

@@ -1,4 +1,6 @@
+// U-API: fixed-gateway errors are localized and never echo raw SDK text or provider/URL editing advice.
 import { describe, it, expect } from 'bun:test'
+import { setupI18n } from '@u-agents/shared/i18n'
 import {
   parseTestConnectionError,
   createBuiltInConnection,
@@ -174,62 +176,62 @@ describe('validateSetupTestInput', () => {
 describe('parseTestConnectionError', () => {
   it('maps ECONNREFUSED to friendly message', () => {
     const result = parseTestConnectionError('connect ECONNREFUSED 127.0.0.1:8080')
-    expect(result).toContain('Cannot connect to API server')
+    expect(result).toBe(setupI18n().t('uapi.error.unreachable'))
   })
 
   it('maps ENOTFOUND to friendly message', () => {
     const result = parseTestConnectionError('getaddrinfo ENOTFOUND api.example.com')
-    expect(result).toContain('Cannot connect to API server')
+    expect(result).toBe(setupI18n().t('uapi.error.unreachable'))
   })
 
   it('maps fetch failed to friendly message', () => {
     const result = parseTestConnectionError('TypeError: fetch failed')
-    expect(result).toContain('Cannot connect to API server')
+    expect(result).toBe(setupI18n().t('uapi.error.unreachable'))
   })
 
   it('maps 401 to invalid API key', () => {
     const result = parseTestConnectionError('Request failed with status 401')
-    expect(result).toBe('Invalid API key')
+    expect(result).toBe(setupI18n().t('uapi.error.tokenInvalid'))
   })
 
   it('maps unauthorized to invalid API key', () => {
     const result = parseTestConnectionError('Unauthorized access')
-    expect(result).toBe('Invalid API key')
+    expect(result).toBe(setupI18n().t('uapi.error.tokenInvalid'))
   })
 
   it('maps 404+model to model message', () => {
     const result = parseTestConnectionError('404: model not found')
-    expect(result).toContain('Model not found')
+    expect(result).toBe(setupI18n().t('uapi.error.modelUnavailable'))
   })
 
   it('maps 404 without model to endpoint message', () => {
     const result = parseTestConnectionError('404 Not Found')
-    expect(result).toContain('API endpoint not found')
+    expect(result).toBe(setupI18n().t('uapi.error.unreachable'))
   })
 
   it('maps 429 to rate limit', () => {
     const result = parseTestConnectionError('429 Too Many Requests')
-    expect(result).toContain('Rate limit')
+    expect(result).toBe(setupI18n().t('uapi.error.rateLimited'))
   })
 
   it('maps 403 to permission error', () => {
     const result = parseTestConnectionError('403 Forbidden')
-    expect(result).toContain('does not have permission')
+    expect(result).toBe(setupI18n().t('uapi.error.permissionDenied'))
   })
 
   it('maps provider mismatch API key errors to actionable guidance', () => {
     const result = parseTestConnectionError('No API key found for huggingface. Use /login or set an API key environment variable.')
-    expect(result).toContain('Provider mismatch during setup')
+    expect(result).toBe(setupI18n().t('uapi.error.tokenInvalid'))
   })
 
-  it('passes through unknown errors truncated to 300 chars', () => {
+  it('replaces unknown errors instead of exposing raw provider text', () => {
     const longMsg = 'x'.repeat(500)
     const result = parseTestConnectionError(longMsg)
-    expect(result.length).toBe(300)
+    expect(result).toBe(setupI18n().t('uapi.error.connectionFailed'))
   })
 
-  it('passes through short unknown errors as-is', () => {
+  it('uses a localizable fallback for unknown errors', () => {
     const result = parseTestConnectionError('Something went wrong')
-    expect(result).toBe('Something went wrong')
+    expect(result).toBe(setupI18n().t('uapi.error.connectionFailed'))
   })
 })

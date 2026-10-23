@@ -6,6 +6,7 @@ import { getWorkspaceByNameOrId } from '@u-agents/shared/config'
 import { perf } from '@u-agents/shared/utils'
 import { isValidThinkingLevel, THINKING_LEVEL_IDS } from '@u-agents/shared/agent/thinking-levels'
 import { isPermissionMode, PERMISSION_MODE_ORDER } from '@u-agents/shared/agent/modes'
+import { U_AGENTS_FEATURE_POLICY, SESSION_SHARING_DISABLED_REASON } from '@u-agents/shared/config/u-agents-feature-policy'
 
 const VALID_THINKING_LEVELS_LIST = THINKING_LEVEL_IDS.map(id => `'${id}'`).join(', ')
 import { pushTyped, type RpcServer } from '@u-agents/server-core/transport'
@@ -299,6 +300,11 @@ export function registerSessionsHandlers(server: RpcServer, deps: HandlerDeps): 
     sessionId: string,
     command: import('@u-agents/shared/protocol').SessionCommand
   ) => {
+    // U-API: stale or crafted clients cannot publish, update or revoke a public session share.
+    if (!U_AGENTS_FEATURE_POLICY.sessionSharingAllowed
+      && ['shareToViewer', 'updateShare', 'revokeShare'].includes(command.type)) {
+      return { success: false, error: SESSION_SHARING_DISABLED_REASON }
+    }
     switch (command.type) {
       case 'flag':
         return sessionManager.flagSession(sessionId)

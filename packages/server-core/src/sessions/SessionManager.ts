@@ -1,4 +1,4 @@
-import { U_AGENTS_FEATURE_POLICY, DECISION_DISABLED_REASON } from '@u-agents/shared/config/u-agents-feature-policy';
+import { U_AGENTS_FEATURE_POLICY, DECISION_DISABLED_REASON, SESSION_SHARING_DISABLED_REASON } from '@u-agents/shared/config/u-agents-feature-policy';
 import type { EventSink, RpcServer } from '@u-agents/server-core/transport'
 import { CLIENT_BROWSER_INVOKE } from '@u-agents/server-core/transport'
 import type { ISessionManager, IBrowserPaneManager, ExecutePromptAutomationInput } from '@u-agents/server-core/handlers'
@@ -5663,6 +5663,8 @@ export class SessionManager implements ISessionManager {
    * Uploads session data and returns shareable URL
    */
   async shareToViewer(sessionId: string): Promise<import('@u-agents/shared/protocol').ShareResult> {
+    // U-API: reject before loading a conversation, emitting events or contacting the viewer.
+    if (!U_AGENTS_FEATURE_POLICY.sessionSharingAllowed) return { success: false, error: SESSION_SHARING_DISABLED_REASON }
     const managed = this.sessions.get(sessionId)
     if (!managed) {
       return { success: false, error: 'Session not found' }
@@ -5724,6 +5726,8 @@ export class SessionManager implements ISessionManager {
    * Re-uploads session data to the same URL
    */
   async updateShare(sessionId: string): Promise<import('@u-agents/shared/protocol').ShareResult> {
+    // U-API: direct callers are covered as well as RPC, including legacy shared sessions.
+    if (!U_AGENTS_FEATURE_POLICY.sessionSharingAllowed) return { success: false, error: SESSION_SHARING_DISABLED_REASON }
     const managed = this.sessions.get(sessionId)
     if (!managed) {
       return { success: false, error: 'Session not found' }
@@ -5775,6 +5779,8 @@ export class SessionManager implements ISessionManager {
    * Deletes from viewer and clears local shared state
    */
   async revokeShare(sessionId: string): Promise<import('@u-agents/shared/protocol').ShareResult> {
+    // U-API: no remote sharing mutations are enabled in this product phase.
+    if (!U_AGENTS_FEATURE_POLICY.sessionSharingAllowed) return { success: false, error: SESSION_SHARING_DISABLED_REASON }
     const managed = this.sessions.get(sessionId)
     if (!managed) {
       return { success: false, error: 'Session not found' }

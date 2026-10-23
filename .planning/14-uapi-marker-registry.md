@@ -8,9 +8,9 @@
 
 ## 0. 当前基线（速查）
 
-| 指标 | 基线（2026-10-22 v0.15.5 独立候选；未合主线）| 下次同步允许浮动 |
+| 指标 | 基线（2026-10-23 v0.15.5 GUI 修订候选；未合主线）| 下次同步允许浮动 |
 |---|---|---|
-| U-API 标记总数（含全部注释格式）| **223** | ±2 |
+| U-API 标记总数（含全部注释格式）| **239** | ±2 |
 | `/* U-API START */` 块数 | **9** | 必须等于 END |
 | `/* U-API END */` 块数 | **9** | 必须等于 START |
 
@@ -21,7 +21,7 @@
 # 覆盖 //、/*、HTML、JSX 全部注释格式。
 git grep -n -E '(//|/\*|\{/\*|<!--)[[:space:]]*U-API' -- \
   'apps/**/*.ts' 'apps/**/*.tsx' 'packages/**/*.ts' 'packages/**/*.tsx' | wc -l
-# 期望：223（候选基线，允许 221-225）
+# 期望：239（候选基线，允许 237-241）
 
 # 块标记 START/END 配对（数量必须相等）
 git grep -n -F '/* U-API START' -- 'apps/**/*.ts' 'apps/**/*.tsx' 'packages/**/*.ts' 'packages/**/*.tsx' | wc -l
@@ -275,6 +275,9 @@ if (!apiKey && connection.baseUrl) {
 | 89 | SDK 新增保温仍关闭，保留 main/ephemeral 重试预算 | `pi-agent-server/src/session-settings.ts` | `session-settings.test.ts` |
 | 90 | 新聊天头隐藏公开分享；Coding 自动分支前缀改为 U Agents | `ChatHeader.tsx`、`CodingWorkspacePanel.tsx` | lint/typecheck、feature/coding 回归；GUI 待解锁 |
 | 91t | 真实 Pi bundle 在仓库外加载 Photon/QuickJS 资产，模型请求确实含图片 | `pi-agent-server/src/packaged-images.isolated.ts` | 打包、拒绝旧 WASM 绝对路径、loopback 图片请求与输出上限断言 |
+| 92/92t | 首次配置的占位 slug 不等于已有凭据；空 Token 首配报错，已认证连接空值编辑完成无写入 | `renderer/hooks/useOnboarding.ts`、`pages/settings/AiSettingsPage.tsx`、`hooks/__tests__/useOnboarding-empty-token.test.tsx`（净增 3 处） | 真实 React Hook 五种状态回归，全部无 RPC；GUI 复验见修订记录 |
+| 93/93t | 会话分享在普通、紧凑及预留组件隐藏；RPC 和 SessionManager 在取会话、事件、网络前拒绝 share/update/revoke | `SessionMenu.tsx`、`CompactSessionMenu.tsx`、`chat-header/ChatShareMenu.tsx`、`handlers/rpc/sessions.ts`、`sessions/SessionManager.ts`、`session-sharing-policy.isolated.ts`（净增 8 处） | 新会话、历史分享、缺失会话 × 三命令，RPC 与 service 零状态访问、零网络 |
+| 94/94t | Token 页按钮使用 locale；固定网关错误按安全类别翻译，未知错误不回显 SDK 原文或凭据 | `onboarding/primitives.tsx`、`domain/connection-setup-logic.ts` 及测试、`handlers/rpc/llm-connections.ts`、旧 main parser 测试（净增 5 处） | 错误分类、中英文与脱敏回归；七个 locale parity/sorted/coverage；JSON 不计 marker |
 
 逐项增减、44 个上游交集文件的语义处置与完整清单见 [`UPGRADE-MARKERS-v0.15.5-20261022.md`](UPGRADE-MARKERS-v0.15.5-20261022.md)。旧 FAB 两处样式 lint 豁免随上游样式删除；设置页旧块和 TurnCard 旧辅助函数标记随结构迁移，未关闭多连接或生图展示。
 
@@ -319,6 +322,7 @@ grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_mod
 
 **历次基线演进**：
 
+- **v0.15.5 GUI 修订候选（2026-10-23）**：针对 G-01 空 Token 停滞、G-02 分享入口、G-03 中文文案修订，14 个主源码/测试文件净增 16 个 marker，START/END 均不变；当前基线只以 §0 为准。逐文件增减见 `/private/tmp/uagents-v0155-execution-20261022/revision-20261023/artifacts/marker-audit.json`。完整测试 6,743 pass、12 原有 skip，16 个 isolated 入口另 195 pass；未合主线、未发布。
 - **v0.15.5 独立候选（2026-10-22）**：原 216 处逐条核对，206 处原注释原样保留，10 个旧出现项经迁移/退役，新增或改写 17 个出现项；新总数与配对数见 §0。44 个上游交集文件按功能核对。当前仅候选，未合回主线、未发布，GUI 与 G12 未验收。详见 `UPGRADE-MARKERS-v0.15.5-20261022.md`。
 
 

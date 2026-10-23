@@ -2,8 +2,10 @@
 export const U_AGENTS_FEATURE_POLICY = Object.freeze({
   decisionLayerAllowed: false,
   pagesPublishingAllowed: false,
+  sessionSharingAllowed: false,
   pagesScriptsAllowed: false,
   pagesRefreshAllowed: false,
 });
 export const DECISION_DISABLED_REASON = 'U Agents 不支持独立决策模型';
+export const SESSION_SHARING_DISABLED_REASON = 'Public session sharing is disabled in U Agents.';
 export const PAGES_SCRIPT_DISABLED_REASON = '当前版本不支持 Pages 脚本动作或定时刷新';

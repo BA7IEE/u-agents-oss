@@ -15,6 +15,7 @@ import {
 import { PanelHeaderCenterButton } from '@/components/ui/PanelHeaderCenterButton'
 import { useSessionMenuActions } from '@/hooks/useSessionMenuActions'
 import type { SessionMeta } from '@/atoms/sessions'
+import { U_AGENTS_FEATURE_POLICY } from '@u-agents/shared/config/u-agents-feature-policy'
 
 const SHARING_DOCS_URL = 'https://u-agents.u-studio.cn/docs/go-further/sharing'
 
@@ -26,6 +27,9 @@ export function ChatShareMenu({ item }: { item: SessionMeta }) {
   const actions = useSessionMenuActions({ item })
   const isShared = !!item.sharedUrl
   const openDocs = () => window.electronAPI.openUrl(SHARING_DOCS_URL)
+
+  // U-API: this retained upstream component must stay hidden even if a future header mounts it again.
+  if (!U_AGENTS_FEATURE_POLICY.sessionSharingAllowed) return null
 
   return (
     <DropdownMenu>

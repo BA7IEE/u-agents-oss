@@ -10,6 +10,7 @@
  * 5. Complete
  */
 import { useState, useCallback, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import type {
   OnboardingState,
   OnboardingStep,
@@ -39,6 +40,8 @@ interface UseOnboardingOptions {
   onConfigSaved?: () => void
   /** Slug of existing connection being edited (null = creating new) */
   editingSlug?: string | null
+  // U-API: only an authenticated edit may keep an empty Token; a first-install slug is just a placeholder.
+  hasExistingCredentials?: boolean
   /** Set of slugs already in use (for generating unique slugs when creating new) */
   existingSlugs?: Set<string>
 }
@@ -223,8 +226,10 @@ export function useOnboarding({
   onDismiss,
   onConfigSaved,
   editingSlug = null,
+  hasExistingCredentials = false,
   existingSlugs = new Set(),
 }: UseOnboardingOptions): UseOnboardingReturn {
+  const { t } = useTranslation()
   // Main wizard state
   const [state, setState] = useState<OnboardingState>({
     step: initialStep,
@@ -436,13 +441,19 @@ export function useOnboarding({
         return
       }
 
-      // When editing an existing connection, API key is optional (empty = keep existing credential)
-      if (!data.apiKey.trim() && editingSlug) {
-        if (isUApiFlow) {
-          // U-API: token-only edit with an empty value has no mutable fields; keep the stored credential and resolved catalog unchanged
-          setState(s => ({ ...s, credentialStatus: 'success', step: 'complete' }))
-          return
+      // U-API: a pre-created first-install slug is not an authenticated edit; an empty edit is a completed no-op.
+      if (isUApiFlow && !data.apiKey.trim()) {
+        if (editingSlug && hasExistingCredentials) {
+          setState(s => ({ ...s, credentialStatus: 'success', completionStatus: 'complete', step: 'complete' }))
+          onComplete()
+        } else {
+          setState(s => ({ ...s, credentialStatus: 'error', errorMessage: t('uapi.error.tokenRequired') }))
         }
+        return
+      }
+
+      // When editing another existing connection, API key is optional (empty = keep existing credential)
+      if (!data.apiKey.trim() && editingSlug) {
         const saved = await handleSaveConfig(undefined, {
           baseUrl: data.baseUrl,
           connectionDefaultModel: data.connectionDefaultModel,
@@ -543,7 +554,7 @@ export function useOnboarding({
         errorMessage: error instanceof Error ? error.message : 'Validation failed',
       }))
     }
-  }, [handleSaveConfig, state.apiSetupMethod, editingSlug])
+  }, [handleSaveConfig, state.apiSetupMethod, editingSlug, hasExistingCredentials, onComplete, t])
 
   // Save config, validate the connection, and update state accordingly.
   // Shared by all OAuth flows after tokens are captured.

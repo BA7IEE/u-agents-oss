@@ -404,8 +404,10 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
-        deps.platform.logger?.info(`[testLlmConnectionSetup] U-API discovery/probe failed: elapsed=${Date.now() - startedAt}ms error=${message.slice(0, 300)}`)
-        return { success: false, error: parseTestConnectionError(message) }
+        // U-API: raw provider errors may contain credentials; log and return only the localized category.
+        const publicError = parseTestConnectionError(message)
+        deps.platform.logger?.info(`[testLlmConnectionSetup] U-API discovery/probe failed: elapsed=${Date.now() - startedAt}ms error=${publicError}`)
+        return { success: false, error: publicError }
       }
     }
 

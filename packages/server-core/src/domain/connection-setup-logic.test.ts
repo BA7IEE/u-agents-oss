@@ -9,7 +9,39 @@ import {
   maskApiKey,
   isMaskedApiKey,
   resolveSetupTestApiKey,
+  classifyTestConnectionError,
+  parseTestConnectionError,
 } from './connection-setup-logic'
+import { setupI18n } from '@u-agents/shared/i18n'
+
+// U-API: categories drive localized fixed-gateway guidance; unknown SDK text never reaches users.
+describe('U-API setup error categories', () => {
+  for (const [message, key] of [
+    ['TypeError: fetch failed', 'unreachable'], ['ECONNRESET', 'unreachable'],
+    ['Network timeout while contacting U-API', 'networkTimeout'],
+    ['401 Unauthorized', 'tokenInvalid'], ['Invalid API key', 'tokenInvalid'],
+    ['403 Forbidden', 'permissionDenied'], ['429 rate limit', 'rateLimited'],
+    ['insufficient_quota 429', 'insufficientBalance'],
+    ['404 model not found', 'modelUnavailable'], ['503 service unavailable', 'unreachable'],
+    ['No compatible chat models are available for this API key', 'modelUnavailable'],
+    ['unrecognized error with sk-private-fixture-token', 'connectionFailed'],
+  ]) {
+    it(`classifies ${key}: ${message}`, () => {
+      expect(classifyTestConnectionError(message!)).toBe(`uapi.error.${key}`)
+      expect(parseTestConnectionError(message!)).not.toContain('sk-private-fixture-token')
+    })
+  }
+
+  it('uses Chinese network guidance without asking for an editable URL or provider', async () => {
+    const i18n = setupI18n()
+    const previous = i18n.resolvedLanguage ?? 'en'
+    try {
+      await i18n.changeLanguage('zh-Hans')
+      expect(parseTestConnectionError('fetch failed')).toBe('连接 U-API 服务失败，请检查网络或稍后重试。')
+      expect(parseTestConnectionError('unknown private failure')).toBe('暂时无法完成 U-API 连接验证，请稍后重试。')
+    } finally { await i18n.changeLanguage(previous) }
+  })
+})
 
 describe('validateSetupTestInput', () => {
   it('rejects pi custom endpoint tests without piAuthProvider', () => {

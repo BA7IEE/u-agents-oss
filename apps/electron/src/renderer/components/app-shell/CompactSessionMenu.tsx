@@ -64,6 +64,7 @@ import {
   type LabelMenuItem,
 } from '@/components/ui/label-menu-utils'
 import type { LabelConfig } from '@u-agents/shared/labels'
+import { U_AGENTS_FEATURE_POLICY } from '@u-agents/shared/config/u-agents-feature-policy'
 import {
   getStateColor,
   getStateIcon,
@@ -299,7 +300,7 @@ export function CompactSessionMenu({
             />
           )}
 
-          {view === 'share' && sharedUrl && (
+          {U_AGENTS_FEATURE_POLICY.sessionSharingAllowed && view === 'share' && sharedUrl && (
             <SharePane
               onOpenInBrowser={closeAfter(actions.openSharedInBrowser)!}
               onCopyLink={closeAfter(actions.copySharedLink)!}
@@ -398,8 +399,8 @@ function RootPane({
     <div className="flex flex-col">
       <Row icon={<Info className="h-4 w-4" />} label={t('chat.sessionInfo')} onTap={onShowInfo} />
 
-      {/* Share / Shared */}
-      {!sharedUrl ? (
+      {/* U-API: the compact drawer obeys the same fixed public-sharing boundary as desktop menus. */}
+      {U_AGENTS_FEATURE_POLICY.sessionSharingAllowed && (!sharedUrl ? (
         <Row icon={<CloudUpload className="h-4 w-4" />} label={t('sessionMenu.share')} onTap={onShare} />
       ) : (
         <Row
@@ -408,7 +409,7 @@ function RootPane({
           chevron
           onTap={onOpenShareSub}
         />
-      )}
+      ))}
 
       {hasTransferTargets && onSendToWorkspace && (
         <Row icon={<Send className="h-4 w-4" />} label={t('sessionMenu.sendToWorkspace')} onTap={onSendToWorkspace} />

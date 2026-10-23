@@ -43,6 +43,7 @@ import type { SessionMeta } from '@/atoms/sessions'
 import { getSessionStatus, hasUnreadMeta, hasMessagesMeta } from '@/utils/session'
 import { MessagingSessionMenuItem } from '@/components/messaging/MessagingSessionMenuItem'
 import { useSessionMenuActions } from '@/hooks/useSessionMenuActions'
+import { U_AGENTS_FEATURE_POLICY } from '@u-agents/shared/config/u-agents-feature-policy'
 
 export interface SessionMenuProjectOption {
   id: string
@@ -118,8 +119,8 @@ export function SessionMenu({
 
   return (
     <>
-      {/* Share/Shared based on shared state */}
-      {!sharedUrl ? (
+      {/* U-API: keep public sharing hidden in dropdowns and context menus, including legacy shared sessions. */}
+      {U_AGENTS_FEATURE_POLICY.sessionSharingAllowed && (!sharedUrl ? (
         <MenuItem onClick={actions.share}>
           <CloudUpload className="h-3.5 w-3.5" />
           <span className="flex-1">{t("sessionMenu.share")}</span>
@@ -140,7 +141,7 @@ export function SessionMenu({
             />
           </SubContent>
         </Sub>
-      )}
+      ))}
 
       {/* Send to Workspace — visible when at least one other workspace exists */}
       {hasTransferTargets && onSendToWorkspace && (
