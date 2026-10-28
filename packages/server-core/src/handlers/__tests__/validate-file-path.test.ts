@@ -87,7 +87,8 @@ describe('validateFilePath', () => {
   })
 
   it.skipIf(process.platform !== 'darwin')('canonicalizes macOS /tmp roots before containment checks', async () => {
-    const canonicalRoot = await mkdtemp(join(tmpdir(), 'u-agents-validate-path-'))
+    // U-API: exercise the /tmp symlink even when the validation runner uses an external TMPDIR.
+    const canonicalRoot = await mkdtemp('/private/tmp/u-agents-validate-path-')
     const root = canonicalRoot.replace(/^\/private\/tmp\//, '/tmp/')
     const path = join(root, 'generated.png')
     try {

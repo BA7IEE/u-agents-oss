@@ -15,6 +15,7 @@
  */
 
 import http from 'node:http';
+import { ProxyToolRegistry, type ProxyToolDef, type ProxyToolScope } from './proxy-tool-registry.ts';
 import { createInterface } from 'node:readline';
 import { join } from 'node:path';
 import { mkdirSync, readdirSync, statSync, existsSync } from 'node:fs';
@@ -160,7 +161,7 @@ interface RuntimeConfigUpdateMessage {
 type InboundMessage =
   | InitMessage
   | { type: 'prompt'; id: string; message: string; systemPrompt: string; images?: Array<{ type: 'image'; data: string; mimeType: string }> }
-  | { type: 'register_tools'; tools: ProxyToolDef[] }
+  | { type: 'register_tools'; tools: ProxyToolDef[]; scope?: ProxyToolScope }
   | { type: 'tool_execute_response'; requestId: string; result: { content: string; isError: boolean } }
   | { type: 'pre_tool_use_response'; requestId: string; action: 'allow' | 'block' | 'modify'; input?: Record<string, unknown>; reason?: string }
   | PiLargeResultGateResponse
@@ -177,13 +178,6 @@ type InboundMessage =
   | { type: 'steer'; message: string }
   | { type: 'token_update'; piAuth: { provider: string; credential: PiCredential } }
   | { type: 'shutdown' };
-
-/** Proxy tool definition from main process */
-interface ProxyToolDef {
-  name: string;
-  description: string;
-  inputSchema: Record<string, unknown>;
-}
 
 /** Canonical tool metadata propagated on Pi tool start events */
 interface ToolExecutionMetadata {
@@ -306,6 +300,7 @@ const pendingToolExecutions = new Map<string, { resolve: (result: { content: str
 const pendingSessionToolCalls = new Map<string, { toolName: string; arguments: Record<string, unknown> }>();
 
 // Proxy tool definitions from main process
+const proxyToolRegistry = new ProxyToolRegistry();
 let proxyToolDefs: ProxyToolDef[] = [];
 
 // Speculative prefetch for read-only tools (enables parallel execution despite Pi SDK's sequential loop).
@@ -1484,13 +1479,10 @@ async function handlePrompt(msg: Extract<InboundMessage, { type: 'prompt' }>): P
 }
 
 function handleRegisterTools(msg: Extract<InboundMessage, { type: 'register_tools' }>): void {
-  // Merge: replace existing tools by name, add new ones
-  const incoming = new Map(msg.tools.map(t => [t.name, t]));
-  proxyToolDefs = [
-    ...proxyToolDefs.filter(t => !incoming.has(t.name)),
-    ...msg.tools,
-  ];
-  debugLog(`Registered ${msg.tools.length} proxy tools (total: ${proxyToolDefs.length}): ${msg.tools.map(t => t.name).join(', ')}`);
+  // U-API: scoped replacement (including empty lists); old hosts retain merge behavior.
+  if (!proxyToolRegistry.register(msg.tools, msg.scope)) return;
+  proxyToolDefs = proxyToolRegistry.definitions();
+  debugLog(`Registered ${msg.tools.length} ${msg.scope ?? 'legacy'} proxy tools (total: ${proxyToolDefs.length})`);
 
   // If session exists, mark for recreation on next prompt.
   // Don't dispose mid-generation — the flag is checked in handlePrompt().

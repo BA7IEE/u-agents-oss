@@ -2,7 +2,7 @@ name: Windows Candidate
 
 on:
   push:
-    branches: [codex/upstream-v0.15.5]
+    branches: [codex/upstream-v0.15.6]
     paths:
       - '.github/workflows/windows-candidate.yml'
       - '.github/scripts/**'
@@ -71,10 +71,10 @@ jobs:
             "$hash  $name"
           }
           $hashLines | Set-Content apps/electron/release/SHA256SUMS.txt
-          @("Commit: $env:GITHUB_SHA", "Version: 0.15.5", "Platform: windows-x64", "Run: https://github.com/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID", "Built without automatic publication; unsigned", "Real image generation: NOT_RUN (test Token has no image model)") | Set-Content apps/electron/release/BUILD.txt
+          @("Commit: $env:GITHUB_SHA", "Version: 0.15.6", "Platform: windows-x64", "Run: https://github.com/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID", "Built without automatic publication; unsigned", "Real image generation: NOT_RUN (real paid requests not authorized for this candidate)") | Set-Content apps/electron/release/BUILD.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: U-Agents-0.15.5-windows-x64
+          name: U-Agents-0.15.6-windows-x64
           path: |
             apps/electron/release/U-Agents-x64.exe
             apps/electron/release/U-Agents-x64.exe.blockmap

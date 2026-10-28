@@ -79,6 +79,9 @@ import { serializeHeaderCredential, loadWorkspaceSources, loadAllSources, getSou
 import { listTaskSlugs, parseTaskSpec, uniqueTaskSlug } from '@u-agents/shared/tasks'
 import { createTaskFromSpec, resolveCreateTaskProjectId } from '../tasks'
 import { buildPagesToolCallbacks } from '../pages/tool-callbacks'
+import { buildPrWatchToolCallbacks } from '../pr-watch/tool-callbacks'
+import { prEntryId } from '@u-agents/shared/pr-watch'
+import { getPrAutoFixMonitor, getPrWatchRegistry } from '../handlers/rpc/pr-watch'
 import { buildDecisionToolCallbacks } from '../decisions/tool-callbacks'
 import { buildServersFromSources as buildServersFromSourcesShared } from '../sources/build-servers'
 import { buildMcpSourceToolCallbacks } from '../sources/mcp-source-tool-callbacks'
@@ -91,7 +94,7 @@ import { redactBrowserPasswordFills } from '@u-agents/shared/agent'
 import { restoreFiles } from '@u-agents/shared/utils/bundle-files'
 import { getCredentialManager } from '@u-agents/shared/credentials'
 import { CraftMcpClient, McpClientPool, McpPoolServer } from '@u-agents/shared/mcp'
-import { type Session, type SessionEvent, type FileAttachment, type SendMessageOptions, type UnreadSummary, type RemoteSessionTransferPayload, type ImportRemoteSessionTransferResult, type BackgroundTaskOutput, type StopBackgroundTaskResult, RPC_CHANNELS, generateMessageId } from '@u-agents/shared/protocol'
+import { type Session, type SessionEvent, type FileAttachment, type SendMessageOptions, type UnreadSummary, type RemoteSessionTransferPayload, type ImportRemoteSessionTransferResult, type BackgroundTaskOutput, type StopBackgroundTaskResult, type BoundPr, type PrMonitorState, RPC_CHANNELS, generateMessageId } from '@u-agents/shared/protocol'
 import { launchOutputFile, readBackgroundTaskOutput } from './background-task-output'
 import { messageToStored, storedToMessage, type Message, type StoredAttachment, type ToolDisplayMeta, type TokenUsage } from '@u-agents/core/types'
 import { formatPathsToRelative, formatToolInputPaths, perf, encodeIconToDataUrlAsync, getEmojiIcon, resetSummarizationClient, resolveToolIcon, readFileAttachment, selectSpreadMessages, normalizePath } from '@u-agents/shared/utils'
@@ -846,6 +849,10 @@ interface ManagedSession {
   thinkingLevel?: ThinkingLevel
   // Coding mode: lean coding prompt + session-tool profile (fixed once the session has messages)
   codingMode?: boolean
+  // Coding mode: PRs pinned to this session (chat-header PR carousel; see pr_bind / pr_unbind)
+  boundPrs?: BoundPr[]
+  // Coding mode: per-PR monitor state (auto-fix toggle + what it last acted on), keyed by PR id
+  prMonitors?: Record<string, PrMonitorState>
   // System prompt preset for mini agents ('default' | 'mini')
   systemPromptPreset?: 'default' | 'mini' | string
   // Role/type of the last message (for badge display without loading messages)
@@ -951,6 +958,9 @@ interface ManagedSession {
   transferredSessionSummary?: string
   // Whether the transferred-session summary has already been injected.
   transferredSessionSummaryApplied?: boolean
+  // Continued from another session: its summary is still being generated (continueSessionInNewSession).
+  // The first turn waits for it, at most HANDOFF_SUMMARY_WAIT_MS. Not persisted.
+  pendingHandoffSummary?: Promise<void>
   // Token refresh manager for OAuth token refresh with rate limiting
   tokenRefreshManager: TokenRefreshManager
   // Metadata for sessions created by automations
@@ -1203,6 +1213,17 @@ const DEFAULT_TOKEN_USAGE = {
   contextTokens: 0, costUsd: 0,
 }
 
+/** Two bound PRs are the same pin when their host/owner/repo/number match (case-insensitive). */
+function sameBoundPr(
+  a: { host: string; owner: string; repo: string; number: number },
+  b: { host: string; owner: string; repo: string; number: number },
+): boolean {
+  return a.number === b.number
+    && a.host.toLowerCase() === b.host.toLowerCase()
+    && a.owner.toLowerCase() === b.owner.toLowerCase()
+    && a.repo.toLowerCase() === b.repo.toLowerCase()
+}
+
 /**
  * Convert a ManagedSession to a renderer-side Session object.
  * Uses pickSessionFields() for persistent fields so new fields propagate automatically.
@@ -1229,6 +1250,12 @@ function managedToSession(m: ManagedSession, overrides?: Partial<Session>): Sess
 
 // Performance: Batch IPC delta events to reduce renderer load
 const DELTA_BATCH_INTERVAL_MS = 50  // Flush batched deltas every 50ms
+
+/**
+ * How long the first turn of a session continued from another one (Coding mode switch) waits for
+ * the earlier conversation's summary, which is generated in the background (a few seconds).
+ */
+const HANDOFF_SUMMARY_WAIT_MS = 30_000
 
 interface PendingDelta {
   delta: string
@@ -1334,6 +1361,8 @@ export function canSteerTextPayload(
 
 export class SessionManager implements ISessionManager {
   private sessions: Map<string, ManagedSession> = new Map()
+  /** Test seam for HANDOFF_SUMMARY_WAIT_MS. */
+  private handoffSummaryWaitMs = HANDOFF_SUMMARY_WAIT_MS
   // Delta batching for performance - reduces IPC events from 50+/sec to ~20/sec
   private pendingDeltas: Map<string, PendingDelta> = new Map()
   private deltaFlushTimers: Map<string, NodeJS.Timeout> = new Map()
@@ -4202,6 +4231,8 @@ export class SessionManager implements ISessionManager {
         miniModel,
         thinkingLevel: managed.thinkingLevel,
         session: sessionConfig,
+        // U-API: project add/switch/remove is live for the existing backend.
+        getCurrentProjectId: () => managed.projectId,
         onSdkSessionIdUpdate,
         onSdkSessionIdCleared,
         onBranchForkInvalidated,
@@ -5124,6 +5155,16 @@ export class SessionManager implements ISessionManager {
         decide: buildDecisionToolCallbacks({
           sessionId: managed.id,
           log: (message: string) => sessionLog.info(message),
+        }),
+        // PR watcher tools (pr_status/pr_bind/pr_unbind/pr_set_auto_merge) — Coding mode. Bound to the
+        // invoking session; the registry (handlers/rpc/pr-watch) owns the GitHub credentials and the
+        // watcher, so tokens never reach the agent. getRegistry resolves the current instance at call
+        // time (it is recreated when the RPC handlers re-register).
+        prWatch: buildPrWatchToolCallbacks({
+          sessionId: managed.id,
+          sessionManager: this,
+          getRegistry: getPrWatchRegistry,
+          getAutoFixMonitor: getPrAutoFixMonitor,
         }),
         getSessionInfoFn: (sessionId?: string) => {
           const targetId = sessionId ?? managed.id
@@ -7230,6 +7271,10 @@ export class SessionManager implements ISessionManager {
       sendSpan.mark('servers.applied')
     }
 
+    // Continued from another session: the summary this first turn carries may still be generating
+    // (the agent above was set up meanwhile)
+    if (managed.pendingHandoffSummary) await this.waitForHandoffSummary(managed)
+
     try {
       sessionLog.info('Starting chat for session:', sessionId)
       sessionLog.info('Workspace:', JSON.stringify(managed.workspace, null, 2))
@@ -8753,12 +8798,15 @@ export class SessionManager implements ISessionManager {
    * working directory, model, connection, thinking level, permission mode, sources and project, and
    * gets a summary of this conversation as one-shot hidden context on its first turn (the same
    * handoff remote transfers use). The source session is left untouched.
+   *
+   * The summary is a model call that takes seconds, so the new session is returned at once and the
+   * summary is attached in the background (`attachHandoffSummary`); a first message sent before it
+   * is ready waits for it in `sendMessage`.
    */
   async continueSessionInNewSession(sessionId: string, codingMode: boolean): Promise<{ sessionId: string }> {
     const managed = this.sessions.get(sessionId)
     if (!managed) throw new Error(`Session ${sessionId} not found`)
 
-    const summary = await this.generateSessionHandoffSummary(managed)
     const session = await this.createSession(managed.workspace.id, {
       permissionMode: managed.permissionMode,
       thinkingLevel: managed.thinkingLevel,
@@ -8771,14 +8819,140 @@ export class SessionManager implements ISessionManager {
     })
 
     const created = this.sessions.get(session.id)
-    if (created && summary) {
-      created.transferredSessionSummary = summary
-      created.transferredSessionSummaryApplied = false
-      this.persistSession(created)
-      await sessionPersistenceQueue.flush(session.id)
+    if (created) {
+      const pending: Promise<void> = this.attachHandoffSummary(managed, created).finally(() => {
+        if (created.pendingHandoffSummary === pending) created.pendingHandoffSummary = undefined
+      })
+      created.pendingHandoffSummary = pending
     }
-    sessionLog.info(`Session ${sessionId}: continued in ${session.id} with coding mode ${codingMode ? 'on' : 'off'} (summary: ${summary ? `${summary.length} chars` : 'none'})`)
+    sessionLog.info(`Session ${sessionId}: continued in ${session.id} with coding mode ${codingMode ? 'on' : 'off'}; summarizing the conversation in the background`)
     return { sessionId: session.id }
+  }
+
+  /** Wait for a continued session's handoff summary, at most `handoffSummaryWaitMs`. */
+  private async waitForHandoffSummary(managed: ManagedSession): Promise<void> {
+    const pending = managed.pendingHandoffSummary
+    if (!pending) return
+    const startedAt = Date.now()
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const ready = await Promise.race([
+      pending.then(() => true),
+      new Promise<boolean>(resolve => { timer = setTimeout(() => resolve(false), this.handoffSummaryWaitMs) }),
+    ])
+    clearTimeout(timer)
+    sessionLog.info(`Session ${managed.id}: first turn waited ${Date.now() - startedAt} ms for the previous session's summary${ready ? '' : ', starting without it'}`)
+  }
+
+  /**
+   * Summarize `source`'s conversation and give it to `target` as one-shot hidden context for its
+   * first turn (`transferredSessionSummary`). Never throws: without a summary the new session just
+   * starts without the earlier context.
+   */
+  private async attachHandoffSummary(source: ManagedSession, target: ManagedSession): Promise<void> {
+    const startedAt = Date.now()
+    try {
+      const summary = await this.generateSessionHandoffSummary(source)
+      // Deleted while the summary was generated
+      if (this.sessions.get(target.id) !== target) return
+      if (summary) {
+        target.transferredSessionSummary = summary
+        target.transferredSessionSummaryApplied = false
+        this.persistSession(target)
+        await sessionPersistenceQueue.flush(target.id)
+      }
+      sessionLog.info(`Session ${target.id}: summary of ${source.id} ${summary ? `ready (${summary.length} chars)` : 'empty'} after ${Date.now() - startedAt} ms`)
+    } catch (error) {
+      sessionLog.warn(`Session ${target.id}: summary of ${source.id} failed after ${Date.now() - startedAt} ms:`, error)
+    }
+  }
+
+  /** Coding mode: PRs pinned to a session (chat-header PR carousel), in addedAt order. */
+  getSessionBoundPrs(sessionId: string): BoundPr[] {
+    return this.sessions.get(sessionId)?.boundPrs ?? []
+  }
+
+  /**
+   * Pin a PR to a session (pr_bind). Deduped by host/owner/repo#number — re-binding an existing PR
+   * refreshes its position — then persisted. Returns the new list (addedAt order).
+   */
+  bindPrToSession(sessionId: string, pr: BoundPr): BoundPr[] {
+    const managed = this.sessions.get(sessionId)
+    if (!managed) throw new Error(`Session ${sessionId} not found`)
+    const next = [...(managed.boundPrs ?? []).filter(p => !sameBoundPr(p, pr)), pr].sort((a, b) => a.addedAt - b.addedAt)
+    managed.boundPrs = next
+    sessionLog.info(`Session ${sessionId}: bound PR ${pr.owner}/${pr.repo}#${pr.number} (${next.length} total)`)
+    this.persistSession(managed)
+    return next
+  }
+
+  /** Remove a pinned PR from a session (pr_unbind); persists and returns the new list. */
+  unbindPrFromSession(sessionId: string, pr: { host: string; owner: string; repo: string; number: number }): BoundPr[] {
+    const managed = this.sessions.get(sessionId)
+    if (!managed) throw new Error(`Session ${sessionId} not found`)
+    const next = (managed.boundPrs ?? []).filter(p => !sameBoundPr(p, pr))
+    // Stored only when non-empty, so sessions that never bind keep an unchanged header (like codingMode)
+    managed.boundPrs = next.length ? next : undefined
+    // An unbound PR's auto-fix goes with it
+    const monitorId = prEntryId(pr)
+    if (managed.prMonitors?.[monitorId]) {
+      const { [monitorId]: _dropped, ...rest } = managed.prMonitors
+      managed.prMonitors = Object.keys(rest).length ? rest : undefined
+    }
+    sessionLog.info(`Session ${sessionId}: unbound PR ${pr.owner}/${pr.repo}#${pr.number} (${next.length} left)`)
+    this.persistSession(managed)
+    return next
+  }
+
+  /** Coding mode: per-PR monitor state (auto-fix), keyed by PR id. */
+  getSessionPrMonitors(sessionId: string): Record<string, PrMonitorState> {
+    return this.sessions.get(sessionId)?.prMonitors ?? {}
+  }
+
+  /**
+   * Turn auto-fix (the PR card's Fix toggle) on or off for one PR of a session; persists and returns
+   * the monitors. Turning it off keeps what the last run acted on, so turning it back on only fixes
+   * feedback that is new since then.
+   */
+  setSessionPrAutoFix(sessionId: string, prId: string, enabled: boolean): Record<string, PrMonitorState> {
+    const managed = this.sessions.get(sessionId)
+    if (!managed) throw new Error(`Session ${sessionId} not found`)
+    const monitors = { ...(managed.prMonitors ?? {}) }
+    const entry: PrMonitorState = { ...(monitors[prId] ?? {}), autoFix: enabled || undefined }
+    if (entry.autoFix || entry.lastFixAt) monitors[prId] = entry
+    else delete monitors[prId]
+    managed.prMonitors = Object.keys(monitors).length ? monitors : undefined
+    sessionLog.info(`Session ${sessionId}: auto-fix ${enabled ? 'on' : 'off'} for ${prId}`)
+    this.persistSession(managed)
+    return managed.prMonitors ?? {}
+  }
+
+  /** Record an auto-fix run: when, and the review feedback (signature) it acted on. */
+  recordPrAutoFixRun(sessionId: string, prId: string, signature: string[], at: number): void {
+    const managed = this.sessions.get(sessionId)
+    if (!managed) return
+    managed.prMonitors = { ...(managed.prMonitors ?? {}), [prId]: { ...(managed.prMonitors?.[prId] ?? {}), lastFixAt: at, lastFixSignature: signature } }
+    this.persistSession(managed)
+  }
+
+  /** A session's metadata without loading its messages (cheap, unlike getSession). */
+  getSessionSnapshot(sessionId: string): Session | null {
+    const managed = this.sessions.get(sessionId)
+    return managed ? managedToSession(managed) : null
+  }
+
+  /**
+   * Start a turn in an idle session with an app-generated notice: hidden (never a transcript bubble)
+   * and labelled as sent by Craft Agents, not the user — the same path background-task completions
+   * use. Returns false, sending nothing, when the session is missing or busy, so the caller can retry.
+   */
+  wakeIdleSessionWithNotice(sessionId: string, text: string): boolean {
+    const managed = this.sessions.get(sessionId)
+    // U-API: recheck auto-fix eligibility at the host wake boundary.
+    if (!managed || !managed.codingMode || managed.isArchived || managed.isProcessing || managed.permissionMode === 'safe') return false
+    void this.sendMessage(sessionId, labelSystemNotice(text), [], [], { hidden: true }).catch((err) => {
+      sessionLog.error(`Session ${sessionId}: failed to start a system-notice turn:`, err)
+    })
+    return true
   }
 
   /**

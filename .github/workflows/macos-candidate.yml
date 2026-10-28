@@ -2,7 +2,7 @@ name: macOS Candidate
 
 on:
   push:
-    branches: [codex/upstream-v0.15.5]
+    branches: [codex/upstream-v0.15.6]
     paths:
       - '.github/workflows/macos-candidate.yml'
       - '.github/scripts/**'
@@ -64,16 +64,16 @@ jobs:
             shasum -a 256 U-Agents-arm64.dmg U-Agents-arm64.zip U-Agents-arm64.dmg.blockmap U-Agents-arm64.zip.blockmap latest-mac.yml > SHA256SUMS.txt
             cat > BUILD.txt <<EOF
           Commit: $GITHUB_SHA
-          Version: 0.15.5
+          Version: 0.15.6
           Platform: macos-arm64
           Run: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
           Built without automatic publication; ad hoc signing; not notarized
-          Real image generation: NOT_RUN (test Token has no image model)
+          Real image generation: NOT_RUN (real paid requests not authorized for this candidate)
           EOF
           )
       - uses: actions/upload-artifact@v4
         with:
-          name: U-Agents-0.15.5-macos-arm64
+          name: U-Agents-0.15.6-macos-arm64
           path: |
             apps/electron/release/U-Agents-arm64.dmg
             apps/electron/release/U-Agents-arm64.zip

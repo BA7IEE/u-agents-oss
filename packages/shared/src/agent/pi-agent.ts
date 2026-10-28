@@ -68,7 +68,7 @@ import {
 import { attachSessionSelfManagementBindings } from './session-self-management-bindings.ts';
 
 // Session tool proxy definitions (for registering with subprocess)
-import { getSessionToolProxyDefs, SESSION_TOOL_NAMES } from './backend/pi/session-tool-defs.ts';
+import { getPiSessionToolFilterOptions, getSessionToolProxyDefs, SESSION_TOOL_NAMES } from './backend/pi/session-tool-defs.ts';
 
 // Session tool registry (for executing proxy tool calls)
 import {
@@ -111,7 +111,7 @@ import { LLM_QUERY_TIMEOUT_MS, type LLMQueryRequest, type LLMQueryResult } from 
 import { executeBrowserToolCommand } from './browser-tool-runtime.ts';
 import { saveBinaryResponse } from '../utils/binary-detection.ts';
 import { executePaidImageToolCallback } from './paid-image-tool-registry.ts';
-import { FEATURE_FLAGS } from '../feature-flags.ts';
+import type { SessionToolProfileOptions } from './session-scoped-tools.ts';
 
 // ============================================================
 // PiAgent Implementation
@@ -195,6 +195,11 @@ export class PiAgent extends BaseAgent {
   /** Aborted when the current turn stops; tool checks started in the turn watch it. */
   private turnAbort = new AbortController();
 
+  // U-API: transient Bash inputs survive adaptation; results deliberately omit input.
+  private bashCommandsByCallId = new Map<string, string>();
+  private sessionToolsSignature: string | null = null;
+  private sourceToolsSignature: string | null = null;
+
   // Event adapter
   private adapter: PiEventAdapter;
 
@@ -221,7 +226,7 @@ export class PiAgent extends BaseAgent {
    * project config file is small.
    */
   private resolveProjectContext(): ProjectPromptContext | null {
-    const projectId = this.config.session?.projectId;
+    const projectId = this.getCurrentProjectId();
     if (!projectId) return null;
 
     try {
@@ -541,7 +546,8 @@ export class PiAgent extends BaseAgent {
     });
 
     this.readline.on('line', (line: string) => {
-      this.handleLine(line);
+      // U-API: late callbacks from a replaced child cannot enter the current turn.
+      if (this.subprocess === child) this.handleLine(line);
     });
 
     // Always capture stderr into a bounded ring buffer so callers (e.g. the
@@ -558,10 +564,11 @@ export class PiAgent extends BaseAgent {
 
     // Handle subprocess exit
     child.on('exit', (code, signal) => {
-      this.handleSubprocessExit(code, signal);
+      if (this.subprocess === child) this.handleSubprocessExit(code, signal);
     });
 
     child.on('error', (error) => {
+      if (this.subprocess !== child) return;
       this.debug(`Subprocess error: ${error.message}`);
       this.resetSubprocessErrorDedup();
       this.eventQueue.enqueue({ type: 'error', message: `Pi subprocess error: ${error.message}` });
@@ -618,14 +625,23 @@ export class PiAgent extends BaseAgent {
     // These tools (SubmitPlan, config_validate, source auth, call_llm, etc.)
     // are executed in the main process when the LLM calls them.
     this.assertBackendSessionToolParity();
-    // Same visibility filters as Claude (session-scoped-tools.ts): feature flags, the
-    // "Built-in browser" setting and the agent profile (coding mode).
-    const sessionToolDefs = getSessionToolProxyDefs({
+    this.refreshSessionToolsWithSubprocess();
+    this.registerPoolToolsWithSubprocess();
+  }
+
+  // U-API: derive one live profile for registration and the authoritative execution gate.
+  private sessionToolProfileOptions(): SessionToolProfileOptions {
+    return {
       agentKind: this.isMiniAgent() ? 'mini' : 'full',
       profile: this._agentProfile,
       hasEnabledSources: this.sourceManager.getIntendedSlugs().size > 0,
-      hasProject: !!this.config.session?.projectId,
-    });
+      hasProject: !!this.getCurrentProjectId(),
+    };
+  }
+
+  private refreshSessionToolsWithSubprocess(): void {
+    if (!this.subprocess) return;
+    const sessionToolDefs = getSessionToolProxyDefs(this.sessionToolProfileOptions());
 
     // Patch call_llm description with provider-specific model hint
     if (this.config.miniModel) {
@@ -635,29 +651,26 @@ export class PiAgent extends BaseAgent {
       }
     }
 
-    this.send({
-      type: 'register_tools',
-      tools: sessionToolDefs,
-    });
+    const signature = JSON.stringify(sessionToolDefs);
+    if (signature === this.sessionToolsSignature) return;
+    this.send({ type: 'register_tools', scope: 'session', tools: sessionToolDefs });
+    this.sessionToolsSignature = signature;
     this.debug(`Registered ${sessionToolDefs.length} session tools with subprocess`);
 
-    // If pool has source tools, register them with the subprocess.
-    this.registerPoolToolsWithSubprocess();
   }
 
   /**
    * Send pool's proxy tool defs to subprocess for model visibility.
    */
   private registerPoolToolsWithSubprocess(): void {
-    if (!this.mcpPool) return;
-    const proxyDefs = this.mcpPool.getProxyToolDefs();
-    if (proxyDefs.length > 0) {
-      this.send({
-        type: 'register_tools',
-        tools: proxyDefs,
-      });
-      this.debug(`Registered ${proxyDefs.length} MCP source tools from pool with subprocess`);
-    }
+    if (!this.subprocess) return;
+    // U-API: empty scoped registrations remove stale source tools without removing session tools.
+    const proxyDefs = this.mcpPool?.getProxyToolDefs() ?? [];
+    const signature = JSON.stringify(proxyDefs);
+    if (signature === this.sourceToolsSignature) return;
+    this.send({ type: 'register_tools', scope: 'sources', tools: proxyDefs });
+    this.sourceToolsSignature = signature;
+    this.debug(`Registered ${proxyDefs.length} MCP source tools from pool with subprocess`);
   }
 
   /**
@@ -1217,6 +1230,21 @@ export class PiAgent extends BaseAgent {
         this.resetPrerequisiteState();
       }
 
+      // U-API: correlate the adapted Bash start/result; tool_result does not carry its input.
+      if (agentEvent.type === 'tool_start' && agentEvent.toolName === 'Bash' && !this.turnAbort.signal.aborted) {
+        const command = (agentEvent.input as { command?: unknown } | undefined)?.command;
+        if (this._agentProfile === 'coding' && typeof command === 'string') {
+          this.bashCommandsByCallId.set(agentEvent.toolUseId, command);
+        }
+      }
+      if (agentEvent.type === 'tool_result') {
+        const command = this.bashCommandsByCallId.get(agentEvent.toolUseId);
+        this.bashCommandsByCallId.delete(agentEvent.toolUseId);
+        if (!agentEvent.isError && agentEvent.toolName === 'Bash' && !this.turnAbort.signal.aborted) {
+          void this.pinCreatedPr(command, typeof agentEvent.result === 'string' ? agentEvent.result : '');
+        }
+      }
+
       // Fire PostToolUse / PostToolUseFailure hook events (fire-and-forget)
       if (agentEvent.type === 'tool_result') {
         const hookEvent = agentEvent.isError ? 'PostToolUseFailure' : 'PostToolUse';
@@ -1665,11 +1693,7 @@ export class PiAgent extends BaseAgent {
       }
 
       // U-API: execution gate is authoritative even if the Pi subprocess retained a stale merge registration (16 §10.2).
-      const visibleRegistry = getSessionToolRegistry({
-        includeDeveloperFeedback: FEATURE_FLAGS.developerFeedback,
-        surface: 'pi',
-        agentKind: this.isMiniAgent() ? 'mini' : 'full',
-      });
+      const visibleRegistry = getSessionToolRegistry(getPiSessionToolFilterOptions(this.sessionToolProfileOptions()));
       const def = visibleRegistry.get(toolName);
       if (!def) {
         return { content: `Unknown session tool: ${toolName}`, isError: true };
@@ -1889,6 +1913,7 @@ export class PiAgent extends BaseAgent {
 
     // Drop any cached pre-tool metadata for the dead subprocess.
     this.preToolMetadataByCallId.clear();
+    this.bashCommandsByCallId.clear();
   }
 
   /**
@@ -2075,6 +2100,7 @@ export class PiAgent extends BaseAgent {
     this.turnAbort = new AbortController();
     this.eventQueue.reset();
     this.adapter.startTurn();
+    this.bashCommandsByCallId.clear();
 
     // Fire UserPromptSubmit hook event (fire-and-forget)
     this.emitAutomationEvent('UserPromptSubmit', {
@@ -2141,6 +2167,10 @@ export class PiAgent extends BaseAgent {
         yield { type: 'complete' };
         return;
       }
+
+      // U-API: apply live project/source visibility before the next model prompt, without a host restart.
+      this.refreshSessionToolsWithSubprocess();
+      this.registerPoolToolsWithSubprocess();
 
       // Build system prompt from a pinned session snapshot. Pi folds stable
       // blocks into its cached system prefix, so changing these mid-session
@@ -2423,8 +2453,9 @@ export class PiAgent extends BaseAgent {
     //   2. McpClientPool sync (connecting/disconnecting MCP + API sources)
     await super.setSourceServers(mcpServers, apiServers, intendedSlugs);
 
-    // Register pool's proxy tool defs with subprocess so the model can call them.
+    // U-API: source changes also change the Coding session-tool filter.
     this.registerPoolToolsWithSubprocess();
+    this.refreshSessionToolsWithSubprocess();
   }
 
   // ============================================================
@@ -2453,6 +2484,7 @@ export class PiAgent extends BaseAgent {
 
     // Clear bridge cache for this interrupted turn.
     this.preToolMetadataByCallId.clear();
+    this.bashCommandsByCallId.clear();
   }
 
   forceAbort(reason: AbortReason): void {
@@ -2487,6 +2519,7 @@ export class PiAgent extends BaseAgent {
 
     // Clear bridge cache for aborted turn.
     this.preToolMetadataByCallId.clear();
+    this.bashCommandsByCallId.clear();
 
     // For PlanSubmitted and AuthRequest, just interrupt the turn
     if (reason === AbortReason.PlanSubmitted || reason === AbortReason.AuthRequest) {
@@ -2644,7 +2677,10 @@ export class PiAgent extends BaseAgent {
     this.subprocessReady = null;
     this.subprocessReadyResolve = null;
     this.callbackPort = 0;
+    this.sessionToolsSignature = null;
+    this.sourceToolsSignature = null;
     this.preToolMetadataByCallId.clear();
+    this.bashCommandsByCallId.clear();
     this.adapter.resetRecoveryState();
 
     if (result) {
@@ -2688,7 +2724,10 @@ export class PiAgent extends BaseAgent {
     this.subprocessReady = null;
     this.subprocessReadyResolve = null;
     this.callbackPort = 0;
+    this.sessionToolsSignature = null;
+    this.sourceToolsSignature = null;
     this.preToolMetadataByCallId.clear();
+    this.bashCommandsByCallId.clear();
 
     // Clear any in-flight overflow/auto-retry recovery state so a stale
     // fallback timer doesn't fire on a torn-down adapter.
