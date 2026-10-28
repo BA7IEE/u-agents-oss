@@ -1,6 +1,6 @@
 # v0.15.5 → v0.15.6 详细升级方案
 
-> 执行进度（2026-10-29）：已按本轮“修订后开始落地”指令在独立候选实施，实时结果见[执行记录](UPGRADE-EXECUTION-v0.15.6-20261028.md)。下述“未执行”描述保留初次规划时点。
+> 执行进度（2026-10-29）：已按本轮“修订后开始落地”指令在独立候选实施；源码提交 `43367c5e`，macOS 本地测试包和限定验收已完成，结果见[执行记录](UPGRADE-EXECUTION-v0.15.6-20261028.md)。下述“未执行”描述保留初次规划时点。
 > 核查日期：2026-10-28。修订：**r3，已补齐 R1–R4 的实现规则与验收；用户已要求修订后开始落地，实施结果另记**。
 > 初版依据本地源码、GitHub 固定版本差异和既有验收记录；本轮按[第一轮评审](UPGRADE-PLAN-REVIEW-v0.15.6-20261028.md)修订方案、文件清单和评审跟踪 Markdown。未 fetch、merge、创建候选工作树、安装依赖、运行测试、构建或发布。
 > 配套：[93 个文件的逐项清单](UPGRADE-FILE-INVENTORY-v0.15.6-20261028.md)。规则依据：[CLAUDE.md](../CLAUDE.md)、[PRODUCT.md](../PRODUCT.md)、[同步 SOP](07-upstream-sync.md)、[冲突区](08-conflict-zones.md)、[网关规格](02-llm-gateway-spec.md)、[功能裁剪](04-feature-cuts.md)、[改造点登记](14-uapi-marker-registry.md)。
