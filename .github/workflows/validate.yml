@@ -16,16 +16,17 @@ jobs:
     runs-on: ubuntu-latest
     env:
       U_AGENTS_ALLOW_CODE: '1'
-      U_AGENTS_CONFIG_DIR: ${{ runner.temp }}/u-agents-validate-config
-      CRAFT_CONFIG_DIR: ${{ runner.temp }}/u-agents-validate-config
-      CLAUDE_CONFIG_DIR: ${{ runner.temp }}/u-agents-validate-claude
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Prepare isolated configuration before Bun
-        run: mkdir -p "$U_AGENTS_CONFIG_DIR" "$CLAUDE_CONFIG_DIR"
+        run: |
+          candidate_config="$RUNNER_TEMP/u-agents-validate-config"
+          candidate_claude="$RUNNER_TEMP/u-agents-validate-claude"
+          mkdir -p "$candidate_config" "$candidate_claude"
+          printf 'U_AGENTS_CONFIG_DIR=%s\nCRAFT_CONFIG_DIR=%s\nCLAUDE_CONFIG_DIR=%s\n' "$candidate_config" "$candidate_config" "$candidate_claude" >> "$GITHUB_ENV"
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
