@@ -8,9 +8,9 @@
 
 ## 0. 当前基线（速查）
 
-| 指标 | 基线（2026-10-23 v0.15.5 GUI 修订候选；未合主线）| 下次同步允许浮动 |
+| 指标 | 基线（2026-10-29 v0.15.6 独立候选；未合主线）| 下次同步允许浮动 |
 |---|---|---|
-| U-API 标记总数（含全部注释格式）| **239** | ±2 |
+| U-API 标记总数（含全部注释格式）| **263** | ±2 |
 | `/* U-API START */` 块数 | **9** | 必须等于 END |
 | `/* U-API END */` 块数 | **9** | 必须等于 START |
 
@@ -21,7 +21,7 @@
 # 覆盖 //、/*、HTML、JSX 全部注释格式。
 git grep -n -E '(//|/\*|\{/\*|<!--)[[:space:]]*U-API' -- \
   'apps/**/*.ts' 'apps/**/*.tsx' 'packages/**/*.ts' 'packages/**/*.tsx' | wc -l
-# 期望：239（候选基线，允许 237-241）
+# 期望：263（候选基线，允许 261-265）
 
 # 块标记 START/END 配对（数量必须相等）
 git grep -n -F '/* U-API START' -- 'apps/**/*.ts' 'apps/**/*.tsx' 'packages/**/*.ts' 'packages/**/*.tsx' | wc -l
@@ -281,6 +281,19 @@ if (!apiKey && connection.baseUrl) {
 
 逐项增减、44 个上游交集文件的语义处置与完整清单见 [`UPGRADE-MARKERS-v0.15.5-20261022.md`](UPGRADE-MARKERS-v0.15.5-20261022.md)。旧 FAB 两处样式 lint 豁免随上游样式删除；设置页旧块和 TurnCard 旧辅助函数标记随结构迁移，未关闭多连接或生图展示。
 
+**v0.15.6 候选适配（2026-10-29）**：原有 239 处逐条保留，新增 24 处，START/END 不变。逐项原文见本轮执行证据 `artifacts/marker-audit.json`。
+
+| # | 改造类别 | 文件 / 定位 | 回归证据 |
+|---|---|---|---|
+| 95 | R1：Pi 注册与执行使用同一套 feature/profile/source/project 条件；PR 工具限定 full Coding（3 处） | `shared/src/agent/backend/pi/session-tool-defs.ts`、`pi-agent.ts`、`session-tools-core/src/tool-defs.ts` | `pi-coding-tools.test.ts`、`session-tool-profiles.test.ts` |
+| 96 | R2：Explore 按 canonical 权限元数据分类，保留产品和反馈开关（1 处） | `shared/src/agent/mode-manager.ts` | Pi 实际 pre-tool 流程、`claude-coding-permissions.isolated.ts` |
+| 97 | R3：Bash start/result 内存关联、生命周期清理和旧子进程事件失效（3 处） | `shared/src/agent/pi-agent.ts` | `pi-coding-tools.test.ts` 的原始事件链 |
+| 98 | R4：host 实时项目 getter、下一轮刷新、session/sources 分组替换和空集合撤销（9 处） | backend types/BaseAgent/SessionManager/PiAgent；`pi-agent-server/src/{index,proxy-tool-registry,proxy-tool-registry.test}.ts` | 活跃 agent 测试、scoped registry 测试、包内五轮 loopback 验证 |
+| 99 | A1：异步检查 generation、最新 PR/目录/权限复核、dispose 失效、host 唤醒复核（5 处） | `server-core/src/pr-watch/auto-fix.ts`、`auto-fix.test.ts`、`sessions/SessionManager.ts` | 正常触发 + 11 种悬挂期间变更 + subscribe/dispose |
+| 100t | 集成与环境回归测试声明（3 处） | `pi-coding-tools.test.ts`、`claude-coding-permissions.isolated.ts`、`validate-file-path.test.ts` | 两后端实际权限入口；独立 TMPDIR 下 /tmp 别名校验 |
+
+---
+
 ## 4. Build 脚本 marker（M2 后期补充，不计入主基线）
 
 主基线 grep 命令仅扫 `packages` + `apps` 下的 `.ts/.tsx`，build 脚本（`.sh` / `.ps1`）不在覆盖范围内——但仍需登记，方便上游同步时辨识改造点。
@@ -321,6 +334,8 @@ grep -rEn "U-API" apps/electron/scripts/ scripts/ 2>/dev/null | grep -v node_mod
 > **历史注解**：初版基线注释一度推断"实测多 1，是历史漂移"，但实际是 §3 表漏登记了 v0.9.5 sync 自身的 #54 model-picker brand patch（marker 真实存在于代码中，被 grep 计入 98，但子表登记环节漏盘）。已通过补加"v0.9.5 sync 期间新增改造点"子表修正，无漂移。
 
 **历次基线演进**：
+
+- **v0.15.6 独立候选（2026-10-29）**：239 → 263，原标记零删除、24 处新增，START/END 均为 9。已逐条核对；来源、冲突和测试见 `UPGRADE-EXECUTION-v0.15.6-20261028.md`。该记录不代表主线合并或正式发布。
 
 - **v0.15.5 GUI 修订候选（2026-10-23）**：针对 G-01 空 Token 停滞、G-02 分享入口、G-03 中文文案修订，14 个主源码/测试文件净增 16 个 marker，START/END 均不变；当前基线只以 §0 为准。逐文件增减见 `/private/tmp/uagents-v0155-execution-20261022/revision-20261023/artifacts/marker-audit.json`。完整测试 6,743 pass、12 原有 skip，16 个 isolated 入口另 195 pass；未合主线、未发布。
 - **v0.15.5 独立候选（2026-10-22）**：原 216 处逐条核对，206 处原注释原样保留，10 个旧出现项经迁移/退役，新增或改写 17 个出现项；新总数与配对数见 §0。44 个上游交集文件按功能核对。当前仅候选，未合回主线、未发布，GUI 与 G12 未验收。详见 `UPGRADE-MARKERS-v0.15.5-20261022.md`。

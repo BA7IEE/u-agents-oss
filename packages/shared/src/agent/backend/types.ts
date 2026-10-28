@@ -158,6 +158,9 @@ export interface CoreBackendConfig {
   /** Session configuration (for resume) */
   session?: Session;
 
+  // U-API: host-only live binding; undefined from the getter means explicitly unbound.
+  getCurrentProjectId?: () => string | undefined;
+
   /** Initial model ID */
   model?: string;
 

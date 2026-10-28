@@ -45,7 +45,7 @@ const bodies: any[] = []
 const server = Bun.serve({ hostname: '127.0.0.1', port: Number(process.env.U_AGENTS_SMOKE_PORT ?? 0), async fetch(request) {
   if (new URL(request.url).pathname !== '/v1/chat/completions' || request.method !== 'POST') return new Response('Rejected', { status: 400 })
   bodies.push(await request.json())
-  if (bodies.length > 1) return new Response('One request only', { status: 400 })
+  if (bodies.length > 5) return new Response('Fixture request limit', { status: 400 })
   const start = { id: 'fixture', object: 'chat.completion.chunk', created: 1, model: 'synthetic-chat', choices: [{ index: 0, delta: { role: 'assistant', content: 'PACKAGED_IMAGE_OK' }, finish_reason: null }] }
   const end = { ...start, choices: [{ index: 0, delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 10, completion_tokens: 3, total_tokens: 13 } }
   return new Response(`data: ${JSON.stringify(start)}\n\ndata: ${JSON.stringify(end)}\n\ndata: [DONE]\n\n`, { headers: { 'content-type': 'text/event-stream' } })
@@ -95,9 +95,36 @@ try {
   if (images.length !== 1 || !(images[0].image_url.url as string).startsWith('data:image/png;base64,')) throw new Error('Pi did not send the packaged image')
   if ((body.max_completion_tokens ?? body.max_tokens) !== 32768) throw new Error('Output cap was not preserved')
   if (!JSON.stringify(events).includes('PACKAGED_IMAGE_OK')) throw new Error('Pi reply missing')
+  // U-API: the living child must replace scopes at real model boundaries, including empty revocations.
+  const def = (name: string) => ({ name, description: 'Synthetic scoped tool', inputSchema: { type: 'object', properties: {} } })
+  const names = (request: any) => (request.tools ?? []).map((tool: any) => tool.function?.name ?? tool.name)
+  const next = async () => {
+    const completed = events.filter(value => value.type === 'event' && value.event?.type === 'agent_end').length
+    send({ type: 'prompt', id: `scopes-${completed}`, message: 'Return PACKAGED_IMAGE_OK without tools.', systemPrompt: 'Synthetic fixture. Do not call tools.' })
+    const deadline = Date.now() + 30_000
+    while (events.filter(value => value.type === 'event' && value.event?.type === 'agent_end').length <= completed) {
+      if (closed || events.some(value => value.type === 'error') || Date.now() > deadline) throw new Error('Scoped model boundary failed: ' + stderr)
+      await Bun.sleep(30)
+    }
+    return names(bodies.at(-1))
+  }
+  send({ type: 'register_tools', scope: 'sources', tools: [def('mcp__source__read')] })
+  send({ type: 'register_tools', scope: 'session', tools: [def('mcp__session__pr_status'), def('mcp__session__project_memory_append')] })
+  let visible = await next()
+  if (!visible.includes('mcp__source__read') || !visible.includes('mcp__session__project_memory_append')) throw new Error('Scoped additions missing from provider tools')
+  send({ type: 'register_tools', scope: 'session', tools: [def('mcp__session__pr_status')] })
+  visible = await next()
+  if (visible.includes('mcp__session__project_memory_append') || !visible.includes('mcp__source__read')) throw new Error('Session revocation corrupted tool scopes')
+  send({ type: 'register_tools', scope: 'sources', tools: [] })
+  visible = await next()
+  if (visible.includes('mcp__source__read') || !visible.includes('mcp__session__pr_status')) throw new Error('Empty source revocation failed')
+  send({ type: 'register_tools', tools: [def('mcp__source__legacy')] })
+  visible = await next()
+  if (!visible.includes('mcp__source__legacy') || !visible.includes('mcp__session__pr_status')) throw new Error('Legacy registration stopped merging')
+  if (bodies.length !== 5) throw new Error('Unexpected scoped fixture request count')
   await Bun.write(report, JSON.stringify({ result: 'PASS', commit: process.env.GITHUB_SHA ?? null, platform, bun: version,
     uv: uv.stdout.toString().trim(), preload: true, quickjs: 42, pi: true, photonImageCount: images.length, outputCap: 32768,
-    requests: 1, syntheticOnly: true, realGatewayRequests: 0, configRoot: process.env.U_AGENTS_CONFIG_DIR }, null, 2))
+    requests: bodies.length, scopedRegistration: true, syntheticOnly: true, realGatewayRequests: 0, configRoot: process.env.U_AGENTS_CONFIG_DIR }, null, 2))
   console.log('PACKAGED_RUNTIME_CHECK_PASS')
 } finally {
   try { send({ type: 'shutdown' }) } catch {}

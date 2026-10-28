@@ -20,7 +20,7 @@ import { existsSync, realpathSync } from 'fs';
 import { debug } from '../utils/debug.ts';
 import { isReadOnlyMcpToolName } from './mcp-tool-names.ts';
 import { dirname, isAbsolute, relative, resolve } from 'path';
-import { getSessionSafeAllowedToolNames } from '@u-agents/session-tools-core';
+import { SESSION_TOOL_REGISTRY } from '@u-agents/session-tools-core';
 import { FEATURE_FLAGS } from '../feature-flags.ts';
 import { isBrowserToolNameOrAlias } from './browser-tool-names.ts';
 import type { PermissionsContext, MergedPermissionsConfig } from './permissions-config.ts';
@@ -2067,15 +2067,12 @@ export function shouldAllowToolInMode(
   if (toolName.startsWith('mcp__')) {
     // Handle session-scoped tools - derive safe-mode behavior from canonical session-tools-core metadata
     if (toolName.startsWith('mcp__session__')) {
-      const safeAllowedSessionTools = getSessionSafeAllowedToolNames({
-        prefix: 'mcp__session__',
-        includeDeveloperFeedback: FEATURE_FLAGS.developerFeedback,
-        // Classification, not visibility: `decide` is read-only and Explore-safe
-        // whenever the backend advertised it.
-        includeDecide: true,
-      });
-
-      if (safeAllowedSessionTools.has(toolName)) {
+      // U-API: classify canonical metadata independently of profile visibility; unknown tools stay denied.
+      const name = toolName.slice('mcp__session__'.length);
+      const def = SESSION_TOOL_REGISTRY.get(name);
+      const featureAllowed = (name !== 'decide' || U_AGENTS_FEATURE_POLICY.decisionLayerAllowed)
+        && (name !== 'send_developer_feedback' || FEATURE_FLAGS.developerFeedback);
+      if (featureAllowed && def?.safeMode === 'allow') {
         return { allowed: true };
       }
 
